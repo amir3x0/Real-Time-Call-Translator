@@ -1,50 +1,52 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-import os
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker, declarative_base
+from app.config.settings import settings
 
-# Get database URL from environment
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://rtcuser:rtcpass123@localhost:5432/rtcdb"
+# Build async database URL with asyncpg driver
+DATABASE_URL = (
+    f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PASSWORD}"
+    f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 )
 
-# Create engine
-engine = create_engine(
+# Create async engine
+engine = create_async_engine(
     DATABASE_URL,
+    echo=settings.DEBUG,
+    future=True,
     pool_pre_ping=True,
     pool_size=10,
-    max_overflow=20,
-    echo=True  # Set to False in production
+    max_overflow=20
 )
 
-# Create session factory
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
+# Create async session factory
+AsyncSessionLocal = sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False
 )
 
 # Base class for models
 Base = declarative_base()
 
+
 # Dependency for FastAPI
-def get_db():
+async def get_db():
     """Database dependency for FastAPI endpoints"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    async with AsyncSessionLocal() as session:
+        yield session
+
 
 # Initialize database
-def init_db():
+async def init_db():
     """Create all tables"""
-    Base.metadata.create_all(bind=engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     print("✅ Database initialized")
 
+
 # Drop all tables (for development)
-def reset_db():
+async def reset_db():
     """Drop all tables - USE WITH CAUTION"""
-    Base.metadata.drop_all(bind=engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
     print("⚠️ Database reset")

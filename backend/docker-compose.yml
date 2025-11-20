@@ -4,36 +4,36 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: rtc_postgres
+    container_name: translator_db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-rtcuser}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rtcpass123}
-      POSTGRES_DB: ${POSTGRES_DB:-rtcdb}
+      POSTGRES_USER: ${DB_USER:-translator_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Tr@nsl@t0r2024!}
+      POSTGRES_DB: ${DB_NAME:-call_translator}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - translator_postgres_data:/var/lib/postgresql/data
       - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
-      - rtc_network
+      - translator_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rtcuser}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-translator_admin} -d ${DB_NAME:-call_translator}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
-  # Redis Cache
+  # Redis Cache & Message Broker
   redis:
     image: redis:7-alpine
-    container_name: rtc_redis
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redispass123}
+    container_name: translator_cache
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-R3d!sC@che2024}
     volumes:
-      - redis_data:/data
+      - translator_redis_data:/data
     ports:
       - "6379:6379"
     networks:
-      - rtc_network
+      - translator_network
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 10s
@@ -46,16 +46,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: rtc_backend
+    container_name: translator_api
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-rtcuser}:${POSTGRES_PASSWORD:-rtcpass123}@postgres:5432/${POSTGRES_DB:-rtcdb}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-redispass123}@redis:6379
+      - DATABASE_URL=postgresql://${DB_USER:-translator_admin}:${DB_PASSWORD:-Tr@nsl@t0r2024!}@postgres:5432/${DB_NAME:-call_translator}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-R3d!sC@che2024}@redis:6379
       - GOOGLE_APPLICATION_CREDENTIALS=/app/config/google-credentials.json
     volumes:
       - ./app:/app/app
       - ./tests:/app/tests
       - ./data:/app/data
-      - ${GOOGLE_CREDS_PATH}:/app/config/google-credentials.json:ro
     ports:
       - "8000:8000"
     depends_on:
@@ -64,30 +63,30 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - rtc_network
+      - translator_network
     restart: unless-stopped
 
-  # pgAdmin (optional, for database management)
+  # pgAdmin for database management
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: rtc_pgadmin
+    container_name: translator_dbadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@rtc.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@calltranslator.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-PgAdm!n2024}
     ports:
       - "5050:80"
     networks:
-      - rtc_network
+      - translator_network
     depends_on:
       - postgres
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  translator_postgres_data:
     driver: local
-  redis_data:
+  translator_redis_data:
     driver: local
 
 networks:
-  rtc_network:
+  translator_network:
     driver: bridge
