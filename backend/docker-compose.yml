@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rtc_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rtcuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rtcpass123}
+      POSTGRES_DB: ${POSTGRES_DB:-rtcdb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - rtc_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rtcuser}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: rtc_redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redispass123}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - rtc_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rtc_backend
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-rtcuser}:${POSTGRES_PASSWORD:-rtcpass123}@postgres:5432/${POSTGRES_DB:-rtcdb}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redispass123}@redis:6379
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/config/google-credentials.json
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./data:/app/data
+      - ${GOOGLE_CREDS_PATH}:/app/config/google-credentials.json:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rtc_network
+    restart: unless-stopped
+
+  # pgAdmin (optional, for database management)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: rtc_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@rtc.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    networks:
+      - rtc_network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  rtc_network:
+    driver: bridge
