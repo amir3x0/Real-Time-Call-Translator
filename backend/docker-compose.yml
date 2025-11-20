@@ -1,14 +1,12 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: translator_db
     environment:
-      POSTGRES_USER: ${DB_USER:-translator_admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-Tr@nsl@t0r2024!}
-      POSTGRES_DB: ${DB_NAME:-call_translator}
+      POSTGRES_USER: translator_admin
+      POSTGRES_PASSWORD: TranslatorPass2024
+      POSTGRES_DB: call_translator
     volumes:
       - translator_postgres_data:/var/lib/postgresql/data
       - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
@@ -17,7 +15,7 @@ services:
     networks:
       - translator_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-translator_admin} -d ${DB_NAME:-call_translator}"]
+      test: ["CMD-SHELL", "pg_isready -U translator_admin -d call_translator"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,7 +25,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: translator_cache
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-R3d!sC@che2024}
+    command: redis-server --appendonly yes --requirepass RedisCache2024
     volumes:
       - translator_redis_data:/data
     ports:
@@ -43,13 +41,17 @@ services:
 
   # Backend API
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: translator-backend
     container_name: translator_api
     environment:
-      - DATABASE_URL=postgresql://${DB_USER:-translator_admin}:${DB_PASSWORD:-Tr@nsl@t0r2024!}@postgres:5432/${DB_NAME:-call_translator}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-R3d!sC@che2024}@redis:6379
+      - DB_USER=translator_admin
+      - DB_PASSWORD=TranslatorPass2024
+      - DB_NAME=call_translator
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=RedisCache2024
       - GOOGLE_APPLICATION_CREDENTIALS=/app/config/google-credentials.json
     volumes:
       - ./app:/app/app
@@ -71,8 +73,8 @@ services:
     image: dpage/pgadmin4:latest
     container_name: translator_dbadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@calltranslator.local}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-PgAdm!n2024}
+      PGADMIN_DEFAULT_EMAIL: admin@calltranslator.local
+      PGADMIN_DEFAULT_PASSWORD: PgAdmin2024
     ports:
       - "5050:80"
     networks:
