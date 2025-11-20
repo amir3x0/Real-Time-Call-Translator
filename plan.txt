@@ -1,0 +1,1571 @@
+#!/usr/bin/env python3
+"""
+Real-Time Call Translation - Work Plan PDF Generator
+Creates a comprehensive 10-week work plan document
+"""
+
+from reportlab.lib.pagesizes import A4, letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch, cm
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_JUSTIFY, TA_LEFT
+from reportlab.lib import colors
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle,
+    Frame, PageTemplate, BaseDocTemplate, NextPageTemplate
+)
+from reportlab.pdfgen import canvas
+from reportlab.lib.colors import HexColor
+from datetime import datetime, timedelta
+
+class WorkPlanPDF:
+    """Generate comprehensive work plan PDF"""
+    
+    def __init__(self):
+        self.filename = "/mnt/user-data/outputs/RealTime_CallTranslation_WorkPlan.pdf"
+        self.doc = SimpleDocTemplate(
+            self.filename,
+            pagesize=A4,
+            rightMargin=2*cm,
+            leftMargin=2*cm,
+            topMargin=2*cm,
+            bottomMargin=2*cm
+        )
+        
+        # Colors
+        self.primary_color = HexColor('#1976D2')
+        self.secondary_color = HexColor('#424242')
+        self.accent_color = HexColor('#FF5722')
+        self.light_gray = HexColor('#F5F5F5')
+        
+        # Styles
+        self.styles = getSampleStyleSheet()
+        self._setup_custom_styles()
+        
+        # Story (content)
+        self.story = []
+    
+    def _setup_custom_styles(self):
+        """Setup custom paragraph styles"""
+        
+        # Title
+        self.styles.add(ParagraphStyle(
+            name='CustomTitle',
+            parent=self.styles['Heading1'],
+            fontSize=24,
+            textColor=self.primary_color,
+            spaceAfter=30,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
+        ))
+        
+        # Subtitle
+        self.styles.add(ParagraphStyle(
+            name='Subtitle',
+            parent=self.styles['Normal'],
+            fontSize=14,
+            textColor=self.secondary_color,
+            spaceAfter=20,
+            alignment=TA_CENTER,
+            fontName='Helvetica'
+        ))
+        
+        # Week Header
+        self.styles.add(ParagraphStyle(
+            name='WeekHeader',
+            parent=self.styles['Heading1'],
+            fontSize=18,
+            textColor=colors.white,
+            spaceAfter=12,
+            spaceBefore=20,
+            backColor=self.primary_color,
+            borderPadding=10,
+            fontName='Helvetica-Bold'
+        ))
+        
+        # Day Header
+        self.styles.add(ParagraphStyle(
+            name='DayHeader',
+            parent=self.styles['Heading2'],
+            fontSize=14,
+            textColor=self.primary_color,
+            spaceAfter=8,
+            spaceBefore=12,
+            fontName='Helvetica-Bold'
+        ))
+        
+        # Task Title
+        self.styles.add(ParagraphStyle(
+            name='TaskTitle',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            textColor=self.secondary_color,
+            spaceAfter=6,
+            fontName='Helvetica-Bold'
+        ))
+        
+        # Hebrew support
+        self.styles.add(ParagraphStyle(
+            name='HebrewText',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            alignment=TA_RIGHT,
+            fontName='Helvetica'
+        ))
+    
+    def add_cover_page(self):
+        """Add cover page"""
+        
+        # Logo placeholder (you can add actual image)
+        self.story.append(Spacer(1, 2*inch))
+        
+        # Title
+        title = Paragraph(
+            "Real-Time Call Translation",
+            self.styles['CustomTitle']
+        )
+        self.story.append(title)
+        
+        subtitle = Paragraph(
+            "Complete 10-Week Work Plan<br/>18.11.2025 → 26.1.2026",
+            self.styles['Subtitle']
+        )
+        self.story.append(subtitle)
+        self.story.append(Spacer(1, 0.5*inch))
+        
+        # Team info
+        team_data = [
+            ['Project Code:', '25-2-D-5'],
+            ['Team Members:', 'Amir Mishayev, Daniel Fraimovich'],
+            ['Advisors:', 'Dr. Dan Lemberg, Mrs. Elena Kramer'],
+            ['Institution:', 'Braude College - Software Engineering'],
+            ['Duration:', '10 Weeks (69 Days)'],
+            ['Final Presentation:', 'January 26, 2026']
+        ]
+        
+        team_table = Table(team_data, colWidths=[4*cm, 10*cm])
+        team_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('TEXTCOLOR', (0, 0), (0, -1), self.primary_color),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        
+        self.story.append(team_table)
+        self.story.append(Spacer(1, 1*inch))
+        
+        # Abstract
+        abstract = Paragraph(
+            "<b>Project Summary:</b> Development of a cross-platform mobile application "
+            "enabling real-time multilingual voice communication with AI-powered voice cloning. "
+            "Supports Hebrew, English, and Russian for 2-4 simultaneous participants.",
+            self.styles['Normal']
+        )
+        self.story.append(abstract)
+        
+        self.story.append(PageBreak())
+    
+    def add_table_of_contents(self):
+        """Add table of contents"""
+        
+        toc_title = Paragraph("Table of Contents", self.styles['CustomTitle'])
+        self.story.append(toc_title)
+        self.story.append(Spacer(1, 0.3*inch))
+        
+        toc_items = [
+            ("1. Overview & Timeline", "3"),
+            ("2. Week 1: Project Setup & Infrastructure", "5"),
+            ("3. Week 2: Google APIs Integration", "12"),
+            ("4. Week 3: WebSocket & Real-Time Core", "18"),
+            ("5. Week 4: Translation Pipeline & Audio", "24"),
+            ("6. Week 5: Flutter UI & User Experience", "30"),
+            ("7. Week 6: Voice Cloning Integration", "36"),
+            ("8. Week 7: Testing & Optimization", "42"),
+            ("9. Week 8: Documentation - Project Book", "48"),
+            ("10. Week 9: Poster & Video Production", "54"),
+            ("11. Week 10: Final Preparations", "60"),
+            ("12. Success Criteria & Metrics", "66"),
+            ("13. Risk Management", "68"),
+            ("14. Resources & Tools", "70"),
+        ]
+        
+        toc_data = [[item[0], item[1]] for item in toc_items]
+        
+        toc_table = Table(toc_data, colWidths=[13*cm, 2*cm])
+        toc_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        
+        self.story.append(toc_table)
+        self.story.append(PageBreak())
+    
+    def add_overview(self):
+        """Add project overview and timeline"""
+        
+        title = Paragraph("1. Overview & Timeline", self.styles['CustomTitle'])
+        self.story.append(title)
+        
+        # Project goals
+        goals = Paragraph(
+            "<b>Project Goals:</b>",
+            self.styles['Heading2']
+        )
+        self.story.append(goals)
+        
+        goals_list = """
+        • Develop a real-time voice translation system with &lt;1s latency<br/>
+        • Support 2-4 simultaneous participants in multilingual calls<br/>
+        • Implement voice cloning to preserve speaker identity<br/>
+        • Create cross-platform mobile app (Android & iOS) using Flutter<br/>
+        • Design user-friendly interface for non-technical users<br/>
+        • Deploy using Docker for consistency and portability<br/>
+        • Integrate with Google Cloud APIs (STT, Translate, TTS)<br/>
+        • Produce comprehensive documentation and demonstration materials
+        """
+        
+        goals_para = Paragraph(goals_list, self.styles['Normal'])
+        self.story.append(goals_para)
+        self.story.append(Spacer(1, 0.3*inch))
+        
+        # Timeline overview
+        timeline_title = Paragraph("<b>10-Week Timeline Overview:</b>", self.styles['Heading2'])
+        self.story.append(timeline_title)
+        
+        timeline_data = [
+            ['Week', 'Dates', 'Focus', 'Deliverables'],
+            ['1-2', '18.11-1.12', 'Setup & Infrastructure', 'Docker, Database, Google APIs'],
+            ['3-4', '2.12-15.12', 'Real-Time Core', 'WebSocket, Translation Pipeline'],
+            ['5', '16.12-22.12', 'Flutter UI', 'Complete Mobile Interface'],
+            ['6', '23.12-29.12', 'Voice Cloning', 'xTTS Integration'],
+            ['7', '30.12-5.1', 'Testing', 'System Validation'],
+            ['8', '6.1-12.1', 'Documentation', 'Project Book, Guides'],
+            ['9', '13.1-19.1', 'Presentation', 'Poster, Video'],
+            ['10', '20.1-26.1', 'Final Prep', 'Submission & Demo'],
+        ]
+        
+        timeline_table = Table(timeline_data, colWidths=[1.5*cm, 3*cm, 4*cm, 6.5*cm])
+        timeline_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), self.primary_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), self.light_gray),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        self.story.append(timeline_table)
+        self.story.append(Spacer(1, 0.3*inch))
+        
+        # Key milestones
+        milestones = Paragraph("<b>Critical Milestones:</b>", self.styles['Heading2'])
+        self.story.append(milestones)
+        
+        milestones_data = [
+            ['Date', 'Milestone', 'Critical?'],
+            ['7.12', 'Backend Core Working', '✓ CRITICAL'],
+            ['14.12', 'WebSocket + Translation', '✓ CRITICAL'],
+            ['21.12', 'Flutter App Basic', '✓ CRITICAL'],
+            ['28.12', 'End-to-End Integration', '✓ CRITICAL'],
+            ['4.1', 'Voice Cloning Working', '⚠ Important'],
+            ['11.1', 'Demo Ready', '✓ CRITICAL'],
+            ['18.1', 'Project Book Complete', '✓ CRITICAL'],
+            ['23.1', 'Everything Ready', '✓ CRITICAL'],
+        ]
+        
+        milestones_table = Table(milestones_data, colWidths=[3*cm, 8*cm, 4*cm])
+        milestones_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), self.secondary_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        
+        self.story.append(milestones_table)
+        self.story.append(PageBreak())
+    
+    def add_week_details(self, week_num, title, date_range, days_details):
+        """Add detailed week plan
+        
+        Args:
+            week_num: Week number (1-10)
+            title: Week title
+            date_range: Date range string
+            days_details: List of dictionaries with day details
+        """
+        
+        # Week header
+        week_header = Paragraph(
+            f"Week {week_num}: {title}<br/>{date_range}",
+            self.styles['WeekHeader']
+        )
+        self.story.append(week_header)
+        self.story.append(Spacer(1, 0.2*inch))
+        
+        # Add each day
+        for day_info in days_details:
+            # Day header
+            day_header = Paragraph(
+                f"Day {day_info['day']}: {day_info['date']} - {day_info['title']}",
+                self.styles['DayHeader']
+            )
+            self.story.append(day_header)
+            
+            # Responsible person
+            if 'responsible' in day_info:
+                resp = Paragraph(
+                    f"<b>Responsible:</b> {day_info['responsible']} | <b>Hours:</b> {day_info.get('hours', '8')}",
+                    self.styles['Normal']
+                )
+                self.story.append(resp)
+                self.story.append(Spacer(1, 0.1*inch))
+            
+            # Tasks
+            for task in day_info.get('tasks', []):
+                task_title = Paragraph(
+                    f"✓ <b>{task['title']}</b>",
+                    self.styles['TaskTitle']
+                )
+                self.story.append(task_title)
+                
+                if 'description' in task:
+                    task_desc = Paragraph(
+                        task['description'],
+                        self.styles['Normal']
+                    )
+                    self.story.append(task_desc)
+                
+                if 'code' in task:
+                    # Code snippet - simplified
+                    code_para = Paragraph(
+                        f"<font face='Courier' size=9>{task['code'][:200]}...</font>",
+                        self.styles['Normal']
+                    )
+                    self.story.append(code_para)
+                
+                self.story.append(Spacer(1, 0.1*inch))
+            
+            # Deliverable
+            if 'deliverable' in day_info:
+                deliv = Paragraph(
+                    f"<b>Deliverable:</b> {day_info['deliverable']}",
+                    ParagraphStyle(
+                        name='Deliverable',
+                        parent=self.styles['Normal'],
+                        textColor=self.accent_color,
+                        fontName='Helvetica-Bold'
+                    )
+                )
+                self.story.append(deliv)
+            
+            self.story.append(Spacer(1, 0.15*inch))
+        
+        self.story.append(PageBreak())
+    
+    def build(self):
+        """Build the complete PDF"""
+        
+        # Add cover
+        self.add_cover_page()
+        
+        # Add TOC
+        self.add_table_of_contents()
+        
+        # Add overview
+        self.add_overview()
+        
+        # Week 1-2
+        self.add_week_1_2()
+        
+        # Week 3-4
+        self.add_week_3_4()
+        
+        # Week 5
+        self.add_week_5()
+        
+        # Week 6
+        self.add_week_6()
+        
+        # Week 7
+        self.add_week_7()
+        
+        # Week 8
+        self.add_week_8()
+        
+        # Week 9
+        self.add_week_9()
+        
+        # Week 10
+        self.add_week_10()
+        
+        # Add appendices
+        self.add_success_criteria()
+        self.add_risk_management()
+        self.add_resources()
+        
+        # Build PDF
+        self.doc.build(self.story)
+        
+        print(f"✅ PDF created successfully: {self.filename}")
+        return self.filename
+    
+    def add_week_1_2(self):
+        """Add Week 1-2 details"""
+        
+        days = [
+            {
+                'day': '1',
+                'date': 'Monday 18.11',
+                'title': 'Environment Setup',
+                'responsible': 'Both Team Members',
+                'hours': '8',
+                'tasks': [
+                    {
+                        'title': 'GitHub Repository Setup',
+                        'description': 'Create repository with branch structure (main, develop, staging). '
+                                     'Setup branch protection rules and Git workflow documentation.'
+                    },
+                    {
+                        'title': 'Development Tools Installation',
+                        'description': 'Install Python 3.10+, Docker, Docker Compose, Flutter SDK. '
+                                     'Verify installations with version checks.'
+                    },
+                    {
+                        'title': 'Project Structure Creation',
+                        'description': 'Create backend/ and flutter-app/ directories with initial structure. '
+                                     'Setup requirements.txt and .env.example files.'
+                    }
+                ],
+                'deliverable': 'Repository created, all tools installed, project structure ready'
+            },
+            {
+                'day': '2',
+                'date': 'Tuesday 19.11',
+                'title': 'Docker Setup & Database',
+                'responsible': 'Amir (Backend Lead)',
+                'hours': '8',
+                'tasks': [
+                    {
+                        'title': 'Docker Compose Configuration',
+                        'description': 'Create docker-compose.yml with PostgreSQL, Redis, and backend services. '
+                                     'Configure healthchecks and restart policies.'
+                    },
+                    {
+                        'title': 'Database Schema Design',
+                        'description': 'Create SQLAlchemy models for User, Call, CallParticipant, Contact, VoiceModel. '
+                                     'Setup database initialization scripts.'
+                    },
+                    {
+                        'title': 'Test Docker Environment',
+                        'description': 'Build containers, verify all services start correctly. '
+                                     'Test database connections and Redis cache.'
+                    }
+                ],
+                'deliverable': 'Docker environment running, database models created'
+            },
+            {
+                'day': '3',
+                'date': 'Wednesday 20.11',
+                'title': 'Database Models & Basic API',
+                'responsible': 'Amir',
+                'hours': '8',
+                'tasks': [
+                    {
+                        'title': 'Complete All Database Models',
+                        'description': 'Finish User, Call, and Contact models with relationships. '
+                                     'Add validation and helper methods.'
+                    },
+                    {
+                        'title': 'FastAPI Application Setup',
+                        'description': 'Create main FastAPI app with CORS, middleware, and basic endpoints. '
+                                     'Setup Swagger documentation.'
+                    },
+                    {
+                        'title': 'Health Check Endpoints',
+                        'description': 'Implement /health and / endpoints for monitoring.'
+                    }
+                ],
+                'deliverable': 'FastAPI app running with health checks'
+            },
+            {
+                'day': '4',
+                'date': 'Thursday 21.11',
+                'title': 'Flutter Project Setup',
+                'responsible': 'Daniel (Frontend Lead)',
+                'hours': '8',
+                'tasks': [
+                    {
+                        'title': 'Create Flutter Project',
+                        'description': 'Initialize Flutter project with proper organization. '
+                                     'Setup pubspec.yaml with all required dependencies.'
+                    },
+                    {
+                        'title': 'Project Structure & Navigation',
+                        'description': 'Create lib/ folder structure: models/, services/, screens/, widgets/, config/. '
+                                     'Setup navigation framework.'
+                    },
+                    {
+                        'title': 'Basic Models',
+                        'description': 'Create Dart models for User, Call, Participant matching backend schema.'
+                    }
+                ],
+                'deliverable': 'Flutter project structure complete, app running'
+            },
+            {
+                'day': '5',
+                'date': 'Friday 22.11',
+                'title': 'Google Cloud Setup',
+                'responsible': 'Both',
+                'hours': '8',
+                'tasks': [
+                    {
+                        'title': 'Google Cloud Project Creation',
+                        'description': 'Create GCP project, enable Speech-to-Text, Translation, and Text-to-Speech APIs. '
+                                     'Create service account with appropriate roles.'
+                    },
+                    {
+                        'title': 'Credentials Management',
+                        'description': 'Download JSON credentials, configure in backend. '
+                                     'Update .gitignore to protect sensitive files.'
+                    },
+                    {
+                        'title': 'Weekly Review',
+                        'description': 'Review all code written, test entire setup, commit to Git with proper PR.'
+                    }
+                ],
+                'deliverable': 'Week 1 complete, all infrastructure ready'
+            },
+            {
+                'day': '6-7',
+                'date': 'Sunday-Monday 25-26.11',
+                'title': 'Google Speech-to-Text Integration',
+                'responsible': 'Daniel',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Google STT Service',
+                        'description': 'Create GoogleSTTService class with async transcribe method. '
+                                     'Support Hebrew, English, Russian with proper language codes.'
+                    },
+                    {
+                        'title': 'Google Translate Service',
+                        'description': 'Implement GoogleTranslateService with caching support. '
+                                     'Handle language detection and translation for all language pairs.'
+                    },
+                    {
+                        'title': 'Testing',
+                        'description': 'Write unit tests for both services. Test with audio samples.'
+                    }
+                ],
+                'deliverable': 'STT and Translation services working'
+            },
+            {
+                'day': '8-9',
+                'date': 'Tuesday-Wednesday 27-28.11',
+                'title': 'Google TTS & API Endpoints',
+                'responsible': 'Amir + Daniel',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Google TTS Service',
+                        'description': 'Create GoogleTTSService with voice selection for each language. '
+                                     'Support different speaking rates and voice parameters.'
+                    },
+                    {
+                        'title': 'API Endpoints',
+                        'description': 'Create /api/google/speech-to-text, /api/google/translate, '
+                                     '/api/google/text-to-speech endpoints with proper error handling.'
+                    },
+                    {
+                        'title': 'Integration Testing',
+                        'description': 'Test complete STT → Translate → TTS pipeline end-to-end.'
+                    }
+                ],
+                'deliverable': 'Week 2 complete, all Google APIs integrated'
+            }
+        ]
+        
+        self.add_week_details(
+            1,
+            "Project Setup & Infrastructure",
+            "18.11 - 29.11",
+            days
+        )
+    
+    def add_week_3_4(self):
+        """Add Week 3-4 details"""
+        
+        days = [
+            {
+                'day': '11-12',
+                'date': 'Sunday-Monday 2-3.12',
+                'title': 'WebSocket Handler',
+                'responsible': 'Amir',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'ConnectionManager Class',
+                        'description': 'Build WebSocket connection manager to handle multiple calls. '
+                                     'Implement connect, disconnect, and broadcast methods.'
+                    },
+                    {
+                        'title': 'WebSocket Endpoint',
+                        'description': 'Create /ws/call/{call_id} endpoint with user authentication. '
+                                     'Handle audio messages and control messages (mute, ping).'
+                    },
+                    {
+                        'title': 'Message Routing',
+                        'description': 'Implement logic to route messages to correct participants.'
+                    }
+                ],
+                'deliverable': 'WebSocket infrastructure working'
+            },
+            {
+                'day': '13-14',
+                'date': 'Tuesday-Wednesday 4-5.12',
+                'title': 'Call Manager',
+                'responsible': 'Amir',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'CallSession Class',
+                        'description': 'Create CallSession to manage active calls with participants. '
+                                     'Handle join/leave events and state synchronization.'
+                    },
+                    {
+                        'title': 'CallManager Service',
+                        'description': 'Global call manager to handle multiple concurrent calls. '
+                                     'Integrate with database for persistence.'
+                    },
+                    {
+                        'title': 'Call API Endpoints',
+                        'description': 'Create /api/calls/create and /api/calls/{id}/end endpoints.'
+                    }
+                ],
+                'deliverable': 'Call management system complete'
+            },
+            {
+                'day': '15-17',
+                'date': 'Thursday-Saturday 6-8.12',
+                'title': 'Flutter WebSocket & Audio Services',
+                'responsible': 'Daniel',
+                'hours': '24',
+                'tasks': [
+                    {
+                        'title': 'WebSocketService',
+                        'description': 'Create Flutter WebSocket client with connection handling. '
+                                     'Implement send/receive with proper error handling.'
+                    },
+                    {
+                        'title': 'AudioService',
+                        'description': 'Implement audio recording and playback using flutter_sound. '
+                                     'Handle permissions and audio chunking.'
+                    },
+                    {
+                        'title': 'ApiService',
+                        'description': 'HTTP client for REST API calls to backend.'
+                    }
+                ],
+                'deliverable': 'Flutter services ready'
+            },
+            {
+                'day': '18-19',
+                'date': 'Sunday-Monday 9-10.12',
+                'title': 'Translation Pipeline',
+                'responsible': 'Amir',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'TranslationPipeline Class',
+                        'description': 'Orchestrate STT → Translate → TTS for multiple participants. '
+                                     'Implement parallel processing for efficiency.'
+                    },
+                    {
+                        'title': 'Streaming Processing',
+                        'description': 'Handle audio chunks with 200ms buffers for low latency.'
+                    },
+                    {
+                        'title': 'Performance Optimization',
+                        'description': 'Add caching, connection pooling, and parallel execution.'
+                    }
+                ],
+                'deliverable': 'Translation pipeline working end-to-end'
+            },
+            {
+                'day': '20-21',
+                'date': 'Tuesday-Wednesday 11-12.12',
+                'title': 'Audio Processing',
+                'responsible': 'Daniel',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Audio Recording',
+                        'description': 'Implement chunked audio recording at 16kHz mono. '
+                                     'Handle microphone permissions properly.'
+                    },
+                    {
+                        'title': 'Audio Playback',
+                        'description': 'Create audio playback queue to prevent overlapping. '
+                                     'Support multiple audio sources.'
+                    }
+                ],
+                'deliverable': 'Audio services complete'
+            },
+            {
+                'day': '22-24',
+                'date': 'Thursday-Saturday 13-15.12',
+                'title': 'Integration & Testing',
+                'responsible': 'Both',
+                'hours': '24',
+                'tasks': [
+                    {
+                        'title': 'End-to-End Integration',
+                        'description': 'Connect all components: Flutter → WebSocket → Pipeline → Back to Flutter'
+                    },
+                    {
+                        'title': 'Two-Party Testing',
+                        'description': 'Test basic 2-party call with Hebrew ↔ English translation'
+                    },
+                    {
+                        'title': 'Bug Fixes',
+                        'description': 'Identify and fix critical issues. Performance tuning.'
+                    }
+                ],
+                'deliverable': 'Week 3-4 complete, basic translation working'
+            }
+        ]
+        
+        self.add_week_details(
+            3,
+            "WebSocket & Real-Time Core",
+            "2.12 - 15.12",
+            days
+        )
+    
+    def add_week_5(self):
+        """Add Week 5 details"""
+        days = [
+            {
+                'day': '25-26',
+                'date': 'Sunday-Monday 16-17.12',
+                'title': 'Login & Home Screens',
+                'responsible': 'Daniel',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Login Screen',
+                        'description': 'Email/password authentication with validation. Register link and error handling.'
+                    },
+                    {
+                        'title': 'Home Screen',
+                        'description': 'Bottom navigation with Contacts, Recents, Settings tabs.'
+                    }
+                ],
+                'deliverable': 'Login and Home screens complete'
+            },
+            {
+                'day': '27-28',
+                'date': 'Tuesday-Wednesday 18-19.12',
+                'title': 'Contacts & Settings',
+                'responsible': 'Daniel',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Contacts Screen',
+                        'description': 'Display contacts list with call buttons. Add/remove contacts functionality.'
+                    },
+                    {
+                        'title': 'Settings Screen',
+                        'description': 'Language preferences, voice sample management, notifications settings.'
+                    }
+                ],
+                'deliverable': 'Contacts and Settings complete'
+            },
+            {
+                'day': '29-31',
+                'date': 'Thursday-Saturday 20-22.12',
+                'title': 'Call Screen UI',
+                'responsible': 'Daniel',
+                'hours': '24',
+                'tasks': [
+                    {
+                        'title': 'Call Screen Layout',
+                        'description': '2x2 participant grid, live transcription view, call controls.'
+                    },
+                    {
+                        'title': 'Participant Cards',
+                        'description': 'Visual indicators for speaking, language badges, names.'
+                    },
+                    {
+                        'title': 'Call Controls',
+                        'description': 'Mute, speaker, end call buttons with proper state management.'
+                    }
+                ],
+                'deliverable': 'Week 5 complete - Full Flutter UI ready'
+            }
+        ]
+        
+        self.add_week_details(
+            5,
+            "Flutter UI & User Experience",
+            "16.12 - 22.12",
+            days
+        )
+    
+    def add_week_6(self):
+        """Add Week 6 details"""
+        days = [
+            {
+                'day': '32-33',
+                'date': 'Sunday-Monday 23-24.12',
+                'title': 'Coqui xTTS Setup',
+                'responsible': 'Amir',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Install Coqui TTS',
+                        'description': 'Add TTS library to requirements. Update Dockerfile with dependencies.'
+                    },
+                    {
+                        'title': 'VoiceClonerService',
+                        'description': 'Create service to handle voice cloning. Support voice sample upload and synthesis.'
+                    },
+                    {
+                        'title': 'Testing',
+                        'description': 'Test voice quality for English, Russian, Hebrew.'
+                    }
+                ],
+                'deliverable': 'Voice cloning service working'
+            },
+            {
+                'day': '34-35',
+                'date': 'Tuesday-Wednesday 25-26.12',
+                'title': 'Integration with Pipeline',
+                'responsible': 'Both',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Enhanced Translation Pipeline',
+                        'description': 'Integrate voice cloning into pipeline. Smart fallback to Google TTS when needed.'
+                    },
+                    {
+                        'title': 'Voice Sample API',
+                        'description': 'Create endpoints for uploading and managing voice samples.'
+                    }
+                ],
+                'deliverable': 'Voice cloning integrated'
+            },
+            {
+                'day': '36-38',
+                'date': 'Thursday-Saturday 27-29.12',
+                'title': 'Multi-Party & Testing',
+                'responsible': 'Both',
+                'hours': '24',
+                'tasks': [
+                    {
+                        'title': '3-4 Participant Testing',
+                        'description': 'Test with multiple users. Verify voice quality and latency.'
+                    },
+                    {
+                        'title': 'Performance Metrics',
+                        'description': 'Measure latency with/without voice cloning. Optimize where needed.'
+                    },
+                    {
+                        'title': 'Bug Fixes',
+                        'description': 'Fix issues found during testing.'
+                    }
+                ],
+                'deliverable': 'Week 6 complete - Voice cloning working'
+            }
+        ]
+        
+        self.add_week_details(
+            6,
+            "Voice Cloning Integration",
+            "23.12 - 29.12",
+            days
+        )
+    
+    def add_week_7(self):
+        """Add Week 7 details"""
+        days = [
+            {
+                'day': '39-41',
+                'date': 'Sunday-Tuesday 30.12-1.1',
+                'title': 'Comprehensive Testing',
+                'responsible': 'Both',
+                'hours': '24',
+                'tasks': [
+                    {
+                        'title': 'Test Suite Creation',
+                        'description': 'Write unit tests, integration tests for all components.'
+                    },
+                    {
+                        'title': 'System Testing',
+                        'description': 'Test all scenarios: 2-party, 3-party, 4-party calls.'
+                    },
+                    {
+                        'title': 'Edge Cases',
+                        'description': 'Network interruptions, short speech, background noise.'
+                    }
+                ],
+                'deliverable': 'Comprehensive test suite'
+            },
+            {
+                'day': '42-43',
+                'date': 'Wednesday-Thursday 2-3.1',
+                'title': 'Performance Optimization',
+                'responsible': 'Amir (Backend) + Daniel (Flutter)',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Backend Optimization',
+                        'description': 'Add Redis caching, connection pooling, parallel processing.'
+                    },
+                    {
+                        'title': 'Flutter Optimization',
+                        'description': 'Audio chunking, state management optimization.'
+                    }
+                ],
+                'deliverable': 'Optimized system'
+            },
+            {
+                'day': '44-45',
+                'date': 'Friday-Saturday 4-5.1',
+                'title': 'Final Testing & Validation',
+                'responsible': 'Both',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Real Device Testing',
+                        'description': 'Test on multiple phones, different OS versions.'
+                    },
+                    {
+                        'title': 'Performance Validation',
+                        'description': 'Verify all metrics meet targets: latency < 500ms without cloning, < 1s with cloning.'
+                    }
+                ],
+                'deliverable': 'Week 7 complete - System stable and tested'
+            }
+        ]
+        
+        self.add_week_details(
+            7,
+            "Testing & Optimization",
+            "30.12 - 5.1",
+            days
+        )
+    
+    def add_week_8(self):
+        """Add Week 8 details"""
+        days = [
+            {
+                'day': '46-47',
+                'date': 'Sunday-Monday 6-7.1',
+                'title': 'Project Book - Part A',
+                'responsible': 'Amir',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Cover Page & Introduction',
+                        'description': 'Team info, abstract, problem overview (2 pages).'
+                    },
+                    {
+                        'title': 'Solution Description',
+                        'description': 'Architecture diagrams, activity diagrams, component description (4 pages).'
+                    },
+                    {
+                        'title': 'Development Process',
+                        'description': 'Work phases, tools used, methodology (3 pages).'
+                    }
+                ],
+                'deliverable': 'Project book pages 1-10'
+            },
+            {
+                'day': '48-49',
+                'date': 'Tuesday-Wednesday 8-9.1',
+                'title': 'Project Book - Part B + User Guide',
+                'responsible': 'Daniel',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Challenges & Solutions',
+                        'description': 'Technical and engineering challenges faced (4 pages).'
+                    },
+                    {
+                        'title': 'Results & Conclusions',
+                        'description': 'Goals achievement, metrics, lessons learned (3 pages).'
+                    },
+                    {
+                        'title': 'User Guide',
+                        'description': 'Installation, usage, troubleshooting (5 pages in English).'
+                    }
+                ],
+                'deliverable': 'Project book complete + User guide'
+            },
+            {
+                'day': '50-51',
+                'date': 'Thursday-Friday 10-11.1',
+                'title': 'Maintenance Guide',
+                'responsible': 'Amir',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'System Requirements',
+                        'description': 'Hardware, software requirements.'
+                    },
+                    {
+                        'title': 'Installation Instructions',
+                        'description': 'Step-by-step setup for backend and Flutter.'
+                    },
+                    {
+                        'title': 'Maintenance & Troubleshooting',
+                        'description': 'Monitoring, logs, common issues.'
+                    }
+                ],
+                'deliverable': 'Complete maintenance guide'
+            },
+            {
+                'day': '52',
+                'date': 'Saturday 12.1',
+                'title': 'Documentation Review',
+                'responsible': 'Both',
+                'hours': '8',
+                'tasks': [
+                    {
+                        'title': 'Final Review',
+                        'description': 'Proofread all documents, check formatting, generate PDFs.'
+                    }
+                ],
+                'deliverable': 'Week 8 complete - All documentation ready'
+            }
+        ]
+        
+        self.add_week_details(
+            8,
+            "Documentation - Project Book",
+            "6.1 - 12.1",
+            days
+        )
+    
+    def add_week_9(self):
+        """Add Week 9 details"""
+        days = [
+            {
+                'day': '53-55',
+                'date': 'Sunday-Tuesday 13-15.1',
+                'title': 'Poster Design',
+                'responsible': 'Both',
+                'hours': '24',
+                'tasks': [
+                    {
+                        'title': 'Poster Layout',
+                        'description': 'Design A0 poster (120×80cm) with all sections: problem, solution, tech, results.'
+                    },
+                    {
+                        'title': 'Visual Elements',
+                        'description': 'Architecture diagram, screenshots, graphs, QR code.'
+                    },
+                    {
+                        'title': 'Print Preparation',
+                        'description': 'Export to PDF, test print, order from college print shop.'
+                    }
+                ],
+                'deliverable': 'Professional poster ready'
+            },
+            {
+                'day': '56-57',
+                'date': 'Wednesday-Thursday 16-17.1',
+                'title': 'Video Production',
+                'responsible': 'Both',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Video Script',
+                        'description': 'Write 2-minute script covering intro, problem, solution, demo, conclusion.'
+                    },
+                    {
+                        'title': 'Recording',
+                        'description': 'Record demo footage, voice narration, screen recordings.'
+                    },
+                    {
+                        'title': 'Editing',
+                        'description': 'Edit video, add subtitles, music, transitions. Export to MP4.'
+                    }
+                ],
+                'deliverable': '2-minute video complete'
+            },
+            {
+                'day': '58-59',
+                'date': 'Friday-Saturday 18-19.1',
+                'title': 'Presentation Practice',
+                'responsible': 'Both',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Presentation Script',
+                        'description': 'Write detailed script for 20-minute presentation with Q&A preparation.'
+                    },
+                    {
+                        'title': 'Practice Sessions',
+                        'description': 'Practice 10+ times, time each section, refine delivery.'
+                    },
+                    {
+                        'title': 'Q&A Preparation',
+                        'description': 'Prepare answers for expected questions.'
+                    }
+                ],
+                'deliverable': 'Ready for presentation'
+            }
+        ]
+        
+        self.add_week_details(
+            9,
+            "Poster & Video Production",
+            "13.1 - 19.1",
+            days
+        )
+    
+    def add_week_10(self):
+        """Add Week 10 details"""
+        days = [
+            {
+                'day': '60-61',
+                'date': 'Sunday-Monday 20-21.1',
+                'title': 'Final System Check',
+                'responsible': 'Both',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Clean Build',
+                        'description': 'Clean rebuild of backend and Flutter. Test on fresh environment.'
+                    },
+                    {
+                        'title': 'Multi-Device Testing',
+                        'description': 'Test on 3-4 devices with all scenarios.'
+                    },
+                    {
+                        'title': 'Performance Validation',
+                        'description': 'Final latency measurements, verify all metrics.'
+                    }
+                ],
+                'deliverable': 'System verified working'
+            },
+            {
+                'day': '62',
+                'date': 'Tuesday 22.1',
+                'title': 'GitHub Final Prep',
+                'responsible': 'Both',
+                'hours': '8',
+                'tasks': [
+                    {
+                        'title': 'Repository Organization',
+                        'description': 'Organize all files, update README, create docs/ folder.'
+                    },
+                    {
+                        'title': 'Final Commit',
+                        'description': 'Commit all documents, ensure .gitignore is correct.'
+                    }
+                ],
+                'deliverable': 'GitHub repository complete'
+            },
+            {
+                'day': '63',
+                'date': 'Wednesday 23.1',
+                'title': 'Physical Preparation',
+                'responsible': 'Both',
+                'hours': '8',
+                'tasks': [
+                    {
+                        'title': 'Print Poster',
+                        'description': 'Pick up poster from print shop, test mounting.'
+                    },
+                    {
+                        'title': 'Equipment Check',
+                        'description': 'Charge all devices, test demo setup, prepare backup materials.'
+                    }
+                ],
+                'deliverable': 'All materials ready'
+            },
+            {
+                'day': '64-65',
+                'date': 'Thursday-Friday 24-25.1',
+                'title': 'Final Practice',
+                'responsible': 'Both',
+                'hours': '16',
+                'tasks': [
+                    {
+                        'title': 'Final Practice',
+                        'description': 'Practice presentation 10+ times, test demo 20+ times.'
+                    },
+                    {
+                        'title': 'Rest & Preparation',
+                        'description': 'Light review, ensure good rest before presentation day.'
+                    }
+                ],
+                'deliverable': 'Fully prepared'
+            },
+            {
+                'day': '66',
+                'date': 'Saturday 26.1',
+                'title': '🎯 PRESENTATION DAY',
+                'responsible': 'Both',
+                'hours': '8',
+                'tasks': [
+                    {
+                        'title': 'Setup (08:00)',
+                        'description': 'Arrive early, set up poster, test equipment.'
+                    },
+                    {
+                        'title': 'Submission (09:00)',
+                        'description': 'Submit GitHub link and all documents.'
+                    },
+                    {
+                        'title': 'Presentation (10:00-16:00)',
+                        'description': 'Present project, demonstrate system, answer questions.'
+                    },
+                    {
+                        'title': 'Celebrate! 🎉',
+                        'description': 'Project complete!'
+                    }
+                ],
+                'deliverable': 'PROJECT COMPLETE! 🎓'
+            }
+        ]
+        
+        self.add_week_details(
+            10,
+            "Final Preparations & Submission",
+            "20.1 - 26.1",
+            days
+        )
+    
+    def add_success_criteria(self):
+        """Add success criteria section"""
+        
+        title = Paragraph("12. Success Criteria & Performance Metrics", self.styles['CustomTitle'])
+        self.story.append(title)
+        
+        # Technical criteria
+        tech_title = Paragraph("<b>Technical Criteria:</b>", self.styles['Heading2'])
+        self.story.append(tech_title)
+        
+        criteria_data = [
+            ['Criterion', 'Target', 'Measurement Method'],
+            ['Translation Latency\n(without voice cloning)', '< 500ms', 'End-to-end timing from speech to translated audio'],
+            ['Translation Latency\n(with voice cloning)', '< 1000ms', 'Including xTTS processing time'],
+            ['Speech Recognition Accuracy', '> 85%', 'Word Error Rate (WER) on test samples'],
+            ['Translation Quality', '> 80% BLEU', 'BLEU score on standard test sets'],
+            ['Concurrent Participants', '2-4 users', 'Successful multi-party calls'],
+            ['Language Support', 'HE, EN, RU', 'All language pairs working'],
+            ['Cross-Platform', 'Android + iOS', 'Apps running on both platforms'],
+            ['System Uptime', '> 95%', 'Demo reliability during testing'],
+        ]
+        
+        criteria_table = Table(criteria_data, colWidths=[5*cm, 4*cm, 6*cm])
+        criteria_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), self.primary_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BACKGROUND', (0, 1), (-1, -1), self.light_gray),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        
+        self.story.append(criteria_table)
+        self.story.append(Spacer(1, 0.3*inch))
+        
+        # Documentation criteria
+        doc_title = Paragraph("<b>Documentation Criteria:</b>", self.styles['Heading2'])
+        self.story.append(doc_title)
+        
+        doc_list = """
+        ✓ Project Book: 20 pages covering all required sections<br/>
+        ✓ User Guide: Clear installation and usage instructions in English<br/>
+        ✓ Maintenance Guide: Complete technical documentation<br/>
+        ✓ API Documentation: All endpoints documented with examples<br/>
+        ✓ README.md: Comprehensive overview with quick start<br/>
+        ✓ Code Comments: Well-documented codebase
+        """
+        
+        doc_para = Paragraph(doc_list, self.styles['Normal'])
+        self.story.append(doc_para)
+        self.story.append(Spacer(1, 0.3*inch))
+        
+        # Presentation criteria
+        pres_title = Paragraph("<b>Presentation Criteria:</b>", self.styles['Heading2'])
+        self.story.append(pres_title)
+        
+        pres_list = """
+        ✓ Poster: Professional A0 poster with clear sections<br/>
+        ✓ Video: 2-minute demo video showing key features<br/>
+        ✓ Live Demo: Working demo on 3+ devices<br/>
+        ✓ Q&A Preparation: Answers ready for expected questions<br/>
+        ✓ Presentation Skills: Clear delivery and explanations
+        """
+        
+        pres_para = Paragraph(pres_list, self.styles['Normal'])
+        self.story.append(pres_para)
+        
+        self.story.append(PageBreak())
+    
+    def add_risk_management(self):
+        """Add risk management section"""
+        
+        title = Paragraph("13. Risk Management", self.styles['CustomTitle'])
+        self.story.append(title)
+        
+        risks_data = [
+            ['Risk', 'Probability', 'Impact', 'Mitigation Strategy'],
+            [
+                'Voice cloning quality\npoor for Hebrew',
+                'High',
+                'Medium',
+                'Use Google TTS as fallback.\nFocus on EN/RU cloning.\nSet user expectations.'
+            ],
+            [
+                'Latency exceeds\ntarget (>1s)',
+                'Medium',
+                'High',
+                'Optimize pipeline with caching.\nParallel processing.\nReduce chunk sizes.'
+            ],
+            [
+                'Network issues during\npresentation',
+                'Medium',
+                'High',
+                'Use local hotspot.\nPrepare backup video.\nTest in presentation room beforehand.'
+            ],
+            [
+                'Multi-party audio\noverlap/confusion',
+                'Medium',
+                'Medium',
+                'Implement audio queue.\nClear speaker attribution.\nTurn-taking logic.'
+            ],
+            [
+                'Docker/deployment\nissues',
+                'Low',
+                'Medium',
+                'Test on multiple machines.\nProvide clear setup docs.\nUse standard images.'
+            ],
+            [
+                'Time constraint -\nnot finishing on time',
+                'Low',
+                'High',
+                'Weekly milestones.\nPrioritize core features.\nBuffer days built in.'
+            ],
+            [
+                'Google API costs\nexceed budget',
+                'Low',
+                'Low',
+                'Monitor usage.\nUse free tier limits.\nCache translations.'
+            ],
+            [
+                'Device compatibility\nissues',
+                'Low',
+                'Medium',
+                'Test on multiple devices.\nHandle permissions properly.\nGraceful degradation.'
+            ]
+        ]
+        
+        risks_table = Table(risks_data, colWidths=[4*cm, 2.5*cm, 2*cm, 6.5*cm])
+        risks_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), self.accent_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        
+        self.story.append(risks_table)
+        
+        self.story.append(PageBreak())
+    
+    def add_resources(self):
+        """Add resources and tools section"""
+        
+        title = Paragraph("14. Resources & Tools", self.styles['CustomTitle'])
+        self.story.append(title)
+        
+        # Development tools
+        dev_title = Paragraph("<b>Development Tools:</b>", self.styles['Heading2'])
+        self.story.append(dev_title)
+        
+        dev_list = """
+        <b>IDEs & Editors:</b><br/>
+        • Visual Studio Code - Primary code editor<br/>
+        • PyCharm - Python development<br/>
+        • Android Studio - Android testing and debugging<br/>
+        <br/>
+        <b>Version Control:</b><br/>
+        • Git - Version control system<br/>
+        • GitHub - Repository hosting and collaboration<br/>
+        <br/>
+        <b>Containerization:</b><br/>
+        • Docker - Container platform<br/>
+        • Docker Compose - Multi-container orchestration<br/>
+        <br/>
+        <b>Testing Tools:</b><br/>
+        • Postman - API testing<br/>
+        • Swagger UI - API documentation and testing<br/>
+        • Flutter DevTools - Mobile debugging<br/>
+        • pytest - Python testing framework
+        """
+        
+        dev_para = Paragraph(dev_list, self.styles['Normal'])
+        self.story.append(dev_para)
+        self.story.append(Spacer(1, 0.2*inch))
+        
+        # Technologies
+        tech_title = Paragraph("<b>Technologies & Frameworks:</b>", self.styles['Heading2'])
+        self.story.append(tech_title)
+        
+        tech_list = """
+        <b>Frontend:</b><br/>
+        • Flutter 3.16 - Cross-platform mobile framework<br/>
+        • Dart - Programming language<br/>
+        • Provider - State management<br/>
+        • WebSocket - Real-time communication<br/>
+        • flutter_sound, just_audio - Audio libraries<br/>
+        <br/>
+        <b>Backend:</b><br/>
+        • Python 3.10 - Primary language<br/>
+        • FastAPI - Web framework<br/>
+        • SQLAlchemy - ORM<br/>
+        • PostgreSQL 15 - Database<br/>
+        • Redis 7 - Caching and pub/sub<br/>
+        • Uvicorn - ASGI server<br/>
+        <br/>
+        <b>AI/ML Services:</b><br/>
+        • Google Speech-to-Text - Speech recognition<br/>
+        • Google Translate API - Machine translation<br/>
+        • Google Text-to-Speech - Speech synthesis<br/>
+        • Coqui xTTS v2 - Voice cloning<br/>
+        <br/>
+        <b>Infrastructure:</b><br/>
+        • Docker - Containerization<br/>
+        • Docker Compose - Orchestration<br/>
+        • Google Cloud Platform - External APIs
+        """
+        
+        tech_para = Paragraph(tech_list, self.styles['Normal'])
+        self.story.append(tech_para)
+        self.story.append(Spacer(1, 0.2*inch))
+        
+        # Documentation resources
+        doc_res_title = Paragraph("<b>Documentation & Learning Resources:</b>", self.styles['Heading2'])
+        self.story.append(doc_res_title)
+        
+        doc_res_list = """
+        • FastAPI Documentation: https://fastapi.tiangolo.com/<br/>
+        • Flutter Documentation: https://docs.flutter.dev/<br/>
+        • Google Cloud Documentation: https://cloud.google.com/docs<br/>
+        • Coqui TTS: https://github.com/coqui-ai/TTS<br/>
+        • Docker Documentation: https://docs.docker.com/<br/>
+        • PostgreSQL Documentation: https://www.postgresql.org/docs/
+        """
+        
+        doc_res_para = Paragraph(doc_res_list, self.styles['Normal'])
+        self.story.append(doc_res_para)
+        
+        self.story.append(Spacer(1, 0.3*inch))
+        
+        # Contact information
+        contact_title = Paragraph("<b>Project Contact Information:</b>", self.styles['Heading2'])
+        self.story.append(contact_title)
+        
+        contact_data = [
+            ['Team Member', 'Email', 'Role'],
+            ['Amir Mishayev', 'Amir.mishayev@e.braude.ac.il', 'Backend Lead'],
+            ['Daniel Fraimovich', 'Daniel.fraimovich@e.braude.ac.il', 'Frontend Lead'],
+            ['Dr. Dan Lemberg', 'lembergdan@braude.ac.il', 'Academic Advisor'],
+            ['Mrs. Elena Kramer', 'elenak@braude.ac.il', 'Academic Advisor'],
+        ]
+        
+        contact_table = Table(contact_data, colWidths=[4*cm, 7*cm, 4*cm])
+        contact_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), self.primary_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BACKGROUND', (0, 1), (-1, -1), self.light_gray),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        
+        self.story.append(contact_table)
+        
+        # Final message
+        self.story.append(Spacer(1, 0.5*inch))
+        final_msg = Paragraph(
+            "<b>Good luck with the project! 🎓</b>",
+            ParagraphStyle(
+                name='FinalMessage',
+                parent=self.styles['Normal'],
+                fontSize=14,
+                textColor=self.primary_color,
+                alignment=TA_CENTER,
+                fontName='Helvetica-Bold'
+            )
+        )
+        self.story.append(final_msg)
+
+
+def main():
+    """Main function to generate PDF"""
+    print("🚀 Generating Real-Time Call Translation Work Plan PDF...")
+    print("-" * 60)
+    
+    generator = WorkPlanPDF()
+    pdf_path = generator.build()
+    
+    print("-" * 60)
+    print(f"✅ PDF generated successfully!")
+    print(f"📄 Location: {pdf_path}")
+    print(f"📊 Document includes:")
+    print("   • Cover page with project information")
+    print("   • Table of contents")
+    print("   • Complete 10-week detailed work plan")
+    print("   • All 66 days with specific tasks")
+    print("   • Success criteria and metrics")
+    print("   • Risk management strategies")
+    print("   • Resources and tools list")
+    print("-" * 60)
+
+
+if __name__ == "__main__":
+    main()
