@@ -58,7 +58,7 @@
 
 - 🎤 **Real-Time Speech Recognition** - Instant transcription using Google Cloud Speech-to-Text
 - 🌍 **Multi-Language Translation** - Support for 100+ languages via Google Translate API
-- 🔊 **Voice Cloning** - Preserve caller's voice using Google Cloud Text-to-Speech with custom voice models
+- 🔊 **Voice Cloning** - Preserve caller's voice using Resemble AI Chatterbox Multilingual with zero-shot voice cloning
 - 📞 **WebRTC Integration** - Low-latency audio streaming for real-time communication
 - 🔐 **Secure Authentication** - Firebase-based user authentication and session management
 
@@ -101,7 +101,8 @@
 |---------|---------|
 | **Google Cloud Speech-to-Text** | Speech recognition and transcription |
 | **Google Cloud Translate** | Multi-language translation |
-| **Google Cloud Text-to-Speech** | Voice synthesis with cloning |
+| **Google Cloud Text-to-Speech** | Basic voice synthesis |
+| **Resemble AI Chatterbox** | Advanced voice cloning and multilingual TTS |
 | **Firebase Authentication** | User authentication and management |
 
 ### Mobile
@@ -163,8 +164,8 @@
 │                   AI Processing Pipeline                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
 │  │   Speech     │─▶│  Translation │─▶│     TTS      │         │
-│  │  Recognition │  │    Engine    │  │ Voice Clone  │         │
-│  │   (Google)   │  │   (Google)   │  │   (Google)   │         │
+│  │  Recognition │  │    Engine    │  │  Chatterbox  │         │
+│  │   (Google)   │  │   (Google)   │  │ Voice Clone  │         │
 │  └──────────────┘  └──────────────┘  └──────────────┘         │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -176,7 +177,7 @@
 3. **Redis Queue** - Audio chunks queued in Redis Streams
 4. **Speech Recognition** - Google Cloud STT transcribes audio
 5. **Translation** - Google Translate converts to target language
-6. **Voice Synthesis** - Google Cloud TTS generates audio with cloned voice
+6. **Voice Synthesis** - Resemble AI Chatterbox generates audio with cloned voice
 7. **Audio Playback** - Translated audio streamed back to recipient
 
 ---

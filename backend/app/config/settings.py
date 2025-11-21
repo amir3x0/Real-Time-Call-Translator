@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: str | None = Field(None)
     GOOGLE_PROJECT_ID: str | None = Field(None)
 
+    # Chatterbox TTS
+    CHATTERBOX_DEVICE: str = Field("cpu")  # "cuda" or "cpu"
+    CHATTERBOX_VOICE_SAMPLES_DIR: str = Field("/app/data/voice_samples")
+    CHATTERBOX_MODELS_DIR: str = Field("/app/data/models")
+
     # App
     API_HOST: str = Field("0.0.0.0")
     API_PORT: int = Field(8000)

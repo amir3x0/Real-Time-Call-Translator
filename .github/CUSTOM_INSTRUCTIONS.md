@@ -10,7 +10,7 @@ This is a real-time multilingual call translation system with voice cloning capa
 - **Database**: PostgreSQL 15 with SQLAlchemy 2.0 (async)
 - **Cache**: Redis 7 for message queuing and caching
 - **AI Services**: Google Cloud (Speech-to-Text, Translate, Text-to-Speech)
-- **Voice Cloning**: Coqui xTTS v2
+- **Voice Cloning**: Resemble AI Chatterbox Multilingual
 - **Real-time**: WebSocket communication
 - **Deployment**: Docker & Docker Compose
 
@@ -173,7 +173,7 @@ When adding new fields:
 2. Queue in Redis Stream
 3. Speech-to-Text (Google)
 4. Translation (Google Translate)
-5. Text-to-Speech (Google TTS or xTTS)
+5. Text-to-Speech (Google TTS or Chatterbox Multilingual)
 6. Send to Recipients (WebSocket)
 ```
 

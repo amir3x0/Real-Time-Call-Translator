@@ -241,7 +241,7 @@ class WorkPlanPDF:
             ['1-2', '18.11-1.12', 'Setup & Infrastructure', 'Docker, Database, Google APIs'],
             ['3-4', '2.12-15.12', 'Real-Time Core', 'WebSocket, Translation Pipeline'],
             ['5', '16.12-22.12', 'Flutter UI', 'Complete Mobile Interface'],
-            ['6', '23.12-29.12', 'Voice Cloning', 'xTTS Integration'],
+            ['6', '23.12-29.12', 'Voice Cloning', 'Chatterbox Multilingual Integration'],
             ['7', '30.12-5.1', 'Testing', 'System Validation'],
             ['8', '6.1-12.1', 'Documentation', 'Project Book, Guides'],
             ['9', '13.1-19.1', 'Presentation', 'Poster, Video'],
@@ -834,12 +834,12 @@ class WorkPlanPDF:
             {
                 'day': '32-33',
                 'date': 'Sunday-Monday 23-24.12',
-                'title': 'Coqui xTTS Setup',
+                'title': 'Resemble AI Chatterbox Setup',
                 'responsible': 'Amir',
                 'hours': '16',
                 'tasks': [
                     {
-                        'title': 'Install Coqui TTS',
+                        'title': 'Install Chatterbox TTS',
                         'description': 'Add TTS library to requirements. Update Dockerfile with dependencies.'
                     },
                     {
@@ -1269,7 +1269,7 @@ class WorkPlanPDF:
         criteria_data = [
             ['Criterion', 'Target', 'Measurement Method'],
             ['Translation Latency\n(without voice cloning)', '< 500ms', 'End-to-end timing from speech to translated audio'],
-            ['Translation Latency\n(with voice cloning)', '< 1000ms', 'Including xTTS processing time'],
+            ['Translation Latency\n(with voice cloning)', '< 1000ms', 'Including Chatterbox processing time'],
             ['Speech Recognition Accuracy', '> 85%', 'Word Error Rate (WER) on test samples'],
             ['Translation Quality', '> 80% BLEU', 'BLEU score on standard test sets'],
             ['Concurrent Participants', '2-4 users', 'Successful multi-party calls'],
@@ -1469,7 +1469,7 @@ class WorkPlanPDF:
         • Google Speech-to-Text - Speech recognition<br/>
         • Google Translate API - Machine translation<br/>
         • Google Text-to-Speech - Speech synthesis<br/>
-        • Coqui xTTS v2 - Voice cloning<br/>
+        • Resemble AI Chatterbox Multilingual - Zero-shot voice cloning<br/>
         <br/>
         <b>Infrastructure:</b><br/>
         • Docker - Containerization<br/>
@@ -1489,7 +1489,7 @@ class WorkPlanPDF:
         • FastAPI Documentation: https://fastapi.tiangolo.com/<br/>
         • Flutter Documentation: https://docs.flutter.dev/<br/>
         • Google Cloud Documentation: https://cloud.google.com/docs<br/>
-        • Coqui TTS: https://github.com/coqui-ai/TTS<br/>
+        • Resemble AI Chatterbox: https://huggingface.co/ResembleAI/chatterbox<br/>
         • Docker Documentation: https://docs.docker.com/<br/>
         • PostgreSQL Documentation: https://www.postgresql.org/docs/
         """

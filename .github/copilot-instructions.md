@@ -8,7 +8,7 @@ This file provides instructions to GitHub Copilot for better code suggestions in
 
 - **Backend**: Python 3.10 + FastAPI + PostgreSQL + Redis
 - **Frontend**: Flutter (iOS/Android)
-- **AI**: Google Cloud (STT, Translate, TTS) + Coqui xTTS
+- **AI**: Google Cloud (STT, Translate, TTS) + Resemble AI Chatterbox Multilingual
 - **Languages**: Hebrew, English, Russian
 
 ## Code Preferences
