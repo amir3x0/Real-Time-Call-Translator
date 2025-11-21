@@ -7,11 +7,12 @@ using the Resemble AI Chatterbox Multilingual TTS model.
 import asyncio
 import io
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import logging
 
-import torch
-import torchaudio
+if TYPE_CHECKING:
+    import torch
+    import torchaudio
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +20,19 @@ logger = logging.getLogger(__name__)
 class ChatterboxTTSService:
     """Service for text-to-speech synthesis using Resemble AI Chatterbox."""
     
-    def __init__(self, device: str = "cuda" if torch.cuda.is_available() else "cpu"):
+    def __init__(self, device: str = "auto"):
         """Initialize the Chatterbox TTS service.
         
         Args:
-            device: Device to run the model on ("cuda" or "cpu")
+            device: Device to run the model on ("cuda", "cpu", or "auto")
         """
+        if device == "auto":
+            try:
+                import torch
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+            except ImportError:
+                device = "cpu"
+        
         self.device = device
         self._model = None
         self._multilingual_model = None
@@ -158,7 +166,7 @@ class ChatterboxTTSService:
             logger.error(f"Failed to synthesize speech: {e}")
             raise
     
-    def _tensor_to_bytes(self, wav_tensor: torch.Tensor, sample_rate: int) -> bytes:
+    def _tensor_to_bytes(self, wav_tensor, sample_rate: int) -> bytes:
         """Convert audio tensor to WAV bytes.
         
         Args:
@@ -168,6 +176,8 @@ class ChatterboxTTSService:
         Returns:
             WAV format audio as bytes
         """
+        import torchaudio
+        
         # Create in-memory bytes buffer
         buffer = io.BytesIO()
         
