@@ -304,6 +304,17 @@ DEBUG=True
 
 ```
 Real-Time-Call-Translator/
+├── 📂 .github/                      # GitHub Configuration & Documentation
+│   ├── 📂 docs/                     # Project Documentation
+│   │   ├── CODE_GUIDELINES.md       # Coding standards
+│   │   ├── CONTRIBUTING.md          # Contribution guide
+│   │   ├── GIT_INSTRUCTIONS.md      # Git workflow
+│   │   └── POSTGRESQL_GUIDE.md      # Database guide
+│   ├── 📂 workflows/                # GitHub Actions (Future)
+│   ├── 📂 templates/                # Issue/PR Templates (Future)
+│   ├── copilot-instructions.md      # GitHub Copilot config
+│   ├── CUSTOM_INSTRUCTIONS.md       # Detailed Copilot instructions
+│   └── README.md                    # GitHub directory guide
 ├── 📂 backend/                      # Backend API (Python/FastAPI)
 │   ├── 📂 app/
 │   │   ├── 📂 api/                  # API endpoints
@@ -311,9 +322,14 @@ Real-Time-Call-Translator/
 │   │   ├── 📂 config/               # Configuration
 │   │   │   ├── settings.py          # Pydantic settings
 │   │   │   └── redis.py             # Redis connection
-│   │   ├── 📂 models/               # Database models
+│   │   ├── 📂 models/               # Database models (6 models)
 │   │   │   ├── database.py          # SQLAlchemy async setup
-│   │   │   └── user.py              # User model
+│   │   │   ├── user.py              # User model
+│   │   │   ├── call.py              # Call sessions
+│   │   │   ├── call_participant.py  # Participants
+│   │   │   ├── contact.py           # User contacts
+│   │   │   ├── voice_model.py       # Voice cloning models
+│   │   │   └── message.py           # Transcriptions
 │   │   ├── 📂 services/             # Business logic
 │   │   │   └── rtc_service.py       # Real-time comm service
 │   │   └── main.py                  # FastAPI app entry point
@@ -329,13 +345,12 @@ Real-Time-Call-Translator/
 │   ├── 📄 requirements.txt          # Python dependencies
 │   ├── 📄 .env.example              # Environment template
 │   └── 📄 .gitignore                # Git ignore rules
-├── 📂 mobile/                       # Flutter mobile app (coming soon)
+├── 📂 mobile/                       # Flutter mobile app (Day 4 - Starting)
 │   ├── 📂 lib/
 │   ├── 📂 android/
 │   ├── 📂 ios/
 │   └── pubspec.yaml
-├── 📂 docs/                         # Documentation
-│   └── RealTime_CallTranslation_WorkPlan_FULL.pdf
+├── 📄 plan.txt                      # Work plan generator
 ├── 📄 .gitignore                    # Global git ignore
 ├── 📄 README.md                     # This file
 └── 📄 LICENSE                       # MIT License
@@ -343,9 +358,27 @@ Real-Time-Call-Translator/
 
 ---
 
-## 📚 API Documentation
+## 📚 Documentation
 
-### Base URL
+Comprehensive documentation is available in the `.github/docs/` directory:
+
+### Quick Start Guides
+- **[Installation & Setup](.github/docs/CONTRIBUTING.md#getting-started)** - Get up and running
+- **[Git Workflow](.github/docs/GIT_INSTRUCTIONS.md)** - Branching, commits, and PRs
+- **[Database Guide](.github/docs/POSTGRESQL_GUIDE.md)** - PostgreSQL operations and queries
+
+### Developer Guides
+- **[Code Guidelines](.github/docs/CODE_GUIDELINES.md)** - Coding standards and best practices
+- **[Contributing Guide](.github/docs/CONTRIBUTING.md)** - How to contribute to the project
+- **[API Reference](#api-documentation)** - REST and WebSocket endpoints
+
+### GitHub Copilot
+- **[Copilot Instructions](.github/copilot-instructions.md)** - Quick reference for AI assistance
+- **[Custom Instructions](.github/CUSTOM_INSTRUCTIONS.md)** - Detailed project context
+
+### API Documentation
+
+#### Base URL
 ```
 http://localhost:8000
 ```
@@ -582,7 +615,9 @@ GitHub Actions workflow (coming soon):
 
 ## 🤝 Contributing
 
-We welcome contributions! Please follow these steps:
+We welcome contributions! Please see our [Contributing Guide](.github/docs/CONTRIBUTING.md) for detailed information.
+
+### Quick Contribution Steps
 
 1. **Fork the repository**
 2. **Create a feature branch**
@@ -601,11 +636,14 @@ We welcome contributions! Please follow these steps:
 
 ### Development Guidelines
 
-- Follow PEP 8 for Python code
+- Follow our [Code Guidelines](.github/docs/CODE_GUIDELINES.md)
+- Read the [Git Instructions](.github/docs/GIT_INSTRUCTIONS.md) for workflow
 - Write tests for new features
 - Update documentation
 - Use meaningful commit messages
 - Keep PRs focused and small
+
+For more details, see [CONTRIBUTING.md](.github/docs/CONTRIBUTING.md)
 
 ---
 
