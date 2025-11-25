@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../data/websocket/websocket_service.dart';
+import 'dart:async';
 import '../models/call.dart';
 import '../models/participant.dart';
 
@@ -6,7 +8,9 @@ class CallProvider with ChangeNotifier {
   CallStatus _status = CallStatus.pending;
   List<CallParticipant> _participants = [];
   String? _activeSessionId;
-  final String _liveTranscription = "המתן, השרת מתרגם..."; // Mock subtitle
+  String _liveTranscription = "המתן, השרת מתרגם..."; // Mock subtitle
+  final WebSocketService _wsService = WebSocketService();
+  StreamSubscription<String>? _wsSub;
 
   CallStatus get status => _status;
   List<CallParticipant> get participants => _participants;
@@ -45,6 +49,12 @@ class CallProvider with ChangeNotifier {
       ),
     ];
     
+    // start mock ws
+    _wsService.start(_activeSessionId ?? 'mock_session');
+    _wsSub = _wsService.messages.listen((msg) {
+      _liveTranscription = msg;
+      notifyListeners();
+    });
     notifyListeners();
   }
 
@@ -52,6 +62,8 @@ class CallProvider with ChangeNotifier {
     _status = CallStatus.ended;
     _participants.clear();
     _activeSessionId = null;
+    _wsSub?.cancel();
+    _wsService.stop();
     notifyListeners();
   }
 
