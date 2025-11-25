@@ -14,7 +14,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedLang = 'en';
-  bool _isUploading = false;
   String? _voiceSamplePath;
 
   final ApiService _api = ApiService();
@@ -75,17 +74,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 8),
                   VoiceRecorderWidget(
                     onUpload: () async {
-                      setState(() => _isUploading = true);
+                      final messenger = ScaffoldMessenger.of(context);
                       final result = await _api.uploadVoiceSample('user_1', '/mock/path/sample.wav');
+                      if (!mounted) return;
                       setState(() {
                         _voiceSamplePath = result['path'];
-                        _isUploading = false;
                       });
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Voice sample uploaded'), behavior: SnackBarBehavior.floating),
-                        );
-                      }
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Voice sample uploaded'), behavior: SnackBarBehavior.floating),
+                      );
                     },
                     onDelete: () async {
                       await _api.deleteVoiceSample('user_1');

@@ -114,10 +114,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         return res ?? false;
                       },
                       onDismissed: (_) async {
+                        final name = c.name;
                         await contactsProv.removeContact(c.id);
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Deleted ${c.name}'),
+                            content: Text('Deleted $name'),
                             action: SnackBarAction(
                               label: 'Undo',
                               onPressed: () => contactsProv.loadContacts(),
