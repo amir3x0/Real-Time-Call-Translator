@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../data/api/api_service.dart';
+import '../../widgets/voice_recorder_widget.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -65,37 +66,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const Divider(),
-            ListTile(
-              title: const Text('Voice Sample'),
-              subtitle: Text(_voiceSamplePath ?? 'No sample uploaded'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ElevatedButton(
-                    onPressed: _isUploading
-                        ? null
-                        : () async {
-                            // Mock upload
-                            setState(() => _isUploading = true);
-                            final result = await _api.uploadVoiceSample('user_1', '/mock/path/sample.wav');
-                            setState(() {
-                              _voiceSamplePath = result['path'];
-                              _isUploading = false;
-                            });
-                          },
-                    child: _isUploading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator()) : const Text('Upload'),
+                  const Text('Voice Sample', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  VoiceRecorderWidget(
+                    onUpload: () async {
+                      setState(() => _isUploading = true);
+                      final result = await _api.uploadVoiceSample('user_1', '/mock/path/sample.wav');
+                      setState(() {
+                        _voiceSamplePath = result['path'];
+                        _isUploading = false;
+                      });
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Voice sample uploaded'), behavior: SnackBarBehavior.floating),
+                        );
+                      }
+                    },
+                    onDelete: () async {
+                      await _api.deleteVoiceSample('user_1');
+                      setState(() => _voiceSamplePath = null);
+                    },
+                    onPlay: () async {
+                      // Could integrate with AudioService; mock for now
+                      await Future.delayed(const Duration(milliseconds: 300));
+                    },
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _voiceSamplePath == null
-                        ? null
-                        : () async {
-                            await _api.deleteVoiceSample('user_1');
-                            setState(() => _voiceSamplePath = null);
-                          },
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                    child: const Text('Delete'),
-                  ),
+                  const SizedBox(height: 8),
+                  Text(_voiceSamplePath == null ? 'No sample uploaded' : _voiceSamplePath!, style: const TextStyle(color: Colors.black54)),
                 ],
               ),
             ),
