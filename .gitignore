@@ -1,7 +1,6 @@
 
-# Minimal .gitignore - only sensitive files and secrets
-# This file purposefully does NOT ignore caches, build artifacts or IDE files.
-# Keep local environment secrets and service account credentials out of the repository.
+# Minimal combined .gitignore - only sensitive files
+# This unified file intentionally keeps caches/build artifacts and IDE settings tracked.
 
 # Environment files
 .env
@@ -28,7 +27,7 @@ key.properties
 *.key
 *.crt
 
-# Android local configuration (SDK path etc.)
+# Android local configuration
 mobile/android/local.properties
 android/local.properties
 local.properties
@@ -36,8 +35,6 @@ local.properties
 # Any other credential files (backups, exported certs)
 *.asc
 *.pfx
-
-### End of minimal .gitignore
 # ==========================================
 # Real-Time Call Translator - Git Ignore
 # ==========================================
