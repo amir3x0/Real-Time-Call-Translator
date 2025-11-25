@@ -33,6 +33,40 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# NOTE: For Flutter apps, it's recommended to commit `pubspec.lock` to the repo to ensure consistent dependency versions across all developers and CI builds.
+
+# Flutter/Dart additional generated files and caches
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+**/generated/
+
+# iOS artifacts
+ios/Pods/
+ios/Runner.xcworkspace/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/engine
+## Note: track Podfile.lock in the repository to lock CocoaPods versions. Do not ignore.
+# ios/Podfile.lock
+# iOS Google services
+ios/GoogleService-Info.plist
+
+# Android artifacts
+android/.gradle/
+**/android/app/build/
+android/local.properties
+android/*.iml
+
+# Android / google services & keys
+google-services.json
+key.properties
+*.jks
+*.keystore
+
+# macOS Flutter artifacts
+macos/Flutter/ephemeral/
+
 # Symbolication related
 app.*.symbols
 
