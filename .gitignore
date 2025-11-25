@@ -1,3 +1,43 @@
+
+# Minimal .gitignore - only sensitive files and secrets
+# This file purposefully does NOT ignore caches, build artifacts or IDE files.
+# Keep local environment secrets and service account credentials out of the repository.
+
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
+# Google / Service account credentials
+**/google-credentials.json
+**/service-account*.json
+backend/config/google-credentials.json
+
+# Firebase & Google Services
+google-services.json
+ios/GoogleService-Info.plist
+
+# Keystore / Signing / Keys
+key.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+*.crt
+
+# Android local configuration (SDK path etc.)
+mobile/android/local.properties
+android/local.properties
+local.properties
+
+# Any other credential files (backups, exported certs)
+*.asc
+*.pfx
+
+### End of minimal .gitignore
 # ==========================================
 # Real-Time Call Translator - Git Ignore
 # ==========================================
@@ -165,6 +205,10 @@ mobile/android/**/*.iml
 
 # Web
 mobile/web/.dart_tool/
+
+# Allow the Flutter app `mobile/lib` to be tracked (the global `lib/` ignore above would otherwise match it)
+!mobile/lib/
+!mobile/lib/**
 
 # ==========================================
 # Docker

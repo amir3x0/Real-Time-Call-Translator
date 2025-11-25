@@ -8,6 +8,7 @@
 5. [Testing](#testing)
 6. [Error Handling](#error-handling)
 7. [Security](#security)
+8. [Dart/Flutter](#dartflutter-client-guidelines)
 
 ---
 
@@ -481,6 +482,38 @@ raise HTTPException(
 
 ### Never Commit
 ```
+## Dart/Flutter (Client Guidelines)
+
+### Project Structure & Files
+- Maintain the `mobile/lib/` structure with the following folders:
+    - `api/` - Central REST API client (`api_service.dart`)
+    - `websocket/` - WebSocket adapter and message serialization
+    - `services/` - App services: `audio_service.dart`, audio conversion, playback
+    - `providers/` - State providers (auth, call state, settings)
+    - `models/` - DTOs and data models that match the backend schema
+    - `screens/` - UI screens (login, home, call, settings)
+    - `widgets/` - Reusable UI widgets and components
+
+### Style & Patterns
+- Follow the official [Dart Style Guide](https://dart.dev/guides/language/effective-dart/style).
+- Use `provider` for state management; prefer small focused providers per domain (AuthProvider, CallProvider, SettingsProvider).
+- Keep services small and single-responsibility: `AudioService` for capture and playback, `ApiService` for API calls, `WebSocketService` for real-time messages.
+- Use the `web_socket_channel` package and implement automatic reconnect / exponential backoff strategies in the WebSocket adapters.
+- For audio processing, use 16kHz mono 16-bit PCM and chunk sizes around 100-300ms (200ms recommended). Use `flutter_sound` or platform-specific native audio capture if needed.
+
+### Message Contracts & Serialization
+- Use consistent JSON message shapes for WebSocket messages (audio, control, translation). Reuse backend message types when possible.
+- Implement typed DTOs in `models/` with `fromJson()` and `toJson()` methods. Keep these DTOs aligned with backend pydantic models.
+
+### Testing & Lint
+- Run `flutter analyze` frequently during development.
+- Write `widget` tests for UI screens and provider integration tests using `flutter_test` with `mocktail` or `mockito` for mocking services.
+- Unit test core logic in `services/` and `providers/` using small and focused test cases.
+
+### Security
+- Never include API credentials in source code. Use backend-based token exchange and `shared_preferences` only for non-sensitive data.
+- Always request and verify microphone and storage permissions before reading/writing files.
+
 .env files
 google-credentials.json
 Any API keys
