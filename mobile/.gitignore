@@ -1,4 +1,34 @@
 
+# Minimal mobile .gitignore — only sensitive files
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Firebase & Google Services
+google-services.json
+ios/GoogleService-Info.plist
+
+# Keystore / Signing / Keys
+key.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+*.crt
+
+# Android local configuration (SDK path)
+android/local.properties
+local.properties
+
+# Service account / credentials
+**/google-credentials.json
+**/service-account*.json
+
+# End of minimal mobile .gitignore
+
 # Minimal mobile/.gitignore - only sensitive files (no cache/build excludes)
 # This purposely does NOT ignore build artifacts, caches or IDE configs.
 
