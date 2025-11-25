@@ -1,20 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/common/custom_button.dart';
+import '../../widgets/animated_button.dart';
+import '../../widgets/flash_bar.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController(text: "demo@user.com");
   final TextEditingController _passController = TextEditingController(text: "123456");
+  String? _error;
 
-  LoginScreen({super.key});
+  bool _isValidEmail(String v) => v.contains('@');
+  bool _isValidPass(String v) => v.length >= 6;
 
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
-      body: SafeArea(
+      body: Stack(
+        children: [
+          // Subtle animated gradient background
+          AnimatedContainer(
+            duration: const Duration(seconds: 3),
+            curve: Curves.easeInOut,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0F1630), Color(0xFF1B2750)],
+              ),
+            ),
+          ),
+          SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -48,22 +72,35 @@ class LoginScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              CustomButton(
-                text: "Login",
-                isLoading: authProvider.isLoading,
+              if (_error != null) FlashBar(message: _error!),
+              const SizedBox(height: 12),
+              AnimatedButton(
+                label: "Login",
                 onPressed: () async {
-                  bool success = await authProvider.login(
+                  final emailOk = _isValidEmail(_emailController.text);
+                  final passOk = _isValidPass(_passController.text);
+                  if (!emailOk || !passOk) {
+                    setState(() => _error = 'Invalid credentials');
+                    return false;
+                  }
+                  final success = await authProvider.login(
                     _emailController.text,
                     _passController.text,
                   );
                   if (success) {
-                    Navigator.pushReplacementNamed(context, '/home');
+                    if (mounted) Navigator.pushReplacementNamed(context, '/home');
+                    return true;
+                  } else {
+                    setState(() => _error = 'Login failed');
+                    return false;
                   }
                 },
               ),
             ],
           ),
         ),
+          ),
+        ],
       ),
     );
   }
