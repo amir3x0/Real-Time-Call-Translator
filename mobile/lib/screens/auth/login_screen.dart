@@ -39,64 +39,68 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Icon(Icons.translate, size: 80, color: Colors.blue),
-              const SizedBox(height: 20),
-              const Text(
-                "Call Translator",
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 40),
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: "Email",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(Icons.translate, size: 80, color: Colors.blue),
+                const SizedBox(height: 20),
+                const Text(
+                  "Call Translator",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "Password",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
+                const SizedBox(height: 40),
+                TextField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: "Email",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              if (_error != null) FlashBar(message: _error!),
-              const SizedBox(height: 12),
-              AnimatedButton(
-                label: "Login",
-                onPressed: () async {
-                  final emailOk = _isValidEmail(_emailController.text);
-                  final passOk = _isValidPass(_passController.text);
-                  if (!emailOk || !passOk) {
-                    setState(() => _error = 'Invalid credentials');
-                    return false;
-                  }
-                  final success = await authProvider.login(
-                    _emailController.text,
-                    _passController.text,
-                  );
-                  if (success) {
-                    if (mounted) Navigator.pushReplacementNamed(context, '/home');
-                    return true;
-                  } else {
-                    setState(() => _error = 'Login failed');
-                    return false;
-                  }
-                },
-              ),
-            ],
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _passController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: "Password",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                if (_error != null) FlashBar(message: _error!),
+                const SizedBox(height: 12),
+                AnimatedButton(
+                  label: "Login",
+                  onPressed: () async {
+                    final emailOk = _isValidEmail(_emailController.text);
+                    final passOk = _isValidPass(_passController.text);
+                    if (!emailOk || !passOk) {
+                      setState(() => _error = 'Invalid credentials');
+                      return false;
+                    }
+                    final navigator = Navigator.of(context);
+                    final success = await authProvider.login(
+                      _emailController.text,
+                      _passController.text,
+                    );
+                    if (!mounted) return false;
+                    if (success) {
+                      navigator.pushReplacementNamed('/home');
+                      return true;
+                    } else {
+                      setState(() => _error = 'Login failed');
+                      return false;
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
         ),
           ),

@@ -20,8 +20,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _waveController;
   late List<double> _amplitudes;
-  int _speakingIndex = 0;
-  double _subtitleOpacity = 1.0;
+  final int _speakingIndex = 0;
+  final double _subtitleOpacity = 1.0;
 
   @override
   void initState() {
@@ -46,15 +46,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   }
 
   double _randAmp() => 0.2 + Random().nextDouble() * 0.8;
-
-  void _onNewTranscript() {
-    setState(() => _subtitleOpacity = 0.0);
-    Future.delayed(const Duration(milliseconds: 120), () {
-      if (mounted) setState(() => _subtitleOpacity = 1.0);
-    });
-    setState(() => _speakingIndex = (_speakingIndex + 1) %
-        max(1, context.read<CallProvider>().participants.length));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -242,19 +233,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildControlButton(IconData icon, Color color, VoidCallback onPressed) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white24,
-        shape: BoxShape.circle,
-      ),
-      child: IconButton(
-        icon: Icon(icon, color: color, size: 30),
-        onPressed: onPressed,
       ),
     );
   }
