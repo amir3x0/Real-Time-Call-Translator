@@ -11,10 +11,9 @@ class User(Base):
     # Primary key
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     
-    # Authentication
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    phone = Column(String(20), unique=True, nullable=True)
-    name = Column(String(255), nullable=False)
+    # Authentication / profile
+    phone = Column(String(20), unique=True, nullable=False, index=True)
+    full_name = Column(String(255), nullable=False)
     hashed_password = Column(String(255), nullable=True)
     
     # Firebase integration (optional)
@@ -47,8 +46,8 @@ class User(Base):
         """Convert to dictionary for JSON response"""
         return {
             "id": self.id,
-            "email": self.email,
-            "name": self.name,
+            "phone": self.phone,
+            "full_name": self.full_name,
             "primary_language": self.primary_language,
             "supported_languages": self.supported_languages,
             "has_voice_sample": self.has_voice_sample,
@@ -58,4 +57,4 @@ class User(Base):
         }
     
     def __repr__(self):
-        return f"<User {self.email}>"
+        return f"<User {self.phone}>"

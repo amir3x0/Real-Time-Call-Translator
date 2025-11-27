@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../data/websocket/websocket_service.dart';
+import '../data/api/api_service.dart';
 import '../models/call.dart';
 import '../models/live_caption.dart';
 import '../models/participant.dart';
@@ -28,6 +29,7 @@ class CallProvider with ChangeNotifier {
   String? _activeSessionId;
   String _liveTranscription = "המתן, השרת מתרגם..."; // Mock subtitle
   final WebSocketService _wsService = WebSocketService();
+  final ApiService _apiService = ApiService();
   StreamSubscription<String>? _wsSub;
   final List<LiveCaptionData> _captionBubbles = [];
   final Map<String, Timer> _bubbleTimers = {};
@@ -104,6 +106,26 @@ class CallProvider with ChangeNotifier {
     
     // start mock ws
     _wsService.start(_activeSessionId ?? 'mock_session');
+    _wsSub = _wsService.messages.listen(_handleRealtimeTranscript);
+    notifyListeners();
+  }
+
+  /// Starts a real call by calling backend API and connecting to the websocket
+  Future<void> startCall(List<String> participantUserIds) async {
+    // Call API to start call
+    final resp = await _apiService.startCall(participantUserIds);
+    final sessionId = resp['session_id'] as String;
+    // final wsUrl = resp['websocket_url'] as String; // Ignored for now
+    final parts = resp['participants'] as List<dynamic>;
+
+    // Map participants
+    _participants = parts.map((p) => CallParticipant.fromJson(Map<String, dynamic>.from(p))).toList();
+    _status = CallStatus.active;
+    _activeSessionId = sessionId;
+
+    // Connect to WS and listen
+    _wsService.start(sessionId);
+    _wsSub?.cancel();
     _wsSub = _wsService.messages.listen(_handleRealtimeTranscript);
     notifyListeners();
   }

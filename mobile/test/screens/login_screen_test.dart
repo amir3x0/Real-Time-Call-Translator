@@ -20,16 +20,16 @@ void main() {
     );
 
     // 2. Verify Initial UI
-    expect(find.text('Call Translator'), findsOneWidget);
-    expect(find.byType(TextField), findsNWidgets(2)); // Email & Password
-    expect(find.text('Login'), findsOneWidget);
+    expect(find.textContaining('Call Translator'), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(2)); // Phone & Password
+    expect(find.text('Sign In'), findsOneWidget);
 
     // 3. Enter Text
-    await tester.enterText(find.widgetWithText(TextField, 'Email'), 'user@demo.com');
+    await tester.enterText(find.widgetWithText(TextField, 'Phone'), '052-111-2222');
     await tester.enterText(find.widgetWithText(TextField, 'Password'), 'password123');
 
-    // 4. Tap Login
-    await tester.tap(find.text('Login'));
+    // 4. Tap Sign In
+    await tester.tap(find.text('Sign In'));
     
     // 5. Rebuild UI after state change (Loading indicator should appear)
     await tester.pump(); 

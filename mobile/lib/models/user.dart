@@ -1,9 +1,8 @@
 /// User model matching backend schema
 class User {
   final String id;
-  final String email;
-  final String? phone;
-  final String name;
+  final String phone;
+  final String fullName;
   final String primaryLanguage;
   final List<String> supportedLanguages;
   final bool hasVoiceSample;
@@ -20,9 +19,8 @@ class User {
 
   User({
     required this.id,
-    required this.email,
-    this.phone,
-    required this.name,
+    required this.phone,
+    required this.fullName,
     required this.primaryLanguage,
     required this.supportedLanguages,
     this.hasVoiceSample = false,
@@ -42,9 +40,8 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'],
-      email: json['email'],
       phone: json['phone'],
-      name: json['name'],
+      fullName: json['full_name'],
       primaryLanguage: json['primary_language'] ?? 'he',
       supportedLanguages: json['supported_languages'] != null
           ? List<String>.from(json['supported_languages'])
@@ -71,9 +68,8 @@ class User {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'email': email,
       'phone': phone,
-      'name': name,
+      'full_name': fullName,
       'primary_language': primaryLanguage,
       'supported_languages': supportedLanguages,
       'has_voice_sample': hasVoiceSample,
@@ -93,9 +89,8 @@ class User {
   /// Create a copy with updated fields
   User copyWith({
     String? id,
-    String? email,
     String? phone,
-    String? name,
+    String? fullName,
     String? primaryLanguage,
     List<String>? supportedLanguages,
     bool? hasVoiceSample,
@@ -112,9 +107,8 @@ class User {
   }) {
     return User(
       id: id ?? this.id,
-      email: email ?? this.email,
       phone: phone ?? this.phone,
-      name: name ?? this.name,
+      fullName: fullName ?? this.fullName,
       primaryLanguage: primaryLanguage ?? this.primaryLanguage,
       supportedLanguages: supportedLanguages ?? this.supportedLanguages,
       hasVoiceSample: hasVoiceSample ?? this.hasVoiceSample,
