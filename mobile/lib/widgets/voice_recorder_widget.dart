@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'audio/voice_visualizer.dart';
+
 enum RecorderState { idle, recording, reviewing, uploading }
 
 class VoiceRecorderWidget extends StatefulWidget {
@@ -97,9 +99,15 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Voice Calibration',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+            Text(
+              _state == RecorderState.recording
+                  ? 'Voiceprint Creation'
+                  : 'Voice Calibration',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -179,7 +187,23 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+            VoiceVisualizer(
+              isActive: _state == RecorderState.recording,
+              maxBarHeight: 76,
+              barWidth: 5,
+              spacing: 3,
+              activeColor: Colors.purpleAccent,
+              inactiveColor: Colors.white12,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _state == RecorderState.recording
+                  ? 'Keep speaking naturally — we’re learning your tone'
+                  : 'Tap the mic and read the playful prompt aloud',
+              style: const TextStyle(color: Colors.white70),
+              textAlign: TextAlign.center,
+            ),
 
             // review controls
             if (_state == RecorderState.reviewing)

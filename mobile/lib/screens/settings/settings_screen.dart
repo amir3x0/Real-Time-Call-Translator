@@ -97,7 +97,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 8),
                   Text(
                     _voiceSamplePath == null ? 'No sample uploaded' : _voiceSamplePath!,
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6)),
+                    style: TextStyle(
+                      color: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.color
+                          ?.withValues(alpha: 0.6),
+                    ),
                   ),
                 ],
               ),

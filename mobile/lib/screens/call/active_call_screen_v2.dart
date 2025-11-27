@@ -54,6 +54,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
       await Future.delayed(const Duration(seconds: 3));
       if (mounted) {
         final callProvider = Provider.of<CallProvider>(context, listen: false);
+        if (callProvider.participants.isEmpty) {
+          return false;
+        }
         setState(() {
           _activeSpeakerIndex = (_activeSpeakerIndex + 1) % callProvider.participants.length;
         });
@@ -84,6 +87,15 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   @override
   Widget build(BuildContext context) {
     final callProvider = Provider.of<CallProvider>(context);
+    final participants = callProvider.participants
+        .asMap()
+        .entries
+        .map(
+          (entry) => entry.value.copyWith(
+            isSpeaking: entry.key == _activeSpeakerIndex && !entry.value.isMuted,
+          ),
+        )
+        .toList(growable: false);
 
     return Scaffold(
       backgroundColor: AppTheme.darkBackground,
@@ -133,8 +145,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                 const SizedBox(height: 60),
                 Expanded(
                   child: ParticipantGrid(
-                    participants: callProvider.participants,
-                    activeSpeakerIndex: _activeSpeakerIndex,
+                    participants: participants,
                   ),
                 ),
               ],
@@ -286,7 +297,12 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                           backgroundColor: AppTheme.darkCard,
                           onTap: () {
                             HapticFeedback.lightImpact();
-                            // TODO: Implement add participant
+                            final added = callProvider.addMockParticipant();
+                            if (!added) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Participant limit reached')),
+                              );
+                            }
                           },
                         ).animate()
                           .fadeIn(delay: 400.ms, duration: 300.ms)
