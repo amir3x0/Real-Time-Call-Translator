@@ -15,6 +15,13 @@ class CallParticipant {
   final String? connectionQuality;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final String displayName;
+
+  /// UI-only state coming from the websocket pipeline
+  final bool isSpeaking;
+  final bool isTranslating;
+  final double speakingEnergy;
+  final String? latestCaption;
 
   CallParticipant({
     required this.id,
@@ -32,6 +39,11 @@ class CallParticipant {
     this.connectionQuality,
     required this.createdAt,
     this.updatedAt,
+    this.displayName = 'Participant',
+    this.isSpeaking = false,
+    this.isTranslating = false,
+    this.speakingEnergy = 0.0,
+    this.latestCaption,
   });
 
   /// Create CallParticipant from JSON
@@ -55,6 +67,11 @@ class CallParticipant {
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'])
           : null,
+      displayName: json['display_name'] ?? json['user_name'] ?? 'Participant',
+      isSpeaking: json['is_speaking'] ?? false,
+      isTranslating: json['is_translating'] ?? false,
+      speakingEnergy: (json['speaking_energy'] ?? 0).toDouble(),
+      latestCaption: json['latest_caption'],
     );
   }
 
@@ -76,6 +93,11 @@ class CallParticipant {
       'connection_quality': connectionQuality,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
+      'display_name': displayName,
+      'is_speaking': isSpeaking,
+      'is_translating': isTranslating,
+      'speaking_energy': speakingEnergy,
+      'latest_caption': latestCaption,
     };
   }
 
@@ -96,6 +118,11 @@ class CallParticipant {
     String? connectionQuality,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? displayName,
+    bool? isSpeaking,
+    bool? isTranslating,
+    double? speakingEnergy,
+    String? latestCaption,
   }) {
     return CallParticipant(
       id: id ?? this.id,
@@ -113,6 +140,11 @@ class CallParticipant {
       connectionQuality: connectionQuality ?? this.connectionQuality,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      displayName: displayName ?? this.displayName,
+      isSpeaking: isSpeaking ?? this.isSpeaking,
+      isTranslating: isTranslating ?? this.isTranslating,
+      speakingEnergy: speakingEnergy ?? this.speakingEnergy,
+      latestCaption: latestCaption ?? this.latestCaption,
     );
   }
 

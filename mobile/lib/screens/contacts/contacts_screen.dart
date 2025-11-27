@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../providers/contacts_provider.dart';
+
 import '../../providers/call_provider.dart';
+import '../../providers/contacts_provider.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});
@@ -13,6 +17,8 @@ class ContactsScreen extends StatefulWidget {
 
 class _ContactsScreenState extends State<ContactsScreen> {
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
   String _selectedLanguage = 'en';
 
   @override
@@ -21,6 +27,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ContactsProvider>(context, listen: false).loadContacts();
     });
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _searchController.dispose();
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 
   @override
@@ -60,13 +74,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   color: Theme.of(context).scaffoldBackgroundColor,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search contacts...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search or scan contacts',
+                      prefixIcon: const Icon(Icons.search),
+                      border: const OutlineInputBorder(),
                       isDense: true,
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.qr_code_scanner),
+                        onPressed: () => _openQrScanner(context),
+                      ),
                     ),
-                    onChanged: (_) {},
+                    onChanged: _handleSearchChanged,
                   ),
                 ),
               ),
@@ -93,7 +112,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     return Dismissible(
                       key: ValueKey(c.id),
                       background: Container(
-                        color: Colors.redAccent,
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.symmetric(horizontal: 18),
                         child: const Icon(Icons.delete, color: Colors.white),
@@ -115,9 +137,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       },
                       onDismissed: (_) async {
                         final name = c.name;
+                        final messenger = ScaffoldMessenger.of(context);
                         await contactsProv.removeContact(c.id);
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        if (!mounted) return;
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text('Deleted $name'),
                             action: SnackBarAction(
@@ -127,16 +150,26 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           ),
                         );
                       },
-                      child: ListTile(
-                        leading: _GradientAvatar(name: c.name),
-                        title: Text(c.name),
-                        subtitle: Text('${c.status} • ${c.language}'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.call, color: Colors.green),
-                          onPressed: () {
-                            callProv.startMockCall();
-                            Navigator.pushNamed(context, '/call');
-                          },
+                      child: Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        child: ListTile(
+                          leading: _GradientAvatar(name: c.name),
+                          title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Row(
+                            children: [
+                              _LanguageChip(code: c.language),
+                              const SizedBox(width: 8),
+                              Text(c.status),
+                            ],
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.call, color: Colors.green),
+                            onPressed: () {
+                              callProv.startMockCall();
+                              Navigator.pushNamed(context, '/call');
+                            },
+                          ),
                         ),
                       ),
                     );
@@ -182,6 +215,91 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _handleSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      Provider.of<ContactsProvider>(context, listen: false).setSearchQuery(value);
+    });
+  }
+
+  Future<void> _openQrScanner(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final contactsProvider = Provider.of<ContactsProvider>(context, listen: false);
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.black,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Scan contact QR',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: MobileScanner(
+                  onDetect: (capture) {
+                    if (capture.barcodes.isEmpty) {
+                      return;
+                    }
+                    final barcode = capture.barcodes.firstWhere(
+                      (b) => (b.rawValue ?? '').isNotEmpty,
+                      orElse: () => capture.barcodes.first,
+                    );
+                    final value = barcode.rawValue;
+                    if (value != null && value.isNotEmpty) {
+                      Navigator.of(ctx).pop(value);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || result == null || result.isEmpty) return;
+    await contactsProvider.addContactFromQr(result);
+    if (!mounted) return;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Contact added from QR')),
+    );
+  }
+}
+
+class _LanguageChip extends StatelessWidget {
+  final String code;
+  const _LanguageChip({required this.code});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = code.toUpperCase();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.shade50,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 12)),
     );
   }
 }

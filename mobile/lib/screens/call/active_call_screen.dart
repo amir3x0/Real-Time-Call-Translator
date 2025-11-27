@@ -1,13 +1,14 @@
 import 'dart:math';
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
 import '../../providers/call_provider.dart';
-import '../../widgets/call/participant_card.dart';
-import '../../widgets/waveform_painter.dart';
 import '../../widgets/call/circle_control.dart';
 import '../../widgets/call/network_indicator.dart';
+import '../../widgets/call/participant_grid.dart';
 
 class ActiveCallScreen extends StatefulWidget {
   const ActiveCallScreen({super.key});
@@ -20,7 +21,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _waveController;
   late List<double> _amplitudes;
-  final int _speakingIndex = 0;
   final double _subtitleOpacity = 1.0;
 
   @override
@@ -46,6 +46,21 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   }
 
   double _randAmp() => 0.2 + Random().nextDouble() * 0.8;
+
+  String _buildLiveSubtitle(CallProvider provider) {
+    if (provider.participants.isEmpty) {
+      return provider.liveTranscription;
+    }
+    final speakerId = provider.activeSpeakerId;
+    if (speakerId == null) {
+      return provider.liveTranscription;
+    }
+    final participant = provider.participants.firstWhere(
+      (p) => p.id == speakerId,
+      orElse: () => provider.participants.first,
+    );
+    return '${participant.displayName}: ${provider.liveTranscription}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,60 +89,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
               children: [
                 const SizedBox(height: 56),
                 Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.85,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    itemCount: callProvider.participants.length,
-                    itemBuilder: (context, index) {
-                      final p = callProvider.participants[index];
-                      final isSpeaking = index == _speakingIndex && !p.isMuted;
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                        decoration: BoxDecoration(
-                          boxShadow: isSpeaking
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.deepPurpleAccent.withAlpha(153),
-                                    blurRadius: 24,
-                                    spreadRadius: 6,
-                                  ),
-                                ]
-                              : [],
-                        ),
-                        child: Stack(
-                          children: [
-                            ParticipantCard(
-                              participant: p,
-                              mockName: index == 0 ? 'Daniel' : 'Guest',
-                            ),
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                child: AnimatedBuilder(
-                                  animation: _waveController,
-                                  builder: (_, __) => CustomPaint(
-                                    painter: WaveformPainter(
-                                      amplitudes: _amplitudes
-                                          .map((a) => a * (isSpeaking ? 1.0 : 0.2))
-                                          .toList(),
-                                      progress: _waveController.value,
-                                      color: isSpeaking
-                                          ? Colors.purpleAccent.withAlpha(89)
-                                          : Colors.blueGrey.withAlpha(31),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                  child: ParticipantGrid(
+                    participants: callProvider.participants,
+                    waveAnimation: _waveController,
+                    waveAmplitudes: _amplitudes,
+                    captionBubbles: callProvider.captionBubbles,
                   ),
                 ),
               ],
@@ -153,7 +119,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                       border: Border.all(color: Colors.white10),
                     ),
                     child: Text(
-                      callProvider.liveTranscription,
+                      _buildLiveSubtitle(callProvider),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.yellowAccent,

@@ -17,48 +17,75 @@ class ContactItem {
 
 class ContactsProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
-  List<ContactItem> _contacts = [];
+  final List<ContactItem> _allContacts = [];
+  List<ContactItem> _visibleContacts = [];
   bool _isLoading = false;
+  String _searchQuery = '';
 
-  List<ContactItem> get contacts => _contacts;
+  List<ContactItem> get contacts => List.unmodifiable(_visibleContacts);
   bool get isLoading => _isLoading;
 
   Future<void> loadContacts() async {
-    _isLoading = true;
-    notifyListeners();
+    _setLoading(true);
     final list = await _apiService.getContacts();
-    _contacts = list
-        .map((c) => ContactItem(
-              id: c['id'],
-              name: c['name'],
-              language: c['language'],
-              status: c['status'],
-            ))
-        .toList();
-    _isLoading = false;
-    notifyListeners();
+    _allContacts
+      ..clear()
+      ..addAll(list.map(_mapToContact));
+    _applyFilter();
+    _setLoading(false);
   }
 
   Future<void> addContact(String name, String language) async {
-    _isLoading = true;
-    notifyListeners();
+    _setLoading(true);
     final created = await _apiService.createContact(name, language);
-    _contacts.add(ContactItem(
-      id: created['id'],
-      name: created['name'],
-      language: created['language'],
-      status: created['status'],
-    ));
-    _isLoading = false;
-    notifyListeners();
+    _allContacts.add(_mapToContact(created));
+    _applyFilter();
+    _setLoading(false);
   }
 
   Future<void> removeContact(String id) async {
-    _isLoading = true;
-    notifyListeners();
+    _setLoading(true);
     await _apiService.deleteContact(id);
-    _contacts.removeWhere((c) => c.id == id);
-    _isLoading = false;
+    _allContacts.removeWhere((c) => c.id == id);
+    _applyFilter();
+    _setLoading(false);
+  }
+
+  Future<void> addContactFromQr(String payload) async {
+    // Expected payload format: name|lang (fallback to en)
+    final parts = payload.split('|');
+    final name = parts.isNotEmpty && parts.first.isNotEmpty ? parts.first : 'New Contact';
+    final lang = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : 'en';
+    await addContact(name, lang);
+  }
+
+  void setSearchQuery(String query) {
+    _searchQuery = query.trim().toLowerCase();
+    _applyFilter();
+  }
+
+  void _applyFilter() {
+    if (_searchQuery.isEmpty) {
+      _visibleContacts = List<ContactItem>.from(_allContacts);
+    } else {
+      _visibleContacts = _allContacts
+          .where((c) => c.name.toLowerCase().contains(_searchQuery))
+          .toList(growable: false);
+    }
     notifyListeners();
+  }
+
+  void _setLoading(bool value) {
+    _isLoading = value;
+    notifyListeners();
+  }
+
+  ContactItem _mapToContact(Map<String, dynamic> json) {
+    return ContactItem(
+      id: json['id'],
+      name: json['name'],
+      language: json['language'],
+      status: json['status'],
+    );
   }
 }
