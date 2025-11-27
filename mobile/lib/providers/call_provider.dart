@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../data/websocket/websocket_service.dart';
 import '../data/api/api_service.dart';
@@ -42,6 +43,12 @@ class CallProvider with ChangeNotifier {
   String get liveTranscription => _liveTranscription;
   List<LiveCaptionData> get captionBubbles => List.unmodifiable(_captionBubbles);
   String? get activeSpeakerId => _activeSpeakerId;
+
+  @visibleForTesting
+  void setParticipantsForTesting(List<CallParticipant> participants) {
+    _participants = participants;
+    notifyListeners();
+  }
 
   // Start a mock call
   void startMockCall() {
@@ -132,7 +139,9 @@ class CallProvider with ChangeNotifier {
 
   void endCall() {
     _status = CallStatus.ended;
-    _participants.clear();
+    // Ensure we assign a new growable empty list instead of trying to clear
+    // a fixed-length list (which may have been set by .toList(growable:false)).
+    _participants = [];
     _activeSessionId = null;
     _wsSub?.cancel();
     _wsService.stop();

@@ -97,13 +97,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 8),
                   Text(
                     _voiceSamplePath == null ? 'No sample uploaded' : _voiceSamplePath!,
-                    style: TextStyle(
-                      color: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.color
-                          ?.withValues(alpha: 0.6),
-                    ),
+                        style: TextStyle(
+                          color: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.color
+                              ?.withValues(alpha: 0.6),
+                        ),
                   ),
                 ],
               ),
@@ -116,7 +116,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   authProv.logout();
                   Navigator.pushReplacementNamed(context, '/');
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                // Ensure the TextStyle inherits so transitions between Light/Dark theme
+                // don't attempt to animate between TextStyles with different 'inherit' flags.
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  textStyle: const TextStyle(inherit: true),
+                ),
                 child: const Text('Logout'),
               ),
             )

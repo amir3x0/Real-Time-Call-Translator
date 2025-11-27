@@ -15,13 +15,19 @@ void main() {
       child: const MaterialApp(home: SettingsScreen()),
     ));
 
-    await tester.pumpAndSettle();
+    // Avoid pumpAndSettle because the VoiceRecorderWidget contains a repeating
+    // animation (AnimationController.repeat) and that prevents the test from
+    // settling. Instead, pump a small duration so the screen builds and move on.
+    await tester.pump(const Duration(milliseconds: 300));
 
     // Check theme toggle control exists
     expect(find.byType(Switch), findsOneWidget);
     // Check language dropdown exists
     expect(find.byType(DropdownButton<String>), findsOneWidget);
-    // Check upload button exists
-    expect(find.text('Upload'), findsOneWidget);
+    // Check the voice sample section label exists and a logout button is present
+    expect(find.text('Voice Sample'), findsOneWidget);
+    expect(find.text('Logout'), findsOneWidget);
+
+    // The VoiceRecorderWidget behavior tested in isolation in its own widget test.
   });
 }
