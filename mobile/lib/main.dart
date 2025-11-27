@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// import 'config/app_config.dart';
+import 'config/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/call_provider.dart';
 import 'providers/settings_provider.dart';
@@ -32,19 +32,12 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: 'Real-Time Call Translator',
             debugShowCheckedModeBanner: false,
-            theme: ThemeData(
-              primarySwatch: Colors.blue,
-              brightness: Brightness.light,
-              useMaterial3: true,
-            ),
-            darkTheme: ThemeData(
-              brightness: Brightness.dark,
-              useMaterial3: true,
-            ),
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
             themeMode: settings.themeMode,
             initialRoute: '/',
             routes: {
-              '/': (context) => LoginScreen(),
+              '/': (context) => const LoginScreen(),
               '/home': (context) => const HomeScreen(),
               '/call': (context) => const ActiveCallScreen(),
               '/contacts': (context) => const ContactsScreen(),

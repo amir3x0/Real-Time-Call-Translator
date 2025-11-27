@@ -34,11 +34,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final authProv = Provider.of<AuthProvider>(context, listen: false);
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             ListTile(
               title: const Text('Theme'),
               subtitle: Text(settingsProv.themeMode == ThemeMode.light ? 'Light' : 'Dark'),
@@ -94,7 +95,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                   const SizedBox(height: 8),
-                  Text(_voiceSamplePath == null ? 'No sample uploaded' : _voiceSamplePath!, style: const TextStyle(color: Colors.black54)),
+                  Text(
+                    _voiceSamplePath == null ? 'No sample uploaded' : _voiceSamplePath!,
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6)),
+                  ),
                 ],
               ),
             ),
@@ -111,6 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             )
           ],
+          ),
         ),
       ),
     );
