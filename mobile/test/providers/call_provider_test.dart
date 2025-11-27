@@ -33,5 +33,16 @@ void main() {
       expect(callProvider.status, CallStatus.ended);
       expect(callProvider.participants, isEmpty);
     });
+
+    test('endCall should not throw when participants list is fixed-length', () {
+      callProvider.startMockCall();
+      // Convert to a fixed-length list to reproduce the earlier edge-case
+      final fixedParticipants = callProvider.participants.toList(growable: false);
+      callProvider.setParticipantsForTesting(fixedParticipants);
+
+      expect(() => callProvider.endCall(), returnsNormally);
+      expect(callProvider.status, CallStatus.ended);
+      expect(callProvider.participants, isEmpty);
+    });
   });
 }

@@ -20,21 +20,34 @@ void main() {
 
     // Start the mock call programmatically
     callProv.startMockCall();
-    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+    // Avoid pumpAndSettle which times out if ongoing timers/animations are present;
+    // instead advance the test clock by a small period and then perform small pumps.
+    await tester.pump(const Duration(milliseconds: 300));
 
     // After starting there should be participant cards
     expect(find.byType(GridView), findsOneWidget);
 
-    // Wait for mock ws messages (2s period) and assert transcription changed
+    // Wait for mock WS messages (2s period) and assert transcription changed.
+    // Advance the clock and pump to let the async mock timers run.
     await tester.pump(const Duration(seconds: 4));
-    await tester.pumpAndSettle();
-    // Provider's liveTranscription should have updated from the initial value
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Ensure provider has an active speaker and a live transcription
     expect(callProv.liveTranscription != 'המתן, השרת מתרגם...', true);
-    // The screen should display the current provider transcription
-    expect(find.textContaining(callProv.liveTranscription), findsOneWidget);
+    expect(callProv.activeSpeakerId != null, true);
+
+    // Construct the exact subtitle string displayed at the bottom of the screen
+    final active = callProv.participants.firstWhere((p) => p.id == callProv.activeSpeakerId);
+    final expectedSubtitle = '${active.displayName}: ${callProv.liveTranscription}';
+
+    // Assert the bottom subtitle (which includes speaker name) is present exactly once
+    final subtitleFinder = find.byKey(const Key('live-subtitle'));
+    expect(subtitleFinder, findsOneWidget);
+    final subtitleText = (tester.widget<Text>(subtitleFinder)).data;
+    expect(subtitleText, expectedSubtitle);
 
     // Clean up the mock call so timers are cancelled
     callProv.endCall();
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
   });
 }

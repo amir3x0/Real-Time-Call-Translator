@@ -48,6 +48,11 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     super.dispose();
   }
 
+  @visibleForTesting
+  void setStateForTesting(RecorderState s) {
+    setState(() => _state = s);
+  }
+
   void _startRecording() {
     HapticFeedback.mediumImpact();
     setState(() {
@@ -131,6 +136,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
 
                   // mic / stop morphing button
                   GestureDetector(
+                    key: const Key('voice-mic-btn'),
                     onTap: () {
                       if (_state == RecorderState.idle) {
                         _startRecording();
@@ -223,7 +229,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                   const SizedBox(width: 12),
                   _pillButton(Icons.cloud_upload_outlined, 'Upload', () async {
                     await _upload();
-                  }),
+                  }, key: const Key('voice-upload-button')),
                 ],
               ),
 
@@ -250,8 +256,9 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     );
   }
 
-  Widget _pillButton(IconData icon, String label, VoidCallback onTap) {
+  Widget _pillButton(IconData icon, String label, VoidCallback onTap, {Key? key}) {
     return InkWell(
+      key: key,
       onTap: onTap,
       borderRadius: BorderRadius.circular(24),
       child: Container(

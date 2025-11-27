@@ -22,9 +22,10 @@ void main() {
     // Expect mock contacts loaded
     expect(find.byType(ListTile), findsWidgets);
 
-    // Enter new contact
-    await tester.enterText(find.byType(TextField), 'New Contact');
-    await tester.tap(find.text('Add'));
+    // Enter new contact into the contact name field (bottom input)
+    await tester.enterText(find.widgetWithText(TextField, 'Contact name'), 'New Contact');
+    // Tap the 'add' FloatingActionButton that uses an Icon instead of a text label
+    await tester.tap(find.byKey(const Key('contacts-add-fab')));
     await tester.pumpAndSettle();
 
     // Now the new contact must exist

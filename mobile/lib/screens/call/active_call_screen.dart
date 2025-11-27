@@ -120,6 +120,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                     ),
                     child: Text(
                       _buildLiveSubtitle(callProvider),
+                      key: const Key('live-subtitle'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.yellowAccent,

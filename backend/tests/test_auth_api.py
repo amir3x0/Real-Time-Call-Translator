@@ -9,20 +9,7 @@ from app.models.database import Base, get_db
 from app.models.user import User
 
 
-@pytest.fixture
-async def async_db():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    async def _get_test_db():
-        async with AsyncSessionLocal() as session:
-            yield session
-
-    app.dependency_overrides[get_db] = _get_test_db
-    yield
-    app.dependency_overrides.clear()
+## Use the shared async_db fixture from conftest.py for a single in-memory DB per test
 
 
 def test_register_and_login(async_db):

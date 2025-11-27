@@ -3,39 +3,28 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from app.main import app
+from tests.helpers import create_user, unique_phone
 from app.models.database import Base, get_db
 
 
-@pytest.fixture
-async def async_db():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    async def _get_test_db():
-        async with AsyncSessionLocal() as session:
-            yield session
-
-    app.dependency_overrides[get_db] = _get_test_db
-    yield
-    app.dependency_overrides.clear()
+## Use conftest's shared async_db fixture to ensure DB is created/cleaned per test
 
 
 def test_start_call(async_db):
     client = TestClient(app)
 
     # Register three users
-    r1 = client.post("/api/auth/register", json={"phone":"052-111-1111","full_name":"Caller","password":"pass123","primary_language":"en"})
+    # Use distinct phone numbers per test to avoid cross-test collisions
+    r1 = create_user(client, full_name="Caller", password="pass123", primary_language="en")
     assert r1.status_code == 201
     token1 = r1.json()['token']
     caller_id = r1.json()['user_id']
 
-    r2 = client.post("/api/auth/register", json={"phone":"052-222-2222","full_name":"User2","password":"pass123","primary_language":"en"})
+    r2 = create_user(client, full_name="User2", password="pass123", primary_language="en")
     assert r2.status_code == 201
     user2_id = r2.json()['user_id']
 
-    r3 = client.post("/api/auth/register", json={"phone":"052-333-3333","full_name":"User3","password":"pass123","primary_language":"en"})
+    r3 = create_user(client, full_name="User3", password="pass123", primary_language="en")
     assert r3.status_code == 201
     user3_id = r3.json()['user_id']
 

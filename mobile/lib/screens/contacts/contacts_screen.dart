@@ -184,6 +184,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         scale: fabScale,
         duration: const Duration(milliseconds: 200),
         child: FloatingActionButton(
+          key: const Key('contacts-add-fab'),
           onPressed: () async {
             if (_nameController.text.trim().isEmpty) return;
             await contactsProv.addContact(_nameController.text.trim(), _selectedLanguage);
