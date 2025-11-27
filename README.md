@@ -60,7 +60,7 @@
 - 🌍 **Multi-Language Translation** - Support for 100+ languages via Google Translate API
 - 🔊 **Voice Cloning** - Preserve caller's voice using Google Cloud Text-to-Speech with custom voice models
 - 📞 **WebRTC Integration** - Low-latency audio streaming for real-time communication
-- 🔐 **Secure Authentication** - Firebase-based user authentication and session management
+- 🔐 **Secure Authentication** - Phone-based authentication using JWT tokens and password hashing
 
 ### Advanced Features
 
@@ -102,7 +102,7 @@
 | **Google Cloud Speech-to-Text** | Speech recognition and transcription |
 | **Google Cloud Translate** | Multi-language translation |
 | **Google Cloud Text-to-Speech** | Voice synthesis with cloning |
-| **Firebase Authentication** | User authentication and management |
+| **JWT Authentication (python-jose)** | Phone-based authentication using JWT tokens |
 
 ### Mobile
 
@@ -147,7 +147,7 @@
         │                   │                   │
 ┌───────▼────────┐  ┌──────▼───────┐  ┌────────▼────────┐
 │  WebSocket     │  │  REST API    │  │  Authentication │
-│  Handler       │  │  Endpoints   │  │  (Firebase)     │
+│  Handler       │  │  Endpoints   │  │  (Auth Service / JWT)     │
 └───────┬────────┘  └──────┬───────┘  └────────┬────────┘
         │                   │                   │
         └───────────────────┼───────────────────┘

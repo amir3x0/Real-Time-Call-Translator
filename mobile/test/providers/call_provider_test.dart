@@ -19,7 +19,7 @@ void main() {
       callProvider.startMockCall();
 
       expect(callProvider.status, CallStatus.active);
-      expect(callProvider.participants.length, 2); // We added 2 mock participants
+      expect(callProvider.participants.length, 4); // startMockCall adds 4 mock participants
       expect(callProvider.liveTranscription, contains('מתרגם'));
     });
 

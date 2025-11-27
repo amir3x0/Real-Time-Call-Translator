@@ -14,13 +14,13 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
-  final TextEditingController _emailController = TextEditingController(text: "demo@user.com");
+  final TextEditingController _phoneController = TextEditingController(text: "052-111-2222");
   final TextEditingController _passController = TextEditingController(text: "123456");
   String? _error;
   bool _isLoading = false;
   late AnimationController _backgroundController;
 
-  bool _isValidEmail(String v) => v.contains('@');
+  bool _isValidPhone(String v) => v.replaceAll(RegExp(r"\D"), "").length >= 6;
   bool _isValidPass(String v) => v.length >= 6;
 
   @override
@@ -35,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   void dispose() {
     _backgroundController.dispose();
-    _emailController.dispose();
+    _phoneController.dispose();
     _passController.dispose();
     super.dispose();
   }
@@ -165,12 +165,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     
                     const SizedBox(height: 48),
                     
-                    // Glassmorphism Email Input
+                    // Glassmorphism Phone Input
                     _buildGlassInput(
-                      controller: _emailController,
-                      label: "Email",
-                      icon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
+                      controller: _phoneController,
+                      label: "Phone",
+                      icon: Icons.phone_android_outlined,
+                      keyboardType: TextInputType.phone,
                     ).animate()
                       .fadeIn(delay: 800.ms, duration: 400.ms)
                       .slideX(begin: -0.2, end: 0, duration: 400.ms),
@@ -348,10 +348,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Future<void> _handleLogin(AuthProvider authProvider) async {
-    final emailOk = _isValidEmail(_emailController.text);
+    final phoneOk = _isValidPhone(_phoneController.text);
     final passOk = _isValidPass(_passController.text);
     
-    if (!emailOk || !passOk) {
+    if (!phoneOk || !passOk) {
       setState(() => _error = 'Invalid credentials');
       return;
     }
@@ -363,7 +363,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     
     final navigator = Navigator.of(context);
     final success = await authProvider.login(
-      _emailController.text,
+      _phoneController.text,
       _passController.text,
     );
     

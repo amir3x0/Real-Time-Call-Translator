@@ -14,8 +14,8 @@ async def test_create_user():
 
     AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with AsyncSessionLocal() as session:
-        user = User(email="test@example.com", name="Test User", primary_language="he")
+        user = User(phone="052-111-2222", full_name="Test User", primary_language="he")
         session.add(user)
         await session.commit()
-        assert user.email == "test@example.com"
+        assert user.phone == "052-111-2222"
         assert user.primary_language == "he"

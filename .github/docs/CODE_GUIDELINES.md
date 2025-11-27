@@ -44,14 +44,14 @@ Follow **PEP 8** with these specifics:
 # Blank lines: 2 before top-level definitions, 1 before method definitions
 
 # ✅ Good
-async def get_user_by_email(
-    email: str,
+async def get_user_by_phone(
+    phone: str,
     include_deleted: bool = False
 ) -> User | None:
     """Get user by email address.
     
     Args:
-        email: User's email address
+        phone: User's phone number
         include_deleted: Whether to include soft-deleted users
         
     Returns:
@@ -210,11 +210,11 @@ class User(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     
     # Required fields first
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    name = Column(String(255), nullable=False)
+    phone = Column(String(20), unique=True, nullable=False, index=True)
+    full_name = Column(String(255), nullable=False)
     
     # Optional fields
-    phone = Column(String(20), unique=True, nullable=True)
+    email = Column(String(255), unique=True, nullable=True)
     
     # Boolean flags
     is_active = Column(Boolean, default=True)
@@ -227,13 +227,13 @@ class User(Base):
         """Convert model to dictionary."""
         return {
             "id": self.id,
-            "email": self.email,
-            "name": self.name,
+            "phone": self.phone,
+            "full_name": self.full_name,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
     
     def __repr__(self) -> str:
-        return f"<User {self.email}>"
+        return f"<User {self.phone}>"
 ```
 
 ### Indexes
@@ -526,15 +526,17 @@ Private keys
 from pydantic import BaseModel, validator
 
 class UserCreate(BaseModel):
-    email: str
-    name: str
+    phone: str
+    full_name: str
     primary_language: str
     
-    @validator('email')
-    def email_must_be_valid(cls, v):
-        if '@' not in v:
-            raise ValueError('Invalid email format')
-        return v.lower()
+    @validator('phone')
+    def phone_must_be_valid(cls, v):
+        import re
+        digits = re.sub(r"\D", "", v)
+        if len(digits) < 6:
+            raise ValueError('Invalid phone number')
+        return v
     
     @validator('primary_language')
     def language_must_be_supported(cls, v):
@@ -592,7 +594,7 @@ def save_voice_sample(user_id: str, file_data: bytes):
 ```python
 # ✅ Good - Use specific columns
 result = await db.execute(
-    select(User.id, User.email, User.name)
+    select(User.id, User.phone, User.full_name)
     .where(User.is_active == True)
 )
 

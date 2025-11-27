@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     API_HOST: str = Field("0.0.0.0")
     API_PORT: int = Field(8000)
     DEBUG: bool = Field(True)
+    JWT_SECRET_KEY: str = Field("supersecret", env="JWT_SECRET_KEY")
+    JWT_ALGORITHM: str = Field("HS256", env="JWT_ALGORITHM")
+    JWT_EXP_DAYS: int = Field(7, env="JWT_EXP_DAYS")
 
     class Config:
         # .env is in the backend/ directory relative to this file

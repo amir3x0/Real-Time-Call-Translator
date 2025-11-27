@@ -143,7 +143,7 @@ Servers
 
 Example:
 ```sql
-SELECT email, name, primary_language 
+SELECT phone, full_name, primary_language 
 FROM users 
 WHERE is_active = true;
 ```
@@ -237,7 +237,7 @@ SELECT * FROM users;
 SELECT COUNT(*) FROM users;
 
 -- Specific columns
-SELECT email, name FROM users WHERE is_active = true;
+SELECT phone, full_name FROM users WHERE is_active = true;
 
 -- Join example
 SELECT 
@@ -257,7 +257,7 @@ JOIN calls c ON cp.call_id = c.id;
 
 #### Get All Active Users
 ```sql
-SELECT id, email, name, primary_language, created_at 
+SELECT id, phone, full_name, primary_language, created_at 
 FROM users 
 WHERE is_active = true 
 ORDER BY created_at DESC;
@@ -275,7 +275,7 @@ ORDER BY user_count DESC;
 
 #### Find Users with Voice Samples
 ```sql
-SELECT email, name, voice_quality_score
+SELECT phone, full_name, voice_quality_score
 FROM users
 WHERE has_voice_sample = true
 ORDER BY voice_quality_score DESC;
@@ -324,8 +324,8 @@ WHERE duration_seconds IS NOT NULL;
 #### Get Participants in a Call
 ```sql
 SELECT 
-    u.name,
-    u.email,
+    u.full_name,
+    u.phone,
     cp.target_language,
     cp.speaking_language,
     cp.is_muted,
@@ -339,13 +339,13 @@ ORDER BY cp.joined_at;
 #### Find Users Using Voice Cloning
 ```sql
 SELECT 
-    u.name,
-    u.email,
+    u.full_name,
+    u.phone,
     COUNT(*) as times_used_cloning
 FROM call_participants cp
 JOIN users u ON cp.user_id = u.id
 WHERE cp.use_voice_cloning = true
-GROUP BY u.id, u.name, u.email
+GROUP BY u.id, u.full_name, u.phone
 ORDER BY times_used_cloning DESC;
 ```
 
@@ -394,8 +394,8 @@ ORDER BY timestamp DESC;
 #### Get User's Contacts
 ```sql
 SELECT 
-    u.name as contact_name,
-    u.email as contact_email,
+    u.full_name as contact_name,
+    u.phone as contact_phone,
     c.nickname,
     c.is_favorite,
     c.total_calls,
@@ -410,12 +410,12 @@ ORDER BY c.is_favorite DESC, c.last_call_at DESC;
 #### Find Most Popular Contacts
 ```sql
 SELECT 
-    u.name,
-    u.email,
+    u.full_name,
+    u.phone,
     COUNT(c.id) as times_added
 FROM users u
 JOIN contacts c ON u.id = c.contact_user_id
-GROUP BY u.id, u.name, u.email
+GROUP BY u.id, u.full_name, u.phone
 ORDER BY times_added DESC
 LIMIT 10;
 ```
@@ -425,8 +425,8 @@ LIMIT 10;
 #### Get Trained Voice Models
 ```sql
 SELECT 
-    u.email,
-    u.name,
+    u.phone,
+    u.full_name,
     vm.sample_language,
     vm.quality_score,
     vm.similarity_score,
@@ -457,7 +457,7 @@ SELECT
     c.status,
     c.started_at,
     c.duration_seconds,
-    u.name as participant_name,
+    u.full_name as participant_name,
     cp.target_language,
     cp.speaking_language,
     cp.is_muted
@@ -471,8 +471,8 @@ ORDER BY cp.joined_at;
 #### User Activity Summary
 ```sql
 SELECT 
-    u.email,
-    u.name,
+    u.phone,
+    u.full_name,
     COUNT(DISTINCT cp.call_id) as total_calls,
     COUNT(DISTINCT c2.contact_user_id) as total_contacts,
     u.has_voice_sample,
@@ -480,7 +480,7 @@ SELECT
 FROM users u
 LEFT JOIN call_participants cp ON u.id = cp.user_id
 LEFT JOIN contacts c2 ON u.id = c2.user_id
-GROUP BY u.id, u.email, u.name, u.has_voice_sample, u.created_at
+GROUP BY u.id, u.phone, u.full_name, u.has_voice_sample, u.created_at
 ORDER BY total_calls DESC;
 ```
 
@@ -492,9 +492,8 @@ ORDER BY total_calls DESC;
 ```sql
 CREATE TABLE users (
     id VARCHAR PRIMARY KEY,                    -- UUID
-    email VARCHAR(255) UNIQUE NOT NULL,
-    phone VARCHAR(20) UNIQUE,
-    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20) UNIQUE NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
     hashed_password VARCHAR(255),
     firebase_uid VARCHAR(255) UNIQUE,
     primary_language VARCHAR(10) DEFAULT 'he', -- he, en, ru
@@ -619,7 +618,7 @@ CREATE TABLE messages (
 ### Indexes
 ```sql
 -- Users
-CREATE UNIQUE INDEX ix_users_email ON users(email);
+CREATE UNIQUE INDEX ix_users_phone ON users(phone);
 CREATE UNIQUE INDEX ix_users_firebase_uid ON users(firebase_uid);
 
 -- Calls
@@ -675,7 +674,7 @@ async def example_queries():
         result = await db.execute(
             select(User)
             .join(CallParticipant)
-            .where(User.email == "test@example.com")
+            .where(User.phone == "052-111-2222")
         )
         user = result.scalar_one_or_none()
         

@@ -17,7 +17,7 @@ void main() {
 
     test('Login should update user and loading state', () async {
       // 1. Check loading starts
-      final loginFuture = authProvider.login('test@test.com', '123456');
+      final loginFuture = authProvider.login('052-111-2222', '123456');
       expect(authProvider.isLoading, true);
 
       // 2. Wait for login to complete
@@ -27,13 +27,13 @@ void main() {
       expect(success, true);
       expect(authProvider.isLoading, false);
       expect(authProvider.currentUser, isNotNull);
-      expect(authProvider.currentUser!.email, 'test@test.com');
+      expect(authProvider.currentUser!.phone, '052-111-2222');
       expect(authProvider.isAuthenticated, true);
     });
 
     test('Logout should clear user data', () async {
       // Login first
-      await authProvider.login('test@test.com', '123456');
+      await authProvider.login('052-111-2222', '123456');
       expect(authProvider.isAuthenticated, true);
 
       // Logout
