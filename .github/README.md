@@ -94,22 +94,15 @@ Database management guide covering:
 
 ### workflows/ - GitHub Actions
 
-This directory will contain CI/CD automation:
-- Automated testing on pull requests
-- Docker image builds
-- Code quality checks
-- Deployment workflows
-
-**Status**: To be implemented in later project phases
+This directory contains CI/CD automation:
+- **[backend-ci.yml](workflows/backend-ci.yml)** - CI pipeline for Python FastAPI backend (Tests, Linting)
+- **[mobile-ci.yml](workflows/mobile-ci.yml)** - CI pipeline for Flutter mobile app (Analyze, Tests)
 
 ### templates/ - Issue & PR Templates
 
-This directory will contain templates for:
-- Bug reports
-- Feature requests
-- Pull request descriptions
-
-**Status**: To be implemented in later project phases
+This directory contains templates for:
+- **[issue_template.md](templates/issue_template.md)** - Bug report template
+- **[pull_request_template.md](templates/pull_request_template.md)** - Pull request template
 
 ## 🎯 Current Project Status
 
