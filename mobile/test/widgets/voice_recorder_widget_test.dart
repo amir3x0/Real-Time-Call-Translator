@@ -13,7 +13,7 @@ void main() {
     // Programmatically set the widget's internal state to reviewing for the test
     final dynamic state = tester.state(find.byType(VoiceRecorderWidget));
     state.setStateForTesting(RecorderState.reviewing);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
     // Now the Upload pill should be visible
     expect(find.byKey(const Key('voice-upload-button')), findsOneWidget);
