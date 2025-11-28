@@ -226,8 +226,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     
                     const SizedBox(height: 16),
                     
-                    // Google Sign In (Glassmorphism Button)
-                    _buildGoogleButton()
+                    // Instead of a Google Sign-In button, we present a 'Create Account' button
+                    _buildCreateAccountButton()
                       .animate()
                       .fadeIn(delay: 1600.ms, duration: 400.ms)
                       .slideY(begin: 0.2, end: 0, duration: 400.ms),
@@ -312,7 +312,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildGoogleButton() {
+  // Google sign-in button intentionally removed (not implemented).
+
+  Widget _buildCreateAccountButton() {
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusMedium,
       child: BackdropFilter(
@@ -326,18 +328,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () {
-                // TODO: Implement Google Sign-In
-              },
+              key: const Key('login-create-account'),
+              onTap: () => Navigator.pushNamed(context, '/register'),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.g_mobiledata, size: 32, color: Colors.white),
+                  const Icon(Icons.person_add, size: 28, color: Colors.white),
                   const SizedBox(width: 12),
-                  Text(
-                    "Continue with Google",
-                    style: AppTheme.labelLarge,
-                  ),
+                  Text('Create account', style: AppTheme.labelLarge),
                 ],
               ),
             ),

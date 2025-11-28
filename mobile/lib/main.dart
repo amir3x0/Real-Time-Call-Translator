@@ -6,6 +6,8 @@ import 'providers/call_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/contacts_provider.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_screen.dart';
+import 'screens/auth/register_voice_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/call/active_call_screen.dart';
 import 'screens/contacts/contacts_screen.dart';
@@ -42,6 +44,8 @@ class MyApp extends StatelessWidget {
               '/call': (context) => const ActiveCallScreen(),
               '/contacts': (context) => const ContactsScreen(),
               '/settings': (context) => const SettingsScreen(),
+              '/register': (context) => const RegisterScreen(),
+              '/register/voice': (context) => const RegisterVoiceScreen(),
             },
           );
         },

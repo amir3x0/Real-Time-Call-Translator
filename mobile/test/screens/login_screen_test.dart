@@ -40,5 +40,7 @@ void main() {
 
     // 7. Verify Navigation to Home (Checking if "Home Screen" text is present)
     expect(find.text('Home Screen'), findsOneWidget);
+
+    // 8. (Create account navigation is covered in a dedicated test.)
   });
 }

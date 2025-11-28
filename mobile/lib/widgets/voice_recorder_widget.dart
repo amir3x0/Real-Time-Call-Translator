@@ -12,6 +12,7 @@ class VoiceRecorderWidget extends StatefulWidget {
   final Future<void> Function()? onUpload;
   final Future<void> Function()? onDelete;
   final Future<void> Function()? onPlay;
+  final String? prompt;
 
   const VoiceRecorderWidget({
     super.key,
@@ -19,6 +20,7 @@ class VoiceRecorderWidget extends StatefulWidget {
     this.onUpload,
     this.onDelete,
     this.onPlay,
+    this.prompt,
   });
 
   @override
@@ -206,7 +208,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
             Text(
               _state == RecorderState.recording
                   ? 'Keep speaking naturally — we’re learning your tone'
-                  : 'Tap the mic and read the playful prompt aloud',
+                  : (widget.prompt ?? 'Tap the mic and read the playful prompt aloud'),
               style: const TextStyle(color: Colors.white70),
               textAlign: TextAlign.center,
             ),
