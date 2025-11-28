@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -81,12 +80,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
               controller: _searchController,
               style: AppTheme.bodyLarge,
               decoration: InputDecoration(
-                hintText: 'Search contacts...',
+                hintText: 'Search by name or phone...',
                 hintStyle: AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText.withValues(alpha: 0.5)),
                 prefixIcon: const Icon(Icons.search, color: AppTheme.secondaryText),
                 suffixIcon: IconButton(
-                  icon: const Icon(Icons.qr_code_scanner, color: AppTheme.primaryElectricBlue),
-                  onPressed: () => _openQrScanner(context),
+                  icon: const Icon(Icons.person_add, color: AppTheme.primaryElectricBlue),
+                  onPressed: () => _openAddContactDialog(context),
                 ),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -133,7 +132,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Scan a QR code or add contacts manually',
+            'Add contacts by phone number',
             style: AppTheme.bodyMedium.copyWith(
               color: AppTheme.secondaryText.withValues(alpha: 0.7),
             ),
@@ -160,16 +159,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: AppTheme.borderRadiusPill,
-              onTap: () => _openQrScanner(context),
+              onTap: () => _openAddContactDialog(context),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.qr_code_scanner, color: AppTheme.primaryElectricBlue),
+                    const Icon(Icons.person_add, color: AppTheme.primaryElectricBlue),
                     const SizedBox(width: 8),
                     Text(
-                      'Scan QR Code',
+                      'Add Contact',
                       style: AppTheme.labelLarge.copyWith(color: AppTheme.primaryElectricBlue),
                     ),
                   ],
@@ -351,7 +350,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                _LanguageChip(code: c.language),
+                                _LanguageChip(code: c.languageCode),
                                 const SizedBox(width: 8),
                                 Text(
                                   c.status,
@@ -401,85 +400,226 @@ class _ContactsScreenState extends State<ContactsScreen> {
     });
   }
 
-  Future<void> _openQrScanner(BuildContext context) async {
+  Future<void> _openAddContactDialog(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final contactsProvider = Provider.of<ContactsProvider>(context, listen: false);
-    final result = await showModalBottomSheet<String>(
+    
+    final nameController = TextEditingController();
+    final phoneController = TextEditingController();
+    String selectedLanguage = 'en';
+    
+    final result = await showModalBottomSheet<Map<String, String>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          decoration: BoxDecoration(
-            color: AppTheme.darkBackground,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 12),
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.darkBackground,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Handle bar
+                        Center(
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Add Contact', style: AppTheme.titleLarge),
+                            IconButton(
+                              icon: const Icon(Icons.close, color: Colors.white70),
+                              onPressed: () => Navigator.of(ctx).pop(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        // Name field
+                        ClipRRect(
+                          borderRadius: AppTheme.borderRadiusMedium,
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              decoration: AppTheme.glassDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderColor: Colors.white.withValues(alpha: 0.2),
+                              ),
+                              child: TextField(
+                                controller: nameController,
+                                style: AppTheme.bodyLarge,
+                                decoration: InputDecoration(
+                                  labelText: 'Name',
+                                  labelStyle: AppTheme.bodyMedium,
+                                  prefixIcon: const Icon(Icons.person_outline, color: AppTheme.primaryElectricBlue),
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Phone field
+                        ClipRRect(
+                          borderRadius: AppTheme.borderRadiusMedium,
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              decoration: AppTheme.glassDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderColor: Colors.white.withValues(alpha: 0.2),
+                              ),
+                              child: TextField(
+                                controller: phoneController,
+                                keyboardType: TextInputType.phone,
+                                style: AppTheme.bodyLarge,
+                                decoration: InputDecoration(
+                                  labelText: 'Phone Number',
+                                  labelStyle: AppTheme.bodyMedium,
+                                  hintText: '052-123-4567',
+                                  hintStyle: AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText.withValues(alpha: 0.5)),
+                                  prefixIcon: const Icon(Icons.phone_outlined, color: AppTheme.primaryElectricBlue),
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Language selection
+                        Text(
+                          'Primary Language',
+                          style: AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            _buildLanguageOption('\u{1F1EE}\u{1F1F1}', 'he', '\u05E2\u05D1\u05E8\u05D9\u05EA', selectedLanguage == 'he', () {
+                              setStateDialog(() => selectedLanguage = 'he');
+                            }),
+                            _buildLanguageOption('\u{1F1FA}\u{1F1F8}', 'en', 'English', selectedLanguage == 'en', () {
+                              setStateDialog(() => selectedLanguage = 'en');
+                            }),
+                            _buildLanguageOption('\u{1F1F7}\u{1F1FA}', 'ru', '\u0420\u0443\u0441\u0441\u043A\u0438\u0439', selectedLanguage == 'ru', () {
+                              setStateDialog(() => selectedLanguage = 'ru');
+                            }),
+                          ],
+                        ),
+                        const SizedBox(height: 32),
+                        // Add button
+                        Container(
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: AppTheme.primaryGradient,
+                            borderRadius: AppTheme.borderRadiusPill,
+                            boxShadow: AppTheme.buttonShadow,
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: AppTheme.borderRadiusPill,
+                              onTap: () {
+                                if (nameController.text.trim().isNotEmpty) {
+                                  Navigator.of(ctx).pop({
+                                    'name': nameController.text.trim(),
+                                    'phone': phoneController.text.trim(),
+                                    'language': selectedLanguage,
+                                  });
+                                }
+                              },
+                              child: Center(
+                                child: Text(
+                                  'Add Contact',
+                                  style: AppTheme.labelLarge.copyWith(fontSize: 16),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Scan Contact QR',
-                        style: AppTheme.titleLarge,
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white70),
-                        onPressed: () => Navigator.of(ctx).pop(),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: AppTheme.borderRadiusMedium,
-                    child: MobileScanner(
-                      onDetect: (capture) {
-                        if (capture.barcodes.isEmpty) return;
-                        final barcode = capture.barcodes.firstWhere(
-                          (b) => (b.rawValue ?? '').isNotEmpty,
-                          orElse: () => capture.barcodes.first,
-                        );
-                        final value = barcode.rawValue;
-                        if (value != null && value.isNotEmpty) {
-                          Navigator.of(ctx).pop(value);
-                        }
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
 
-    if (!mounted || result == null || result.isEmpty) return;
-    await contactsProvider.addContactFromQr(result);
+    if (!mounted || result == null) return;
+    await contactsProvider.addContact(
+      name: result['name']!,
+      phone: result['phone']!,
+      language: result['language']!,
+    );
     if (!mounted) return;
     messenger.showSnackBar(
       SnackBar(
-        content: const Text('Contact added from QR'),
+        content: Text('Added ${result['name']}'),
         backgroundColor: AppTheme.darkCard,
+      ),
+    );
+  }
+
+  Widget _buildLanguageOption(String flag, String code, String name, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.primaryElectricBlue.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: AppTheme.borderRadiusMedium,
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.primaryElectricBlue
+                : Colors.white.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(flag, style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 8),
+            Text(
+              name,
+              style: AppTheme.bodyMedium.copyWith(
+                color: isSelected ? Colors.white : AppTheme.secondaryText,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Icon(Icons.check_circle, color: AppTheme.primaryElectricBlue, size: 18),
+            ],
+          ],
+        ),
       ),
     );
   }

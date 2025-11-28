@@ -19,7 +19,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedLang = 'en';
   String? _voiceSamplePath;
-  bool _reducedMotion = false;
 
   final ApiService _api = ApiService();
 
@@ -49,46 +48,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section: Appearance
-          _buildSectionHeader('Appearance', Icons.palette_outlined)
-            .animate().fadeIn(delay: 100.ms, duration: 400.ms),
-          const SizedBox(height: 12),
-          
-          _buildSettingsTile(
-            icon: Icons.dark_mode_outlined,
-            title: 'Dark Mode',
-            subtitle: 'Always enabled for optimal viewing',
-            trailing: Switch(
-              value: true,
-              onChanged: null, // Dark mode is always on
-              activeThumbColor: AppTheme.primaryElectricBlue,
-              activeTrackColor: AppTheme.primaryElectricBlue.withValues(alpha: 0.4),
-            ),
-          ).animate().fadeIn(delay: 150.ms, duration: 400.ms),
-          
-          const SizedBox(height: 12),
-          
-          _buildSettingsTile(
-            icon: Icons.animation_outlined,
-            title: 'Reduced Motion',
-            subtitle: 'Minimize animations for accessibility',
-            trailing: Switch(
-              value: _reducedMotion,
-              onChanged: (v) {
-                HapticFeedback.selectionClick();
-                setState(() => _reducedMotion = v);
-                // TODO: Apply reduced motion to app
-              },
-              activeThumbColor: AppTheme.primaryElectricBlue,
-              activeTrackColor: AppTheme.primaryElectricBlue.withValues(alpha: 0.4),
-            ),
-          ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
-          
-          const SizedBox(height: 24),
-          
           // Section: Language
           _buildSectionHeader('Language', Icons.translate)
-            .animate().fadeIn(delay: 250.ms, duration: 400.ms),
+            .animate().fadeIn(delay: 100.ms, duration: 400.ms),
           const SizedBox(height: 12),
           
           _buildLanguageSelector()
@@ -145,41 +107,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSettingsTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Widget trailing,
-  }) {
-    return ClipRRect(
-      borderRadius: AppTheme.borderRadiusMedium,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            decoration: AppTheme.glassDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderColor: Colors.white.withValues(alpha: 0.1),
-            ),
-            child: ListTile(
-              leading: Icon(icon, color: AppTheme.primaryElectricBlue),
-              title: Text(title, style: AppTheme.titleMedium),
-              subtitle: Text(
-                subtitle,
-                style: AppTheme.bodyMedium.copyWith(
-                  color: AppTheme.secondaryText.withValues(alpha: 0.7),
-                  fontSize: 12,
-                ),
-              ),
-              trailing: trailing,
-            ),
-          ),
-        ),
-      ),
     );
   }
 

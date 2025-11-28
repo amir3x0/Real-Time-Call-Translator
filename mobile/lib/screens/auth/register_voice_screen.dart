@@ -103,14 +103,29 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
                                 icon: const Icon(Icons.arrow_back_ios, color: Colors.white70),
                                 onPressed: () => Navigator.pop(context),
                               ),
-                              // Skip button - less prominent but still accessible
-                              TextButton(
-                                key: const Key('register-skip'),
-                                onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
-                                child: Text(
-                                  'Skip for now',
-                                  style: AppTheme.bodyMedium.copyWith(
-                                    color: AppTheme.secondaryText.withValues(alpha: 0.7),
+                              // Skip button - more prominent and accessible
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  borderRadius: AppTheme.borderRadiusPill,
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: TextButton.icon(
+                                  key: const Key('register-skip'),
+                                  onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
+                                  icon: const Icon(
+                                    Icons.skip_next_rounded,
+                                    color: Colors.white70,
+                                    size: 20,
+                                  ),
+                                  label: Text(
+                                    'Skip for now',
+                                    style: AppTheme.bodyMedium.copyWith(
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
                               ),
