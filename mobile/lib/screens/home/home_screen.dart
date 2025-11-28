@@ -269,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: InkWell(
                 borderRadius: AppTheme.borderRadiusLarge,
                 onTap: () {
-                  Navigator.pushNamed(context, '/call');
+                  Navigator.pushNamed(context, '/call/select');
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -302,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen>
                               ),
                             ),
                             Text(
-                              'Real-time voice translation',
+                              'Select participants to call',
                               style: AppTheme.bodyMedium.copyWith(
                                 color: AppTheme.secondaryText,
                                 fontSize: 12,

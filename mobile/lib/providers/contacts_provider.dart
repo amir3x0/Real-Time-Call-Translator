@@ -4,13 +4,15 @@ import '../data/api/api_service.dart';
 class ContactItem {
   final String id;
   final String name;
-  final String language;
+  final String phone;
+  final String languageCode;
   final String status;
 
   ContactItem({
     required this.id,
     required this.name,
-    required this.language,
+    required this.phone,
+    required this.languageCode,
     required this.status,
   });
 }
@@ -35,9 +37,13 @@ class ContactsProvider with ChangeNotifier {
     _setLoading(false);
   }
 
-  Future<void> addContact(String name, String language) async {
+  Future<void> addContact({
+    required String name,
+    required String phone,
+    required String language,
+  }) async {
     _setLoading(true);
-    final created = await _apiService.createContact(name, language);
+    final created = await _apiService.createContact(name, language, phone: phone);
     _allContacts.add(_mapToContact(created));
     _applyFilter();
     _setLoading(false);
@@ -51,14 +57,6 @@ class ContactsProvider with ChangeNotifier {
     _setLoading(false);
   }
 
-  Future<void> addContactFromQr(String payload) async {
-    // Expected payload format: name|lang (fallback to en)
-    final parts = payload.split('|');
-    final name = parts.isNotEmpty && parts.first.isNotEmpty ? parts.first : 'New Contact';
-    final lang = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : 'en';
-    await addContact(name, lang);
-  }
-
   void setSearchQuery(String query) {
     _searchQuery = query.trim().toLowerCase();
     _applyFilter();
@@ -68,8 +66,12 @@ class ContactsProvider with ChangeNotifier {
     if (_searchQuery.isEmpty) {
       _visibleContacts = List<ContactItem>.from(_allContacts);
     } else {
+      // Search by name OR phone number
       _visibleContacts = _allContacts
-          .where((c) => c.name.toLowerCase().contains(_searchQuery))
+          .where((c) =>
+              c.name.toLowerCase().contains(_searchQuery) ||
+              c.phone.replaceAll(RegExp(r'[^0-9]'), '').contains(
+                  _searchQuery.replaceAll(RegExp(r'[^0-9]'), '')))
           .toList(growable: false);
     }
     notifyListeners();
@@ -82,10 +84,11 @@ class ContactsProvider with ChangeNotifier {
 
   ContactItem _mapToContact(Map<String, dynamic> json) {
     return ContactItem(
-      id: json['id'],
-      name: json['name'],
-      language: json['language'],
-      status: json['status'],
+      id: json['id'] ?? '',
+      name: json['name'] ?? 'Unknown',
+      phone: json['phone'] ?? '',
+      languageCode: json['language'] ?? 'en',
+      status: json['status'] ?? 'offline',
     );
   }
 }

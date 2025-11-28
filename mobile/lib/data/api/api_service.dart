@@ -35,15 +35,21 @@ class ApiService {
   Future<List<Map<String, dynamic>>> getContacts() async {
     await Future.delayed(const Duration(milliseconds: 300));
     return [
-      {'id': 'c1', 'name': 'Daniel Fraimovich', 'language': 'ru', 'status': 'Online'},
-      {'id': 'c2', 'name': 'Dr. Dan Lemberg', 'language': 'he', 'status': 'Away'},
-      {'id': 'c3', 'name': 'John Doe', 'language': 'en', 'status': 'Offline'},
+      {'id': 'c1', 'name': 'Daniel Fraimovich', 'phone': '052-123-4567', 'language': 'ru', 'status': 'Online'},
+      {'id': 'c2', 'name': 'Dr. Dan Lemberg', 'phone': '054-987-6543', 'language': 'he', 'status': 'Away'},
+      {'id': 'c3', 'name': 'John Doe', 'phone': '058-555-1234', 'language': 'en', 'status': 'Offline'},
     ];
   }
 
-  Future<Map<String, dynamic>> createContact(String name, String language) async {
+  Future<Map<String, dynamic>> createContact(String name, String language, {required String phone}) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    return {'id': DateTime.now().millisecondsSinceEpoch.toString(), 'name': name, 'language': language, 'status': 'Online'};
+    return {
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'name': name,
+      'phone': phone,
+      'language': language,
+      'status': 'Offline',
+    };
   }
 
   Future<void> deleteContact(String id) async {
