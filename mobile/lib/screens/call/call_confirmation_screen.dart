@@ -128,13 +128,13 @@ class CallConfirmationScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isCurrentUser 
-            ? const Color(0xFF00D9FF).withOpacity(0.1)
-            : Colors.white.withOpacity(0.05),
+          ? const Color(0xFF00D9FF).withValues(alpha: 0.1)
+          : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCurrentUser 
-              ? const Color(0xFF00D9FF).withOpacity(0.3)
-              : Colors.white.withOpacity(0.1),
+            color: isCurrentUser 
+              ? const Color(0xFF00D9FF).withValues(alpha: 0.3)
+              : Colors.white.withValues(alpha: 0.1),
         ),
       ),
       child: Row(
@@ -169,7 +169,7 @@ class CallConfirmationScreen extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00D9FF).withOpacity(0.2),
+                          color: const Color(0xFF00D9FF).withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
@@ -195,7 +195,7 @@ class CallConfirmationScreen extends StatelessWidget {
                     Text(
                       LanguageUtils.getName(language),
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
+                        color: Colors.white.withValues(alpha: 0.7),
                         fontSize: 14,
                       ),
                     ),
@@ -211,7 +211,7 @@ class CallConfirmationScreen extends StatelessWidget {
               onPressed: onRemove,
               icon: Icon(
                 Icons.close,
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 size: 20,
               ),
             ),
@@ -283,9 +283,9 @@ class CallConfirmationScreen extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.1),
+          color: Colors.green.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.green.withOpacity(0.3)),
+          border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -307,10 +307,10 @@ class CallConfirmationScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF00D9FF).withOpacity(0.05),
+        color: const Color(0xFF00D9FF).withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFF00D9FF).withOpacity(0.2),
+          color: const Color(0xFF00D9FF).withValues(alpha: 0.2),
         ),
       ),
       child: Column(
@@ -335,7 +335,7 @@ class CallConfirmationScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Icon(
                   Icons.swap_horiz,
-                  color: const Color(0xFF00D9FF).withOpacity(0.7),
+                  color: const Color(0xFF00D9FF).withValues(alpha: 0.7),
                   size: 24,
                 ),
               ),
@@ -373,7 +373,7 @@ class CallConfirmationScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -406,7 +406,7 @@ class CallConfirmationScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -416,14 +416,14 @@ class CallConfirmationScreen extends StatelessWidget {
             children: [
               Icon(
                 Icons.translate,
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 size: 18,
               ),
               const SizedBox(width: 8),
               Text(
                 'סיכום שפות',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
+                  color: Colors.white.withValues(alpha: 0.6),
                   fontSize: 13,
                 ),
               ),
@@ -439,7 +439,7 @@ class CallConfirmationScreen extends StatelessWidget {
                 vertical: 6,
               ),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
@@ -456,7 +456,7 @@ class CallConfirmationScreen extends StatelessWidget {
             Text(
               'השיחה תתורגם אוטומטית בין ${allLanguages.length} שפות',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 fontSize: 12,
                 fontStyle: FontStyle.italic,
               ),
@@ -475,7 +475,7 @@ class CallConfirmationScreen extends StatelessWidget {
         color: const Color(0xFF16213E),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -494,7 +494,7 @@ class CallConfirmationScreen extends StatelessWidget {
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
-                  side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

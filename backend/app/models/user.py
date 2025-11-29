@@ -21,6 +21,7 @@ class User(Base):
     
     # Language preferences
     primary_language = Column(String(10), default='he')  # he, en, ru
+    language_code = Column(String(10), nullable=True)  # User's actively selected language: he, en, ru
     supported_languages = Column(JSON, default=['he'])  # Array of languages
     
     # Voice settings
@@ -49,9 +50,11 @@ class User(Base):
             "phone": self.phone,
             "full_name": self.full_name,
             "primary_language": self.primary_language,
+            "language_code": self.language_code,
             "supported_languages": self.supported_languages,
             "has_voice_sample": self.has_voice_sample,
             "is_online": self.is_online,
+            "last_seen": self.last_seen.isoformat() if self.last_seen else None,
             "avatar_url": self.avatar_url,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }

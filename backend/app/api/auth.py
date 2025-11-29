@@ -48,6 +48,8 @@ class LoginResponse(BaseModel):
     token: str
     full_name: str
     primary_language: str
+    language_code: Optional[str]  # NEW FIELD
+    status: str = 'online'  # NEW FIELD: Set to 'online' on login
 
 
 class UserResponse(BaseModel):
@@ -55,6 +57,9 @@ class UserResponse(BaseModel):
     phone: str
     full_name: str
     primary_language: str
+    language_code: Optional[str]  # NEW FIELD
+    status: Optional[str]  # NEW FIELD: 'online' or 'offline'
+    last_seen: Optional[str]  # NEW FIELD
     created_at: Optional[str]
 
 
@@ -108,12 +113,20 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not verify_password(request.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Update user status to online
+    user.is_online = True
+    user.last_seen = datetime.utcnow()
+    await db.commit()
+    
     token = create_access_token(str(user.id))
     return LoginResponse(
         user_id=user.id,
         token=token,
         full_name=user.full_name,
         primary_language=user.primary_language,
+        language_code=user.language_code or user.primary_language,
+        status='online',
     )
 
 
@@ -124,5 +137,8 @@ async def me(current_user: User = Depends(get_current_user)):
         phone=current_user.phone,
         full_name=current_user.full_name,
         primary_language=current_user.primary_language,
+        language_code=current_user.language_code or current_user.primary_language,
+        status='online' if current_user.is_online else 'offline',
+        last_seen=current_user.last_seen.isoformat() if current_user.last_seen else None,
         created_at=current_user.created_at.isoformat() if current_user.created_at else None,
     )

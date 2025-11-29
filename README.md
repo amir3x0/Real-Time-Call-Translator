@@ -65,7 +65,7 @@
 ### Advanced Features
 
 - 🎚️ **Voice Training** - Upload voice samples to create personalized voice models
-- 🗣️ **Multi-Language Support** - Hebrew, English, Russian, Arabic, and more
+- 🗣️ **Multi-Language Support** - Hebrew, English, Russian, and more
 - 📊 **Quality Metrics** - Voice quality scoring and translation accuracy tracking
 - 💾 **Session Recording** - Optional call recording with transcription
 - 🔄 **Bidirectional Translation** - Both parties can speak in their native language
