@@ -14,8 +14,6 @@ void main() {
       targetLanguage: 'en',
       speakingLanguage: 'he', // Should show Israeli flag
       isMuted: true, // Should show mute icon
-      isSpeakerOn: true,
-      useVoiceCloning: false,
       joinedAt: DateTime.now(),
       createdAt: DateTime.now(),
       isConnected: true,

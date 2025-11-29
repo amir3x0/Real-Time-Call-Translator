@@ -50,9 +50,9 @@ class MockCallRepository {
       participants.add(CallParticipant(
         id: 'p${i + 1}',
         callId: callId,
-        userId: contact.contactUser.id,
+        userId: contact.contactUserId,
         displayName: contact.displayName,
-        speakingLanguage: contact.language,
+        speakingLanguage: contact.primaryLanguage ?? 'he',
         targetLanguage: currentUser.primaryLanguage, // Translate to current user's language
         connectionQuality: MockData.randomWeightedConnectionQuality(),
         isMuted: false,

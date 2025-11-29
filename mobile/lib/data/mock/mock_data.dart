@@ -349,16 +349,25 @@ class MockData {
   /// Get mock contacts for a user (excluding the user themselves)
   static List<Contact> getMockContactsForUser(String userId) {
     final otherUsers = mockUsers.where((u) => u.id != userId).toList();
-    return otherUsers.take(4).map((user) => Contact(
-      id: 'contact_${user.id}',
-      ownerId: userId,
-      contactUser: user,
-      totalCalls: randomInt(15),
-      lastCallAt: randomBool() 
-          ? DateTime.now().subtract(Duration(days: randomInt(7)))
-          : null,
-      createdAt: DateTime.now().subtract(Duration(days: randomInt(30))),
-    )).toList();
+    return otherUsers.take(4).indexed.map((entry) {
+      final (index, user) = entry;
+      return Contact(
+        id: 'contact_${user.id}',
+        userId: userId,
+        contactUserId: user.id,
+        contactName: null, // Use user's real name
+        isBlocked: false,
+        isFavorite: index == 0, // First contact is favorite for demo
+        addedAt: DateTime.now().subtract(Duration(days: randomInt(30))),
+        createdAt: DateTime.now().subtract(Duration(days: randomInt(30))),
+        // Joined user info
+        fullName: user.fullName,
+        phone: user.phone,
+        primaryLanguage: user.primaryLanguage,
+        isOnline: user.isOnline,
+        avatarUrl: user.avatarUrl,
+      );
+    }).toList();
   }
 
   /// Get weighted random connection quality (biased towards good)

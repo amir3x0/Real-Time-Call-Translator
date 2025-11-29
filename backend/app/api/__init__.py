@@ -3,6 +3,7 @@ from app.services.rtc_service import publish_audio_chunk
 from app.api import auth
 from app.api import contacts
 from app.api import calls
+from app.api import voice
 
 router = APIRouter()
 
@@ -20,7 +21,8 @@ async def post_audio_chunk(session_id: str, file: UploadFile = File(...)):
     return {"status": "ok", "len": len(data)}
 
 
-# Include auth, contacts, calls routers
+# Include auth, contacts, calls, voice routers
 router.include_router(auth.router)
 router.include_router(contacts.router)
 router.include_router(calls.router)
+router.include_router(voice.router)
