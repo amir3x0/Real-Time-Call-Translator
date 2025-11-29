@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/contact.dart';
 import '../../models/user.dart';
 import '../../providers/contacts_provider_new.dart';
+import '../../providers/call_provider.dart';
 import '../../utils/language_utils.dart';
 import '../../core/navigation/app_routes.dart';
 import '../../data/mock/mock_data.dart';
@@ -564,12 +565,18 @@ class CallConfirmationScreen extends StatelessWidget {
   /// Start the call with selected participants
   void _startCall(BuildContext context) {
     final contactsProvider = context.read<ContactsProvider>();
+    final callProvider = context.read<CallProvider>();
     final selectedContacts = contactsProvider.selectedContacts;
 
     if (selectedContacts.isEmpty) return;
 
-    // TODO: Use CallProvider to initiate the call
-    // For now, navigate to active call screen with selected contacts
+    // Extract user IDs from selected contacts for the API call
+    final participantUserIds = selectedContacts
+        .map((contact) => contact.contactUserId)
+        .toList();
+
+    // Start the call using CallProvider
+    callProvider.startCall(participantUserIds);
     
     // Clear selection after starting call
     contactsProvider.clearSelection();

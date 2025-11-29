@@ -59,15 +59,25 @@ class MockContactsRepository {
     }
 
     // Check if already exists
-    if (_contacts.any((c) => c.contactUser.id == userId)) {
+    if (_contacts.any((c) => c.contactUserId == userId)) {
       throw Exception('Contact already exists');
     }
 
     final contact = Contact(
       id: 'contact_${DateTime.now().millisecondsSinceEpoch}',
-      ownerId: _currentUserId,
-      contactUser: user,
+      userId: _currentUserId,
+      contactUserId: user.id,
+      contactName: null,
+      isBlocked: false,
+      isFavorite: false,
+      addedAt: DateTime.now(),
       createdAt: DateTime.now(),
+      // Joined user info
+      fullName: user.fullName,
+      phone: user.phone,
+      primaryLanguage: user.primaryLanguage,
+      isOnline: user.isOnline,
+      avatarUrl: user.avatarUrl,
     );
 
     _contacts.add(contact);
@@ -89,7 +99,7 @@ class MockContactsRepository {
       throw Exception('Contact not found');
     }
 
-    final updated = _contacts[index].copyWith(nickname: nickname);
+    final updated = _contacts[index].copyWith(contactName: nickname);
     _contacts[index] = updated;
     return updated;
   }
@@ -113,6 +123,6 @@ class MockContactsRepository {
   /// Check if a user is already in contacts
   bool isInContacts(String userId) {
     _ensureInitialized();
-    return _contacts.any((c) => c.contactUser.id == userId);
+    return _contacts.any((c) => c.contactUserId == userId);
   }
 }

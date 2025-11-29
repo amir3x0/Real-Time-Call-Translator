@@ -429,7 +429,7 @@ class _SelectParticipantsScreenNewState extends State<SelectParticipantsScreenNe
                   ),
                 ),
                 // Online indicator
-                if (contact.isOnline)
+                if (contact.isOnline == true)
                   Positioned(
                     right: 0,
                     top: 0,

@@ -235,10 +235,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               VoiceRecorderWidget(
                 onUpload: () async {
                   final messenger = ScaffoldMessenger.of(context);
-                  final result = await _api.uploadVoiceSample('user_1', '/mock/path/sample.wav');
+                  final result = await _api.uploadVoiceSample(
+                    '/mock/path/sample.wav',
+                    'he',  // language
+                    'Sample text content for voice training',  // textContent
+                  );
                   if (!mounted) return;
                   setState(() {
-                    _voiceSamplePath = result['path'];
+                    _voiceSamplePath = result['file_path'];
                   });
                   messenger.showSnackBar(
                     SnackBar(

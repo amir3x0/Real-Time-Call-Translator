@@ -5,7 +5,7 @@ from pydantic import Field
 class Settings(BaseSettings):
     # Database
     DB_USER: str = Field("translator_admin")
-    DB_PASSWORD: str = Field("changeme")
+    DB_PASSWORD: str = Field("TranslatorPass2024")
     DB_NAME: str = Field("call_translator")
     DB_HOST: str = Field("postgres")
     DB_PORT: int = Field(5432)
@@ -28,8 +28,9 @@ class Settings(BaseSettings):
     JWT_EXP_DAYS: int = Field(7, env="JWT_EXP_DAYS")
 
     class Config:
-        # .env is in the backend/ directory relative to this file
-        env_file = "../../.env"
+        # .env file location - look in parent directories
+        env_file = ".env"
+        extra = "ignore"
         env_file_encoding = "utf-8"
 
 

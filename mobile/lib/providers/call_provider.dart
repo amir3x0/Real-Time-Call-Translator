@@ -31,7 +31,7 @@ class CallProvider with ChangeNotifier {
   String _liveTranscription = "המתן, השרת מתרגם..."; // Mock subtitle
   final WebSocketService _wsService = WebSocketService();
   final ApiService _apiService = ApiService();
-  StreamSubscription<String>? _wsSub;
+  StreamSubscription<WSMessage>? _wsSub;
   final List<LiveCaptionData> _captionBubbles = [];
   final Map<String, Timer> _bubbleTimers = {};
   final Random _random = Random();
@@ -112,8 +112,8 @@ class CallProvider with ChangeNotifier {
     ];
     
     // start mock ws
-    _wsService.start(_activeSessionId ?? 'mock_session');
-    _wsSub = _wsService.messages.listen(_handleRealtimeTranscript);
+    _wsService.connect(_activeSessionId ?? 'mock_session');
+    _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
     notifyListeners();
   }
 
@@ -131,9 +131,9 @@ class CallProvider with ChangeNotifier {
     _activeSessionId = sessionId;
 
     // Connect to WS and listen
-    _wsService.start(sessionId);
+    _wsService.connect(sessionId);
     _wsSub?.cancel();
-    _wsSub = _wsService.messages.listen(_handleRealtimeTranscript);
+    _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
     notifyListeners();
   }
 
@@ -144,7 +144,7 @@ class CallProvider with ChangeNotifier {
     _participants = [];
     _activeSessionId = null;
     _wsSub?.cancel();
-    _wsService.stop();
+    _wsService.disconnect();
     _clearBubbles();
     notifyListeners();
   }
@@ -186,13 +186,38 @@ class CallProvider with ChangeNotifier {
     return true;
   }
 
-  void _handleRealtimeTranscript(String message) {
+  void _handleWebSocketMessage(WSMessage message) {
     if (_participants.isEmpty) return;
-    final int index = _random.nextInt(_participants.length);
-    final speakerId = _participants[index].id;
-    _liveTranscription = message;
-    _setActiveSpeaker(speakerId);
-    _addCaptionBubble(speakerId, message);
+    
+    // Handle different message types
+    switch (message.type) {
+      case WSMessageType.transcript:
+        final text = message.data?['text'] as String? ?? '';
+        final speakerId = message.data?['speaker_id'] as String? ?? 
+            _participants[_random.nextInt(_participants.length)].id;
+        _liveTranscription = text;
+        _setActiveSpeaker(speakerId);
+        _addCaptionBubble(speakerId, text);
+        break;
+      case WSMessageType.participantJoined:
+        // Handle participant joined
+        break;
+      case WSMessageType.participantLeft:
+        // Handle participant left
+        break;
+      case WSMessageType.muteStatusChanged:
+        // Handle mute status change
+        break;
+      case WSMessageType.callEnded:
+        endCall();
+        break;
+      case WSMessageType.error:
+        debugPrint('[CallProvider] WebSocket error: ${message.data}');
+        break;
+      default:
+        // Handle other message types as needed
+        break;
+    }
     notifyListeners();
   }
 
@@ -235,7 +260,7 @@ class CallProvider with ChangeNotifier {
   void dispose() {
     _disposed = true;
     _wsSub?.cancel();
-    _wsService.stop();
+    _wsService.disconnect();
     _clearBubbles();
     super.dispose();
   }

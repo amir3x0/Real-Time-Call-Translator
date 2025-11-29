@@ -99,7 +99,7 @@ async def list_contacts(db: AsyncSession = Depends(get_db), current_user: User =
             full_name=u.full_name,
             phone=u.phone,
             primary_language=u.primary_language,
-            added_at=c.created_at.isoformat() if c.created_at else None,
+            added_at=c.added_at.isoformat() if c.added_at else (c.created_at.isoformat() if c.created_at else None),
         ))
     return ContactsListResponse(contacts=results)
 
