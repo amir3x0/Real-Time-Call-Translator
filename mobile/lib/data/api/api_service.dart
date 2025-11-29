@@ -60,7 +60,39 @@ class ApiService {
   }
 
   Future<User> register(String phone, String fullName, String password, String primaryLanguage) async {
-    // Mock register flow
+    try {
+      final resp = await http.post(
+        _uri('/api/auth/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'phone': phone,
+          'full_name': fullName,
+          'password': password,
+          'primary_language': primaryLanguage,
+        }),
+      );
+      if (resp.statusCode == 201 || resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final token = data['token'] as String?;
+        final userId = data['user_id'] as String?;
+        final prefs = await SharedPreferences.getInstance();
+        if (token != null) await prefs.setString(AppConfig.userTokenKey, token);
+        if (userId != null) await prefs.setString(AppConfig.userIdKey, userId);
+        // Fetch full profile
+        final meUser = await me();
+        if (meUser != null) return meUser;
+        // Fallback minimal
+        return User(
+          id: userId ?? DateTime.now().millisecondsSinceEpoch.toString(),
+          phone: phone,
+          fullName: fullName,
+          primaryLanguage: primaryLanguage,
+          supportedLanguages: [primaryLanguage],
+          createdAt: DateTime.now(),
+        );
+      }
+    } catch (_) {}
+    // Fallback mock
     await Future.delayed(const Duration(seconds: 1));
     return User(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -118,8 +150,15 @@ class ApiService {
   }
 
   Future<void> deleteContact(String id) async {
+    try {
+      final token = await _getToken();
+      final resp = await http.delete(
+        _uri('/api/contacts/$id'),
+        headers: token != null ? {'Authorization': 'Bearer $token'} : {},
+      );
+      if (resp.statusCode == 204 || resp.statusCode == 200) return;
+    } catch (_) {}
     await Future.delayed(const Duration(milliseconds: 200));
-    return;
   }
 
   // Real: search users in database
@@ -164,6 +203,23 @@ class ApiService {
     } catch (_) {
       return false;
     }
+  }
+
+  // Fetch current user profile
+  Future<User?> me() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+      final resp = await http.get(
+        _uri('/api/auth/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        return User.fromJson(data);
+      }
+    } catch (_) {}
+    return null;
   }
 
   // Mock Voice sample endpoints

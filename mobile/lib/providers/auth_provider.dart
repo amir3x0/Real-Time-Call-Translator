@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/api/api_service.dart';
 import '../models/user.dart';
 
@@ -17,6 +18,11 @@ class AuthProvider with ChangeNotifier {
 
     try {
       _currentUser = await _apiService.login(phone, password);
+      // Hydrate with /auth/me when possible
+      final me = await _apiService.me();
+      if (me != null) {
+        _currentUser = me;
+      }
       _isLoading = false;
       notifyListeners();
       return true;
@@ -29,6 +35,11 @@ class AuthProvider with ChangeNotifier {
 
   void logout() {
     _currentUser = null;
+    // Clear stored auth token and user id
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove('user_token');
+      prefs.remove('user_id');
+    });
     notifyListeners();
   }
 
@@ -37,6 +48,11 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
     try {
       _currentUser = await _apiService.register(phone, fullName, password, primaryLanguage);
+      // Hydrate with /auth/me when possible
+      final me = await _apiService.me();
+      if (me != null) {
+        _currentUser = me;
+      }
       _isLoading = false;
       notifyListeners();
       return true;
