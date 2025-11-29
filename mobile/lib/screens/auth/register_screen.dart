@@ -19,7 +19,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
   String? _error;
-  bool _isLoading = false;
+  final bool _isLoading = false;
   String _selectedLang = 'en';
   late AnimationController _backgroundController;
   
@@ -417,7 +417,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           borderRadius: AppTheme.borderRadiusPill,
           onTap: _isLoading
               ? null
-              : () async {
+              : () {
                   // Basic validation
                   if (_nameController.text.trim().isEmpty) {
                     setState(() => _error = 'Please enter your name');
@@ -432,26 +432,19 @@ class _RegisterScreenState extends State<RegisterScreen>
                     return;
                   }
 
-                  setState(() {
-                    _isLoading = true;
-                    _error = null;
-                  });
+                  setState(() => _error = null);
 
-                  final success = await authProv.register(
-                    phone: _phoneController.text,
-                    fullName: _nameController.text,
+                  // Store registration data temporarily - don't call API yet!
+                  // Registration will complete after voice recording or skip
+                  authProv.setPendingRegistration(
+                    phone: _phoneController.text.trim(),
+                    fullName: _nameController.text.trim(),
                     password: _passController.text,
                     primaryLanguage: _selectedLang,
                   );
 
-                  if (!mounted) return;
-                  setState(() => _isLoading = false);
-
-                  if (success) {
-                    Navigator.of(context).pushReplacementNamed('/register/voice');
-                  } else {
-                    setState(() => _error = 'Registration failed. Please try again.');
-                  }
+                  // Navigate to voice registration screen
+                  Navigator.of(context).pushReplacementNamed('/register/voice');
                 },
           child: Center(
             child: _isLoading

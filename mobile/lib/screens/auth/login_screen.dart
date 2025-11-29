@@ -14,14 +14,14 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
-  final TextEditingController _phoneController = TextEditingController(text: "052-111-2222");
-  final TextEditingController _passController = TextEditingController(text: "123456");
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _passController = TextEditingController();
   String? _error;
   bool _isLoading = false;
   late AnimationController _backgroundController;
 
   bool _isValidPhone(String v) => v.replaceAll(RegExp(r"\D"), "").length >= 6;
-  bool _isValidPass(String v) => v.length >= 6;
+  bool _isValidPass(String v) => v.length >= 4;
 
   @override
   void initState() {

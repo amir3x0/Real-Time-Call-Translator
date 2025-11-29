@@ -2,19 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../models/contact.dart';
 import '../../providers/contacts_provider.dart';
-import '../../providers/call_provider.dart';
 import '../../config/app_theme.dart';
 import '../../widgets/shared/glass_card.dart';
-import '../../widgets/shared/language_selector.dart';
 
 /// Screen for selecting participants before starting a call.
 /// 
-/// This screen allows users to:
-/// - View their contacts
-/// - Select multiple participants (up to 4)
-/// - See language info for each participant
-/// - Start a translated call with selected participants
+/// This updated version uses the new ContactsProvider with:
+/// - Contact model that references User
+/// - Multi-selection support (up to 3 contacts = 4 participants with current user)
+/// - Navigation to CallConfirmationScreen
 class SelectParticipantsScreen extends StatefulWidget {
   const SelectParticipantsScreen({super.key});
 
@@ -23,18 +21,15 @@ class SelectParticipantsScreen extends StatefulWidget {
 }
 
 class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
-  final Set<String> _selectedContactIds = {};
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  
-  static const int maxParticipants = 4;
 
   @override
   void initState() {
     super.initState();
     // Ensure contacts are loaded
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<ContactsProvider>(context, listen: false).loadContacts();
+      context.read<ContactsProvider>().loadContacts();
     });
   }
 
@@ -72,7 +67,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
                 _buildSearchBar(),
                 _buildSelectedChips(),
                 Expanded(child: _buildContactsList()),
-                _buildStartCallButton(),
+                _buildContinueButton(),
               ],
             ),
           ),
@@ -82,13 +77,21 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
   }
 
   Widget _buildHeader() {
+    final contactsProvider = context.watch<ContactsProvider>();
+    final selectedCount = contactsProvider.selectedCount;
+    const maxSelectable = ContactsProvider.maxSelectable;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 20, 8),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              // Clear selection before going back
+              contactsProvider.clearSelection();
+              Navigator.pop(context);
+            },
           ),
           Expanded(
             child: Text(
@@ -103,9 +106,9 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
               borderRadius: AppTheme.borderRadiusPill,
             ),
             child: Text(
-              '${_selectedContactIds.length}/$maxParticipants',
+              '$selectedCount/$maxSelectable',
               style: AppTheme.bodyMedium.copyWith(
-                color: _selectedContactIds.length >= maxParticipants
+                color: selectedCount >= maxSelectable
                     ? AppTheme.warningOrange
                     : AppTheme.secondaryText,
               ),
@@ -121,7 +124,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: GlassTextField(
         controller: _searchController,
-        hint: 'Search contacts by name or phone...',
+        hint: 'Search by name or phone...',
         prefixIcon: Icons.search,
         onChanged: (value) {
           setState(() {
@@ -133,11 +136,14 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
   }
 
   Widget _buildSelectedChips() {
-    if (_selectedContactIds.isEmpty) {
+    final contactsProvider = context.watch<ContactsProvider>();
+    final selectedContacts = contactsProvider.selectedContacts;
+
+    if (selectedContacts.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         child: Text(
-          'Tap contacts to select them for the call',
+          'Tap contacts to select for the call',
           style: AppTheme.bodyMedium.copyWith(
             color: AppTheme.secondaryText.withValues(alpha: 0.7),
           ),
@@ -145,16 +151,12 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
       ).animate().fadeIn(delay: 200.ms);
     }
 
-    final contactsProv = Provider.of<ContactsProvider>(context);
-    final selectedContacts = contactsProv.contacts
-        .where((c) => _selectedContactIds.contains(c.id))
-        .toList();
-
     return Container(
       height: 50,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
+        reverse: false, // LTR layout
         itemCount: selectedContacts.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
@@ -163,21 +165,21 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: AppTheme.primaryElectricBlue.withValues(alpha: 0.2),
             borderColor: AppTheme.primaryElectricBlue,
-            onTap: () => _toggleSelection(contact.id),
+            onTap: () => contactsProvider.toggleSelection(contact.id),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                const Icon(Icons.close, size: 16, color: Colors.white70),
+                const SizedBox(width: 4),
                 Text(
-                  LanguageData.getFlag(contact.languageCode),
-                  style: const TextStyle(fontSize: 16),
+                  contact.displayName.split(' ').first,
+                  style: AppTheme.bodyMedium.copyWith(color: Colors.white),
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  contact.name.split(' ').first,
-                  style: AppTheme.bodyMedium.copyWith(color: Colors.white),
+                  contact.languageFlag,
+                  style: const TextStyle(fontSize: 16),
                 ),
-                const SizedBox(width: 4),
-                const Icon(Icons.close, size: 16, color: Colors.white70),
               ],
             ),
           ).animate().scale(
@@ -190,9 +192,9 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
   }
 
   Widget _buildContactsList() {
-    final contactsProv = Provider.of<ContactsProvider>(context);
+    final contactsProvider = context.watch<ContactsProvider>();
     
-    if (contactsProv.isLoading) {
+    if (contactsProvider.isLoading) {
       return Center(
         child: CircularProgressIndicator(
           color: AppTheme.primaryElectricBlue,
@@ -200,15 +202,18 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
       );
     }
 
-    var contacts = contactsProv.contacts;
+    var contacts = contactsProvider.contacts;
     
     // Filter by search query
     if (_searchQuery.isNotEmpty) {
       contacts = contacts.where((c) {
-        return c.name.toLowerCase().contains(_searchQuery) ||
-               c.phone.contains(_searchQuery);
+        return c.displayName.toLowerCase().contains(_searchQuery) ||
+               (c.phone ?? '').contains(_searchQuery);
       }).toList();
     }
+
+    // Filter out blocked contacts
+    contacts = contacts.where((c) => !c.isBlocked).toList();
 
     if (contacts.isEmpty) {
       return Center(
@@ -222,13 +227,13 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              _searchQuery.isEmpty ? 'No contacts yet' : 'No matches found',
+              _searchQuery.isEmpty ? 'No contacts' : 'No results found',
               style: AppTheme.titleMedium.copyWith(color: AppTheme.secondaryText),
             ),
             if (_searchQuery.isEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                'Add contacts from the Contacts tab',
+                'Add contacts from the "Contacts" tab',
                 style: AppTheme.bodyMedium.copyWith(
                   color: AppTheme.secondaryText.withValues(alpha: 0.7),
                 ),
@@ -239,98 +244,65 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      itemCount: contacts.length,
-      itemBuilder: (context, index) {
-        final contact = contacts[index];
-        final isSelected = _selectedContactIds.contains(contact.id);
-        final canSelect = _selectedContactIds.length < maxParticipants || isSelected;
+    // Group by favorite status
+    final favorites = contacts.where((c) => c.isFavorite).toList();
+    final others = contacts.where((c) => !c.isFavorite).toList();
 
-        return _ContactTile(
-          contact: contact,
-          isSelected: isSelected,
-          canSelect: canSelect,
-          onTap: () => _toggleSelection(contact.id),
-        ).animate(delay: Duration(milliseconds: 50 * index))
-          .fadeIn(duration: 300.ms)
-          .slideX(begin: 0.1, end: 0);
-      },
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      children: [
+        // Favorites section
+        if (favorites.isNotEmpty) ...[
+          _buildSectionHeader('Favorites', Icons.star),
+          ...favorites.asMap().entries.map((entry) => 
+            _buildContactTile(entry.value, contactsProvider, entry.key)
+          ),
+          const SizedBox(height: 16),
+        ],
+        
+        // All contacts section
+        if (others.isNotEmpty) ...[
+          _buildSectionHeader('Contacts', Icons.people),
+          ...others.asMap().entries.map((entry) => 
+            _buildContactTile(entry.value, contactsProvider, entry.key + favorites.length)
+          ),
+        ],
+      ],
     );
   }
 
-  Widget _buildStartCallButton() {
-    final isEnabled = _selectedContactIds.isNotEmpty;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: PillButton(
-        label: _selectedContactIds.isEmpty
-            ? 'Select participants to call'
-            : 'Start Call (${_selectedContactIds.length} participant${_selectedContactIds.length > 1 ? 's' : ''})',
-        icon: Icons.call,
-        onPressed: isEnabled ? _startCall : null,
-        gradient: isEnabled
-            ? const LinearGradient(colors: [AppTheme.successGreen, Color(0xFF059669)])
-            : LinearGradient(colors: [
-                Colors.grey.shade700,
-                Colors.grey.shade800,
-              ]),
-        boxShadow: isEnabled
-            ? [BoxShadow(
-                color: AppTheme.successGreen.withValues(alpha: 0.4),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              )]
-            : null,
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: AppTheme.secondaryText.withValues(alpha: 0.7),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: AppTheme.bodyMedium.copyWith(
+              color: AppTheme.secondaryText.withValues(alpha: 0.7),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
-    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2, end: 0);
+    );
   }
 
-  void _toggleSelection(String contactId) {
-    setState(() {
-      if (_selectedContactIds.contains(contactId)) {
-        _selectedContactIds.remove(contactId);
-      } else if (_selectedContactIds.length < maxParticipants) {
-        _selectedContactIds.add(contactId);
-      }
-    });
-  }
+  Widget _buildContactTile(Contact contact, ContactsProvider provider, int index) {
+    final isSelected = provider.isSelected(contact.id);
+    final canSelect = provider.canSelectMore || isSelected;
 
-  void _startCall() {
-    if (_selectedContactIds.isEmpty) return;
-
-    final callProv = Provider.of<CallProvider>(context, listen: false);
-    
-    // For now, start a mock call
-    // In production, pass participant user IDs to startCall()
-    callProv.startMockCall();
-    
-    // Navigate to call screen
-    Navigator.pushReplacementNamed(context, '/call');
-  }
-}
-
-/// Individual contact tile in the selection list
-class _ContactTile extends StatelessWidget {
-  final dynamic contact;
-  final bool isSelected;
-  final bool canSelect;
-  final VoidCallback onTap;
-
-  const _ContactTile({
-    required this.contact,
-    required this.isSelected,
-    required this.canSelect,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: GlassCard(
-        onTap: canSelect ? onTap : null,
+        onTap: canSelect ? () => provider.toggleSelection(contact.id) : null,
         padding: const EdgeInsets.all(16),
         color: isSelected
             ? AppTheme.primaryElectricBlue.withValues(alpha: 0.15)
@@ -359,7 +331,7 @@ class _ContactTile extends StatelessWidget {
                   ),
                   child: Center(
                     child: Text(
-                      _getInitials(contact.name),
+                      contact.avatarLetter,
                       style: AppTheme.titleMedium.copyWith(
                         color: isSelected ? Colors.white : AppTheme.secondaryText,
                         fontWeight: FontWeight.bold,
@@ -367,6 +339,7 @@ class _ContactTile extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Language flag
                 Positioned(
                   right: -2,
                   bottom: -2,
@@ -377,23 +350,41 @@ class _ContactTile extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Text(
-                      LanguageData.getFlag(contact.languageCode),
+                      contact.languageFlag,
                       style: const TextStyle(fontSize: 14),
                     ),
                   ),
                 ),
+                // Online indicator
+                if (contact.isOnline == true)
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppTheme.darkBackground,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
             
             const SizedBox(width: 16),
-            
+
             // Name and phone
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    contact.name,
+                    contact.displayName,
                     style: AppTheme.bodyLarge.copyWith(
                       color: isSelected ? Colors.white : AppTheme.lightText,
                       fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
@@ -401,9 +392,10 @@ class _ContactTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       Text(
-                        contact.phone,
+                        contact.phone ?? '',
                         style: AppTheme.bodyMedium.copyWith(
                           color: AppTheme.secondaryText.withValues(alpha: 0.8),
                         ),
@@ -415,7 +407,7 @@ class _ContactTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        LanguageData.getName(contact.languageCode),
+                        contact.languageName,
                         style: AppTheme.bodyMedium.copyWith(
                           color: AppTheme.secondaryText.withValues(alpha: 0.8),
                         ),
@@ -425,7 +417,9 @@ class _ContactTile extends StatelessWidget {
                 ],
               ),
             ),
-            
+
+            const SizedBox(width: 16),
+
             // Selection indicator
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -450,14 +444,43 @@ class _ContactTile extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ).animate(delay: Duration(milliseconds: 50 * index))
+      .fadeIn(duration: 300.ms)
+      .slideX(begin: -0.1, end: 0);
   }
 
-  String _getInitials(String name) {
-    final parts = name.split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
+  Widget _buildContinueButton() {
+    final contactsProvider = context.watch<ContactsProvider>();
+    final selectedCount = contactsProvider.selectedCount;
+    final isEnabled = selectedCount > 0;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: PillButton(
+        label: selectedCount == 0
+            ? 'Select participants to continue'
+            : 'Continue with $selectedCount participant${selectedCount > 1 ? 's' : ''}',
+        icon: Icons.arrow_forward,
+        onPressed: isEnabled ? _continueToConfirmation : null,
+        gradient: isEnabled
+            ? const LinearGradient(colors: [AppTheme.primaryElectricBlue, Color(0xFF0099FF)])
+            : LinearGradient(colors: [
+                Colors.grey.shade700,
+                Colors.grey.shade800,
+              ]),
+        boxShadow: isEnabled
+            ? [BoxShadow(
+                color: AppTheme.primaryElectricBlue.withValues(alpha: 0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              )]
+            : null,
+      ),
+    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2, end: 0);
+  }
+
+  void _continueToConfirmation() {
+    // Navigate to call confirmation screen
+    Navigator.pushNamed(context, '/call/confirm');
   }
 }

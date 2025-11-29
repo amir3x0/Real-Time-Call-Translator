@@ -22,10 +22,13 @@ from app.services.status_service import status_service
 from app.services.connection_manager import connection_manager
 from app.services.voice_training_service import voice_training_service
 from app.services.call_service import call_service
-from app.models.database import get_db, AsyncSessionLocal
+from app.models.database import get_db, AsyncSessionLocal, Base, engine
 from app.models.user import User
 from app.models.call import Call
 from app.models.call_participant import CallParticipant
+from app.models.contact import Contact
+from app.models.call_transcript import CallTranscript
+from app.models.voice_recording import VoiceRecording
 from sqlalchemy import select, and_
 
 # Configure logging
@@ -51,6 +54,11 @@ app.add_middleware(
 async def startup_event():
     """Initialize services on startup."""
     logger.info("🚀 Starting Real-Time Call Translator Backend...")
+    
+    # Create database tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("✅ Database tables created")
     
     # Ensure redis connection is established
     await get_redis()

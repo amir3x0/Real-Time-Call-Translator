@@ -12,6 +12,7 @@ class HeartbeatService {
   Timer? _heartbeatTimer;
   String? _userId;
   String? _sessionId;
+  String? _originalWsUrl; // Store the original URL for reconnection
   bool _isActive = false;
 
   /// Singleton instance
@@ -32,6 +33,7 @@ class HeartbeatService {
 
     _userId = userId;
     _sessionId = sessionId;
+    _originalWsUrl = wsUrl; // Store for reconnection
     _isActive = true;
 
     try {
@@ -117,11 +119,10 @@ class HeartbeatService {
     debugPrint('[HeartbeatService] Reconnecting in 5 seconds...');
     await Future.delayed(Duration(seconds: 5));
 
-    if (_isActive && _userId != null && _sessionId != null) {
-      // Reconstruct WebSocket URL
-      final wsUrl = 'ws://localhost:8000/ws/$_sessionId';
+    if (_isActive && _userId != null && _sessionId != null && _originalWsUrl != null) {
+      // Use the original URL for reconnection (preserves 10.0.2.2 on Android emulator)
       await start(
-        wsUrl: wsUrl,
+        wsUrl: _originalWsUrl!,
         userId: _userId!,
         sessionId: _sessionId!,
       );

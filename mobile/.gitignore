@@ -1,140 +1,46 @@
+# ===========================================
+# Flutter Mobile .gitignore
+# ===========================================
 
-# Minimal mobile .gitignore — only sensitive files
-
-# Environment and secrets
-.env
-.env.local
-.env.*.local
-
-# Firebase & Google Services
-google-services.json
-ios/GoogleService-Info.plist
-
-# Keystore / Signing / Keys
-key.properties
-*.jks
-*.keystore
-*.p12
-*.pem
-*.key
-*.crt
-
-# Android local configuration (SDK path)
-android/local.properties
-local.properties
-
-# Service account / credentials
-**/google-credentials.json
-**/service-account*.json
-
-# End of minimal mobile .gitignore
-
-# Minimal mobile/.gitignore - only sensitive files (no cache/build excludes)
-# This purposely does NOT ignore build artifacts, caches or IDE configs.
-
-# Environment and secrets
-.env
-.env.local
-.env.*.local
-
-# Firebase & Google Services
-google-services.json
-ios/GoogleService-Info.plist
-
-# Keystore / Signing / Keys
-key.properties
-*.jks
-*.keystore
-*.p12
-*.pem
-*.key
-*.crt
-
-# Android local configuration (SDK path)
-android/local.properties
-local.properties
-
-# Service account / credentials
-**/google-credentials.json
-**/service-account*.json
-
-# End of mobile/.gitignore
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# --- Dart/Flutter Build ---
 .dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-
-# NOTE: For Flutter apps, it's recommended to commit `pubspec.lock` to the repo to ensure consistent dependency versions across all developers and CI builds.
-
-# Flutter/Dart additional generated files and caches
-.packages
+build/
 .flutter-plugins
 .flutter-plugins-dependencies
-**/generated/
 
-# iOS artifacts
-ios/Pods/
-ios/Runner.xcworkspace/
-ios/.symlinks/
-ios/Flutter/Flutter.framework
-ios/Flutter/engine
-## Note: track Podfile.lock in the repository to lock CocoaPods versions. Do not ignore.
-# ios/Podfile.lock
-# iOS Google services
-ios/GoogleService-Info.plist
+# --- Pub Cache ---
+.pub-cache/
+.pub/
+.packages
 
-# Android artifacts
-android/.gradle/
-**/android/app/build/
-android/local.properties
-android/*.iml
+# --- Generated Code ---
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+**/GeneratedPluginRegistrant.*
 
-# Android / google services & keys
+# --- IDE ---
+.idea/
+*.iml
+
+# --- Credentials & Keys ---
+.env
 google-services.json
 key.properties
 *.jks
 *.keystore
 
-# macOS Flutter artifacts
-macos/Flutter/ephemeral/
+# --- iOS ---
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/Generated.xcconfig
 
-# Symbolication related
-app.*.symbols
+# --- Android ---
+android/.gradle/
+android/local.properties
 
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# --- Coverage ---
+coverage/

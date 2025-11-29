@@ -3,10 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../models/contact.dart';
 import '../../models/user.dart';
-import '../../providers/contacts_provider_new.dart';
+import '../../providers/contacts_provider.dart';
 import '../../providers/call_provider.dart';
 import '../../utils/language_utils.dart';
-import '../../core/navigation/app_routes.dart';
 import '../../data/mock/mock_data.dart';
 
 /// Call Confirmation Screen - מסך אישור שיחה
@@ -70,7 +69,6 @@ class CallConfirmationScreen extends StatelessWidget {
                     name: currentUser.fullName,
                     language: currentUser.primaryLanguage,
                     isCurrentUser: true,
-                    avatarUrl: currentUser.avatarUrl,
                   ),
 
                   const SizedBox(height: 12),
@@ -92,7 +90,6 @@ class CallConfirmationScreen extends StatelessWidget {
                       name: contact.displayName,
                       language: contact.language,
                       isCurrentUser: false,
-                      avatarUrl: contact.avatarUrl,
                       onRemove: () {
                         contactsProvider.toggleSelection(contact.id);
                       },
@@ -122,7 +119,6 @@ class CallConfirmationScreen extends StatelessWidget {
     required String name,
     required String language,
     required bool isCurrentUser,
-    String? avatarUrl,
     VoidCallback? onRemove,
   }) {
     return Container(
@@ -141,7 +137,7 @@ class CallConfirmationScreen extends StatelessWidget {
       child: Row(
         children: [
           // Avatar
-          _buildAvatar(name, avatarUrl, isCurrentUser),
+          _buildAvatar(name, isCurrentUser),
           const SizedBox(width: 14),
 
           // Name and language info
@@ -222,7 +218,7 @@ class CallConfirmationScreen extends StatelessWidget {
   }
 
   /// Build avatar widget
-  Widget _buildAvatar(String name, String? avatarUrl, bool isCurrentUser) {
+  Widget _buildAvatar(String name, bool isCurrentUser) {
     final letter = name.isNotEmpty ? name[0].toUpperCase() : '?';
     
     return Container(
@@ -241,33 +237,16 @@ class CallConfirmationScreen extends StatelessWidget {
                 ],
               ),
       ),
-      child: avatarUrl != null
-          ? ClipOval(
-              child: Image.network(
-                avatarUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Center(
-                  child: Text(
-                    letter,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            )
-          : Center(
-              child: Text(
-                letter,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+      child: Center(
+        child: Text(
+          letter,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
     );
   }
 
@@ -583,7 +562,7 @@ class CallConfirmationScreen extends StatelessWidget {
 
     // Navigate to active call screen
     Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.activeCall,
+      '/call/active',
       (route) => route.isFirst,
       arguments: {
         'contacts': selectedContacts,

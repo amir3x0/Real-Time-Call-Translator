@@ -40,6 +40,9 @@ services:
 
   # Backend API
   backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: translator-backend
     container_name: translator_api
     environment:
