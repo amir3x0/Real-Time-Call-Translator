@@ -2,11 +2,16 @@ from __future__ import with_statement
 
 import asyncio
 import logging
+import sys
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # this is the Alembic Config object, which provides access to the values
 # within the .ini file in use.
@@ -24,9 +29,10 @@ from app.models.database import Base
 from app.config.settings import settings
 
 # Use settings-driven DB url if provided (when running migrations from within project)
+# Note: Use psycopg2 (sync driver) for migrations, not asyncpg
 if settings:
     config.set_main_option('sqlalchemy.url', (
-        f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+        f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
     ))
 
 # Set target metadata for autogenerate

@@ -54,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false, // Prevent keyboard from pushing nav bar
       body: Stack(
         children: [
           // Animated Gradient Background

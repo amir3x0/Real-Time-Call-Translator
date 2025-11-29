@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.contact import Contact
-from app.models.call import Call, CallStatus
+from app.models.call import Call
 from app.models.call_participant import CallParticipant
 from app.models.call_transcript import CallTranscript
 
@@ -235,14 +235,11 @@ class CallService:
         # Create the call
         call = Call(
             caller_user_id=caller_id,
-            created_by=caller_id,
             call_language=caller.primary_language,  # IMMUTABLE
             is_active=True,
-            status=CallStatus.INITIATING,
+            status='ongoing',
             started_at=datetime.utcnow(),
             participant_count=total_participants,
-            current_participants=1,  # Caller starts as connected
-            max_participants=cls.MAX_PARTICIPANTS,
         )
         db.add(call)
         await db.flush()  # Get call.id
@@ -346,9 +343,9 @@ class CallService:
         result = await db.execute(select(Call).where(Call.id == call_id))
         call = result.scalar_one_or_none()
         if call:
-            call.current_participants += 1
-            if call.status == CallStatus.INITIATING or call.status == CallStatus.RINGING:
-                call.status = CallStatus.ONGOING
+            call.participant_count += 1
+            if call.status != 'ongoing':
+                call.status = 'ongoing'
         
         await db.commit()
         await db.refresh(participant)
@@ -408,7 +405,7 @@ class CallService:
         if not call:
             return False, None
         
-        call.current_participants = active_count
+        call.participant_count = active_count
         
         # Check if call should end (fewer than 2 participants)
         if active_count < cls.MIN_PARTICIPANTS:

@@ -1,0 +1,60 @@
+"""
+CallParticipant Model - Per-Participant Call Metadata
+
+Tracks each participant in a call with language, dubbing requirements, and mute status.
+"""
+from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, UniqueConstraint
+from datetime import datetime
+import uuid
+
+from .database import Base
+
+
+class CallParticipant(Base):
+    """Participant in a call"""
+    __tablename__ = "call_participants"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    
+    # References
+    call_id = Column(String(36), ForeignKey('calls.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Language (copied from user at join time)
+    participant_language = Column(String(10), nullable=False)
+    
+    # Timing
+    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    left_at = Column(DateTime, nullable=True, index=True)  # NULL = still in call
+    
+    # Status
+    is_muted = Column(Boolean, default=False)
+    is_connected = Column(Boolean, default=True)
+    
+    # Translation settings (set at call initiation)
+    dubbing_required = Column(Boolean, default=False)  # TRUE if language != call_language
+    use_voice_clone = Column(Boolean, default=True)
+    voice_clone_quality = Column(String(20), nullable=True)  # excellent, good, fair, fallback
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint('call_id', 'user_id', name='uq_call_user'),
+    )
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "call_id": self.call_id,
+            "user_id": self.user_id,
+            "participant_language": self.participant_language,
+            "joined_at": self.joined_at.isoformat() if self.joined_at else None,
+            "left_at": self.left_at.isoformat() if self.left_at else None,
+            "is_muted": self.is_muted,
+            "is_connected": self.is_connected,
+            "dubbing_required": self.dubbing_required,
+            "use_voice_clone": self.use_voice_clone,
+            "voice_clone_quality": self.voice_clone_quality,
+        }

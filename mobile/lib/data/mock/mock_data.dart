@@ -20,7 +20,6 @@ class MockData {
       phone: '052-111-1111',
       fullName: 'Daniel Fraimovich',
       primaryLanguage: 'ru',
-      supportedLanguages: ['ru', 'en', 'he'],
       isOnline: true,
       createdAt: DateTime.now().subtract(const Duration(days: 30)),
     ),
@@ -29,7 +28,6 @@ class MockData {
       phone: '052-222-2222',
       fullName: 'Emma Cohen',
       primaryLanguage: 'en',
-      supportedLanguages: ['en', 'he'],
       isOnline: true,
       createdAt: DateTime.now().subtract(const Duration(days: 25)),
     ),
@@ -38,7 +36,6 @@ class MockData {
       phone: '052-333-3333',
       fullName: 'Noa Levy',
       primaryLanguage: 'he',
-      supportedLanguages: ['he', 'en'],
       isOnline: false,
       lastSeen: DateTime.now().subtract(const Duration(hours: 2)),
       createdAt: DateTime.now().subtract(const Duration(days: 20)),
@@ -48,7 +45,6 @@ class MockData {
       phone: '052-444-4444',
       fullName: 'Igor Petrov',
       primaryLanguage: 'ru',
-      supportedLanguages: ['ru', 'en'],
       isOnline: true,
       createdAt: DateTime.now().subtract(const Duration(days: 15)),
     ),
@@ -57,7 +53,6 @@ class MockData {
       phone: '052-555-5555',
       fullName: 'Sarah Williams',
       primaryLanguage: 'en',
-      supportedLanguages: ['en'],
       isOnline: false,
       lastSeen: DateTime.now().subtract(const Duration(days: 1)),
       createdAt: DateTime.now().subtract(const Duration(days: 10)),
@@ -67,7 +62,6 @@ class MockData {
       phone: '052-666-6666',
       fullName: 'Amir Mishayev',
       primaryLanguage: 'he',
-      supportedLanguages: ['he', 'en', 'ru'],
       hasVoiceSample: true,
       voiceModelTrained: true,
       voiceQualityScore: 85,
@@ -329,7 +323,7 @@ class MockData {
   static User? findUserByPhone(String phone) {
     final normalized = phone.replaceAll(RegExp(r'\D'), '');
     return mockUsers.cast<User?>().firstWhere(
-      (u) => u!.phone.replaceAll(RegExp(r'\D'), '') == normalized,
+      (u) => (u?.phone ?? '').replaceAll(RegExp(r'\D'), '') == normalized,
       orElse: () => null,
     );
   }
@@ -365,7 +359,6 @@ class MockData {
         phone: user.phone,
         primaryLanguage: user.primaryLanguage,
         isOnline: user.isOnline,
-        avatarUrl: user.avatarUrl,
       );
     }).toList();
   }

@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/voice_recorder_widget.dart';
 import '../../config/app_theme.dart';
 
@@ -14,6 +16,7 @@ class RegisterVoiceScreen extends StatefulWidget {
 class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
     with SingleTickerProviderStateMixin {
   bool _uploaded = false;
+  bool _isRegistering = false;
   late AnimationController _backgroundController;
 
   @override
@@ -29,6 +32,39 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
   void dispose() {
     _backgroundController.dispose();
     super.dispose();
+  }
+
+  /// Complete the registration and navigate to home
+  Future<void> _completeRegistration() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    
+    if (!authProvider.hasPendingRegistration) {
+      debugPrint('[RegisterVoice] No pending registration found');
+      navigator.pushReplacementNamed('/home');
+      return;
+    }
+
+    setState(() {
+      _isRegistering = true;
+    });
+
+    final success = await authProvider.completePendingRegistration();
+
+    if (!mounted) return;
+    setState(() => _isRegistering = false);
+
+    if (success) {
+      navigator.pushReplacementNamed('/home');
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Registration failed. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -101,7 +137,12 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.arrow_back_ios, color: Colors.white70),
-                                onPressed: () => Navigator.pop(context),
+                                onPressed: () {
+                                  // Clear pending registration when going back
+                                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                                  authProvider.clearPendingRegistration();
+                                  Navigator.pop(context);
+                                },
                               ),
                               // Skip button - more prominent and accessible
                               Container(
@@ -114,14 +155,23 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
                                 ),
                                 child: TextButton.icon(
                                   key: const Key('register-skip'),
-                                  onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
-                                  icon: const Icon(
-                                    Icons.skip_next_rounded,
-                                    color: Colors.white70,
-                                    size: 20,
-                                  ),
+                                  onPressed: _isRegistering ? null : _completeRegistration,
+                                  icon: _isRegistering 
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white70,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.skip_next_rounded,
+                                        color: Colors.white70,
+                                        size: 20,
+                                      ),
                                   label: Text(
-                                    'Skip for now',
+                                    _isRegistering ? 'Registering...' : 'Skip for now',
                                     style: AppTheme.bodyMedium.copyWith(
                                       color: Colors.white70,
                                       fontWeight: FontWeight.w500,
@@ -158,10 +208,34 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
                               child: VoiceRecorderWidget(
                                 maxDuration: const Duration(seconds: 30),
                                 prompt: 'Read a short joke or story (up to 30s)',
+                                // Complete registration BEFORE upload starts
+                                onBeforeUpload: () async {
+                                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                                  final messenger = ScaffoldMessenger.of(context);
+                                  if (!authProvider.isAuthenticated && authProvider.hasPendingRegistration) {
+                                    debugPrint('[RegisterVoice] Completing registration before upload...');
+                                    final success = await authProvider.completePendingRegistration();
+                                    if (!success) {
+                                      if (mounted) {
+                                        messenger.showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Registration failed. Please try again.'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                      return false; // Cancel upload
+                                    }
+                                    debugPrint('[RegisterVoice] Registration completed! Proceeding with upload...');
+                                  }
+                                  return true; // Proceed with upload
+                                },
+                                // Called AFTER successful upload
                                 onUpload: () async {
                                   setState(() => _uploaded = true);
                                   if (!mounted) return;
-                                  Navigator.pushReplacementNamed(context, '/home');
+                                  // Navigate to home after successful upload
+                                  Navigator.of(context).pushReplacementNamed('/home');
                                 },
                               ),
                             ),
@@ -287,19 +361,36 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
         child: InkWell(
           key: const Key('register-voice-next'),
           borderRadius: AppTheme.borderRadiusPill,
-          onTap: () => Navigator.pushReplacementNamed(context, '/home'),
+          onTap: _isRegistering ? null : () {
+            // If already uploaded and registered, just navigate
+            final authProvider = Provider.of<AuthProvider>(context, listen: false);
+            if (authProvider.isAuthenticated) {
+              Navigator.pushReplacementNamed(context, '/home');
+            } else {
+              _completeRegistration();
+            }
+          },
           child: Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 12),
-                Text(
-                  'Continue to App',
-                  style: AppTheme.labelLarge.copyWith(fontSize: 16),
-                ),
-              ],
-            ),
+            child: _isRegistering
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.white),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Continue to App',
+                        style: AppTheme.labelLarge.copyWith(fontSize: 16),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),

@@ -1,20 +1,25 @@
+"""
+Auth Service - Simple authentication for capstone project
+
+Note: This uses plain text passwords for simplicity (capstone project).
+In production, use proper password hashing (bcrypt, argon2, etc.)
+"""
 from datetime import datetime, timedelta
 from typing import Optional
 
-from passlib.context import CryptContext
 from jose import jwt
 
 from app.config.settings import settings
 
-pwd_context = CryptContext(schemes=["bcrypt_sha256"], deprecated="auto")
-
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    """Store password as-is (no encryption for capstone project)."""
+    return password
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    """Simple password comparison."""
+    return plain_password == hashed_password
 
 
 def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:

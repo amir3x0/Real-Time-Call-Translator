@@ -17,39 +17,23 @@ enum UserVoiceCloneQuality {
   }
 }
 
-/// User model matching backend schema
+/// User model matching backend schema (simplified)
 class User {
   final String id;
-  final String? email;
   final String phone;
-  final String? phoneNumber;
   final String fullName;
   
   /// Primary language (determines call language when user initiates) - IMMUTABLE
   final String primaryLanguage;
   
-  /// User's actively selected language (can change)
-  final String? languageCode;
-  
-  final List<String> supportedLanguages;
-  
   // Voice cloning attributes
   final bool hasVoiceSample;
-  final String? voiceSamplePath;
   final bool voiceModelTrained;
   final int? voiceQualityScore;
-  final String? voiceModelId;
-  final UserVoiceCloneQuality voiceCloneQuality;
   
   // Status
-  final bool isActive;
   final bool isOnline;
-  final String status;  // 'online' or 'offline'
   final DateTime? lastSeen;
-  
-  // Profile
-  final String? avatarUrl;
-  final String? bio;
   
   // Timestamps
   final DateTime createdAt;
@@ -57,25 +41,14 @@ class User {
 
   User({
     required this.id,
-    this.email,
     required this.phone,
-    this.phoneNumber,
     required this.fullName,
     required this.primaryLanguage,
-    this.languageCode,
-    required this.supportedLanguages,
     this.hasVoiceSample = false,
-    this.voiceSamplePath,
     this.voiceModelTrained = false,
     this.voiceQualityScore,
-    this.voiceModelId,
-    this.voiceCloneQuality = UserVoiceCloneQuality.fallback,
-    this.isActive = true,
     this.isOnline = false,
-    this.status = 'offline',
     this.lastSeen,
-    this.avatarUrl,
-    this.bio,
     required this.createdAt,
     this.updatedAt,
   });
@@ -84,29 +57,16 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] as String,
-      email: json['email'] as String?,
-      phone: (json['phone'] ?? json['phone_number'] ?? '') as String,
-      phoneNumber: json['phone_number'] as String?,
+      phone: (json['phone'] ?? '') as String,
       fullName: json['full_name'] as String,
-      primaryLanguage: json['primary_language'] as String,
-      languageCode: json['language_code'] as String?,
-      supportedLanguages: json['supported_languages'] != null
-          ? List<String>.from(json['supported_languages'])
-          : ['he'],
+      primaryLanguage: json['primary_language'] as String? ?? 'he',
       hasVoiceSample: json['has_voice_sample'] as bool? ?? false,
-      voiceSamplePath: json['voice_sample_path'],
-      voiceModelTrained: json['voice_model_trained'] ?? false,
-      voiceQualityScore: json['voice_quality_score'],
-      voiceModelId: json['voice_model_id'],
-      voiceCloneQuality: UserVoiceCloneQuality.fromString(json['voice_clone_quality']),
-      isActive: json['is_active'] ?? true,
-      isOnline: json['is_online'] ?? false,
-      status: json['status'] as String? ?? 'offline',
+      voiceModelTrained: json['voice_model_trained'] as bool? ?? false,
+      voiceQualityScore: json['voice_quality_score'] as int?,
+      isOnline: json['is_online'] as bool? ?? false,
       lastSeen: json['last_seen'] != null
           ? DateTime.parse(json['last_seen'] as String)
           : null,
-      avatarUrl: json['avatar_url'],
-      bio: json['bio'],
       createdAt: json['created_at'] != null 
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
@@ -120,25 +80,14 @@ class User {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'email': email,
       'phone': phone,
-      'phone_number': phoneNumber ?? phone,
       'full_name': fullName,
       'primary_language': primaryLanguage,
-      'language_code': languageCode,
-      'supported_languages': supportedLanguages,
       'has_voice_sample': hasVoiceSample,
-      'voice_sample_path': voiceSamplePath,
       'voice_model_trained': voiceModelTrained,
       'voice_quality_score': voiceQualityScore,
-      'voice_model_id': voiceModelId,
-      'voice_clone_quality': voiceCloneQuality.value,
-      'is_active': isActive,
       'is_online': isOnline,
-      'status': status,
       'last_seen': lastSeen?.toIso8601String(),
-      'avatar_url': avatarUrl,
-      'bio': bio,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -147,56 +96,45 @@ class User {
   /// Create a copy with updated fields
   User copyWith({
     String? id,
-    String? email,
     String? phone,
-    String? phoneNumber,
     String? fullName,
     String? primaryLanguage,
-    String? languageCode,
-    List<String>? supportedLanguages,
     bool? hasVoiceSample,
-    String? voiceSamplePath,
     bool? voiceModelTrained,
     int? voiceQualityScore,
-    String? voiceModelId,
-    UserVoiceCloneQuality? voiceCloneQuality,
-    bool? isActive,
     bool? isOnline,
-    String? status,
     DateTime? lastSeen,
-    String? avatarUrl,
-    String? bio,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return User(
       id: id ?? this.id,
-      email: email ?? this.email,
       phone: phone ?? this.phone,
-      phoneNumber: phoneNumber ?? this.phoneNumber,
       fullName: fullName ?? this.fullName,
       primaryLanguage: primaryLanguage ?? this.primaryLanguage,
-      languageCode: languageCode ?? this.languageCode,
-      supportedLanguages: supportedLanguages ?? this.supportedLanguages,
       hasVoiceSample: hasVoiceSample ?? this.hasVoiceSample,
-      voiceSamplePath: voiceSamplePath ?? this.voiceSamplePath,
       voiceModelTrained: voiceModelTrained ?? this.voiceModelTrained,
       voiceQualityScore: voiceQualityScore ?? this.voiceQualityScore,
-      voiceModelId: voiceModelId ?? this.voiceModelId,
-      voiceCloneQuality: voiceCloneQuality ?? this.voiceCloneQuality,
-      isActive: isActive ?? this.isActive,
       isOnline: isOnline ?? this.isOnline,
-      status: status ?? this.status,
       lastSeen: lastSeen ?? this.lastSeen,
-      avatarUrl: avatarUrl ?? this.avatarUrl,
-      bio: bio ?? this.bio,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
   
   /// Get display phone number
-  String get displayPhone => phoneNumber ?? phone;
+  String get displayPhone => phone;
+  
+  /// Get voice clone quality
+  UserVoiceCloneQuality get voiceCloneQuality {
+    if (!voiceModelTrained || voiceQualityScore == null) {
+      return UserVoiceCloneQuality.fallback;
+    }
+    if (voiceQualityScore! > 80) return UserVoiceCloneQuality.excellent;
+    if (voiceQualityScore! > 60) return UserVoiceCloneQuality.good;
+    if (voiceQualityScore! > 40) return UserVoiceCloneQuality.fair;
+    return UserVoiceCloneQuality.fallback;
+  }
   
   /// Check if user can use voice cloning
   bool get canUseVoiceClone => 
@@ -233,6 +171,23 @@ class User {
         return 'Fair';
       case UserVoiceCloneQuality.fallback:
         return 'Standard TTS';
+    }
+  }
+  
+  /// Get avatar letter for display
+  String get avatarLetter => fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
+  
+  /// Get language flag emoji
+  String get languageFlag {
+    switch (primaryLanguage) {
+      case 'he':
+        return '🇮🇱';
+      case 'en':
+        return '🇺🇸';
+      case 'ru':
+        return '🇷🇺';
+      default:
+        return '🌐';
     }
   }
 }

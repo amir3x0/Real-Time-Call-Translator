@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:just_audio/just_audio.dart';
 
 import 'audio/voice_visualizer.dart';
+import '../services/voice_recording_service.dart';
 
-enum RecorderState { idle, recording, reviewing, uploading }
+enum RecorderState { idle, recording, reviewing, uploading, playing }
 
 class VoiceRecorderWidget extends StatefulWidget {
   final Duration maxDuration;
@@ -13,6 +15,10 @@ class VoiceRecorderWidget extends StatefulWidget {
   final Future<void> Function()? onDelete;
   final Future<void> Function()? onPlay;
   final String? prompt;
+  
+  /// Called BEFORE upload starts. Use this to complete registration first.
+  /// Return true to proceed with upload, false to cancel.
+  final Future<bool> Function()? onBeforeUpload;
 
   const VoiceRecorderWidget({
     super.key,
@@ -21,6 +27,7 @@ class VoiceRecorderWidget extends StatefulWidget {
     this.onDelete,
     this.onPlay,
     this.prompt,
+    this.onBeforeUpload,
   });
 
   @override
@@ -33,6 +40,11 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
   late AnimationController _pulse;
   Timer? _recordTimer;
   double _progress = 0.0;
+  
+  final VoiceRecordingService _recordingService = VoiceRecordingService();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  String? _recordedFilePath;
+  Duration _recordingDuration = Duration.zero;
 
   @override
   void initState() {
@@ -41,12 +53,21 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+    
+    _audioPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        if (mounted && _state == RecorderState.playing) {
+          setState(() => _state = RecorderState.reviewing);
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
     _pulse.dispose();
     _recordTimer?.cancel();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -55,12 +76,28 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     setState(() => _state = s);
   }
 
-  void _startRecording() {
+  Future<void> _startRecording() async {
     HapticFeedback.mediumImpact();
+    
+    final started = await _recordingService.startRecording();
+    if (!started) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not start recording. Please grant microphone permission.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
     setState(() {
       _state = RecorderState.recording;
       _progress = 0.0;
+      _recordingDuration = Duration.zero;
     });
+    
     final start = DateTime.now();
     _recordTimer?.cancel();
     _recordTimer = Timer.periodic(const Duration(milliseconds: 50), (t) {
@@ -69,24 +106,116 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
       if (p >= 1.0) {
         _stopRecording();
       } else {
-        setState(() => _progress = p);
+        setState(() {
+          _progress = p;
+          _recordingDuration = elapsed;
+        });
       }
     });
   }
 
-  void _stopRecording() {
+  Future<void> _stopRecording() async {
     _recordTimer?.cancel();
-    setState(() => _state = RecorderState.reviewing);
+    
+    final path = await _recordingService.stopRecording();
+    if (path != null && mounted) {
+      setState(() {
+        _state = RecorderState.reviewing;
+        _recordedFilePath = path;
+      });
+    } else if (mounted) {
+      setState(() => _state = RecorderState.idle);
+    }
+  }
+
+  Future<void> _playRecording() async {
+    if (_recordedFilePath == null) return;
+    
+    HapticFeedback.selectionClick();
+    setState(() => _state = RecorderState.playing);
+    
+    try {
+      await _audioPlayer.setFilePath(_recordedFilePath!);
+      await _audioPlayer.play();
+      if (widget.onPlay != null) await widget.onPlay!();
+    } catch (e) {
+      debugPrint('[VoiceRecorder] Error playing: $e');
+      if (mounted) {
+        setState(() => _state = RecorderState.reviewing);
+      }
+    }
+  }
+
+  Future<void> _deleteRecording() async {
+    HapticFeedback.selectionClick();
+    
+    await _audioPlayer.stop();
+    if (_recordedFilePath != null) {
+      await _recordingService.deleteRecording(_recordedFilePath!);
+    }
+    
+    if (widget.onDelete != null) await widget.onDelete!();
+    
+    setState(() {
+      _state = RecorderState.idle;
+      _recordedFilePath = null;
+      _recordingDuration = Duration.zero;
+    });
   }
 
   Future<void> _upload() async {
-    setState(() => _state = RecorderState.uploading);
-    await Future.delayed(const Duration(seconds: 2));
-    if (widget.onUpload != null) await widget.onUpload!();
-    if (mounted) {
-      HapticFeedback.lightImpact();
-      setState(() => _state = RecorderState.idle);
+    if (_recordedFilePath == null) return;
+    
+    // Call pre-upload hook if provided (e.g., to complete registration first)
+    if (widget.onBeforeUpload != null) {
+      setState(() => _state = RecorderState.uploading);
+      final shouldProceed = await widget.onBeforeUpload!();
+      if (!shouldProceed) {
+        if (mounted) setState(() => _state = RecorderState.reviewing);
+        return;
+      }
     }
+    
+    setState(() => _state = RecorderState.uploading);
+    
+    try {
+      final language = await _recordingService.getUserLanguage();
+      final success = await _recordingService.uploadRecording(
+        filePath: _recordedFilePath!,
+        language: language,
+        textContent: widget.prompt ?? 'Voice calibration sample',
+      );
+      
+      if (success) {
+        HapticFeedback.lightImpact();
+        if (widget.onUpload != null) await widget.onUpload!();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to upload. Please try again.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        setState(() => _state = RecorderState.reviewing);
+      }
+    } catch (e) {
+      debugPrint('[VoiceRecorder] Upload error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Upload failed. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _state = RecorderState.reviewing);
+      }
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   @override
@@ -108,14 +237,36 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
           children: [
             Text(
               _state == RecorderState.recording
-                  ? 'Voiceprint Creation'
-                  : 'Voice Calibration',
+                  ? 'Recording...'
+                  : _state == RecorderState.reviewing
+                      ? 'Review Recording'
+                      : _state == RecorderState.playing
+                          ? 'Playing...'
+                          : 'Voice Calibration',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
+            
+            // Show duration when recording or reviewing
+            if (_state == RecorderState.recording || _state == RecorderState.reviewing)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _formatDuration(_recordingDuration),
+                  style: TextStyle(
+                    color: _state == RecorderState.recording 
+                        ? Colors.redAccent 
+                        : Colors.white70,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            
             const SizedBox(height: 16),
             SizedBox(
               width: size.width * 0.6,
@@ -123,23 +274,49 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // progress ring when recording
-                  if (_state == RecorderState.recording)
-                    SizedBox(
-                      width: size.width * 0.55,
-                      height: size.width * 0.55,
-                      child: CircularProgressIndicator(
-                        value: _progress,
-                        strokeWidth: 8,
-                        backgroundColor: Colors.white10,
-                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.purpleAccent),
+                  // pulse breathing effect when idle (BEHIND the button)
+                  if (_state == RecorderState.idle)
+                    IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _pulse,
+                        builder: (_, __) {
+                          final s = 1 + 0.06 * math.sin(_pulse.value * 6.283);
+                          return Transform.scale(
+                            scale: s,
+                            child: Container(
+                              width: size.width * 0.48,
+                              height: size.width * 0.48,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withAlpha(15),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
 
-                  // mic / stop morphing button
+                  // progress ring when recording
+                  if (_state == RecorderState.recording)
+                    IgnorePointer(
+                      child: SizedBox(
+                        width: size.width * 0.55,
+                        height: size.width * 0.55,
+                        child: CircularProgressIndicator(
+                          value: _progress,
+                          strokeWidth: 8,
+                          backgroundColor: Colors.white10,
+                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.redAccent),
+                        ),
+                      ),
+                    ),
+
+                  // mic / stop morphing button (ON TOP - receives taps)
                   GestureDetector(
                     key: const Key('voice-mic-btn'),
+                    behavior: HitTestBehavior.opaque,
                     onTap: () {
+                      debugPrint('[VoiceRecorder] Button tapped! State: $_state');
                       if (_state == RecorderState.idle) {
                         _startRecording();
                       } else if (_state == RecorderState.recording) {
@@ -153,44 +330,32 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                       height: size.width * 0.4,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF2E2E80), Color(0xFF7C3AED)],
+                        gradient: LinearGradient(
+                          colors: _state == RecorderState.recording
+                              ? [Colors.red.shade700, Colors.redAccent]
+                              : const [Color(0xFF2E2E80), Color(0xFF7C3AED)],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.purpleAccent.withAlpha(89),
+                            color: _state == RecorderState.recording
+                                ? Colors.redAccent.withAlpha(89)
+                                : Colors.purpleAccent.withAlpha(89),
                             blurRadius: 24,
                             spreadRadius: 8,
                           ),
                         ],
                       ),
                       child: Icon(
-                        _state == RecorderState.recording ? Icons.stop_rounded : Icons.mic,
+                        _state == RecorderState.recording 
+                            ? Icons.stop_rounded 
+                            : _state == RecorderState.reviewing || _state == RecorderState.playing
+                                ? Icons.check_circle_outline
+                                : Icons.mic,
                         color: Colors.white,
                         size: _state == RecorderState.recording ? 48 : 56,
                       ),
                     ),
                   ),
-
-                  // pulse breathing effect when idle
-                  if (_state == RecorderState.idle)
-                    AnimatedBuilder(
-                      animation: _pulse,
-                      builder: (_, __) {
-                        final s = 1 + 0.06 * math.sin(_pulse.value * 6.283);
-                        return Transform.scale(
-                          scale: s,
-                          child: Container(
-                            width: size.width * 0.48,
-                            height: size.width * 0.48,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withAlpha(15),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                 ],
               ),
             ),
@@ -201,37 +366,46 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
               maxBarHeight: 76,
               barWidth: 5,
               spacing: 3,
-              activeColor: Colors.purpleAccent,
+              activeColor: _state == RecorderState.recording 
+                  ? Colors.redAccent 
+                  : Colors.purpleAccent,
               inactiveColor: Colors.white12,
             ),
             const SizedBox(height: 20),
             Text(
               _state == RecorderState.recording
-                  ? 'Keep speaking naturally — we’re learning your tone'
-                  : (widget.prompt ?? 'Tap the mic and read the playful prompt aloud'),
+                  ? "Keep speaking naturally - we're learning your voice"
+                  : _state == RecorderState.reviewing
+                      ? 'Review your recording and upload when ready'
+                      : _state == RecorderState.playing
+                          ? 'Playing your recording...'
+                          : (widget.prompt ?? 'Tap the mic and speak naturally'),
               style: const TextStyle(color: Colors.white70),
               textAlign: TextAlign.center,
             ),
 
+            const SizedBox(height: 16),
+
             // review controls
-            if (_state == RecorderState.reviewing)
+            if (_state == RecorderState.reviewing || _state == RecorderState.playing)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _pillButton(Icons.play_arrow, 'Play', () async {
-                    HapticFeedback.selectionClick();
-                    if (widget.onPlay != null) await widget.onPlay!();
-                  }),
+                  _pillButton(
+                    _state == RecorderState.playing ? Icons.pause : Icons.play_arrow, 
+                    _state == RecorderState.playing ? 'Pause' : 'Play', 
+                    _playRecording,
+                  ),
                   const SizedBox(width: 12),
-                  _pillButton(Icons.delete_outline, 'Delete', () async {
-                    HapticFeedback.selectionClick();
-                    if (widget.onDelete != null) await widget.onDelete!();
-                    setState(() => _state = RecorderState.idle);
-                  }),
+                  _pillButton(Icons.delete_outline, 'Delete', _deleteRecording),
                   const SizedBox(width: 12),
-                  _pillButton(Icons.cloud_upload_outlined, 'Upload', () async {
-                    await _upload();
-                  }, key: const Key('voice-upload-button')),
+                  _pillButton(
+                    Icons.cloud_upload_outlined, 
+                    'Upload', 
+                    _upload,
+                    key: const Key('voice-upload-button'),
+                    isPrimary: true,
+                  ),
                 ],
               ),
 
@@ -245,10 +419,10 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                     SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 3),
+                      child: CircularProgressIndicator(strokeWidth: 3, color: Colors.purpleAccent),
                     ),
                     SizedBox(width: 8),
-                    Text('Uploading...', style: TextStyle(color: Colors.white70)),
+                    Text('Uploading your voice sample...', style: TextStyle(color: Colors.white70)),
                   ],
                 ),
               ),
@@ -258,7 +432,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     );
   }
 
-  Widget _pillButton(IconData icon, String label, VoidCallback onTap, {Key? key}) {
+  Widget _pillButton(IconData icon, String label, VoidCallback onTap, {Key? key, bool isPrimary = false}) {
     return InkWell(
       key: key,
       onTap: onTap,
@@ -266,15 +440,27 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withAlpha(20),
-          border: Border.all(color: Colors.white12),
+          color: isPrimary 
+              ? Colors.purpleAccent.withAlpha(50)
+              : Colors.white.withAlpha(20),
+          border: Border.all(
+            color: isPrimary 
+                ? Colors.purpleAccent
+                : Colors.white12,
+          ),
           borderRadius: BorderRadius.circular(24),
         ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white),
+            Icon(icon, color: isPrimary ? Colors.purpleAccent : Colors.white),
             const SizedBox(width: 6),
-            Text(label, style: const TextStyle(color: Colors.white)),
+            Text(
+              label, 
+              style: TextStyle(
+                color: isPrimary ? Colors.purpleAccent : Colors.white,
+                fontWeight: isPrimary ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
           ],
         ),
       ),

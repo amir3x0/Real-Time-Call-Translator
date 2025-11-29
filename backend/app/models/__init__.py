@@ -1,48 +1,25 @@
 """
-Database Models Package
+Database Models
 
-This module exports all SQLAlchemy models for the Real-Time Call Translation system.
-
-Tables:
-1. users - User management with voice cloning status
-2. contacts - Contact list management
-3. voice_recordings - Voice sample storage for xTTS training
-4. calls - Call session management
-5. call_participants - Per-participant call metadata
-6. call_transcripts - Call history and transcription
+All SQLAlchemy models for the Real-Time Call Translator.
 """
-
-from .database import (
-    engine,
-    AsyncSessionLocal,
-    Base,
-    init_db,
-    reset_db,
-    get_db,
-)
-
+from .database import Base, get_db, AsyncSessionLocal, engine
 from .user import User
 from .contact import Contact
-from .voice_recording import VoiceRecording
-from .call import Call, CallStatus
+from .call import Call
 from .call_participant import CallParticipant
 from .call_transcript import CallTranscript
+from .voice_recording import VoiceRecording
 
 __all__ = [
-    # Database utilities
-    "engine",
-    "AsyncSessionLocal",
-    "Base",
-    "init_db",
-    "reset_db",
-    "get_db",
-    
-    # Models
-    "User",
-    "Contact",
-    "VoiceRecording",
-    "Call",
-    "CallStatus",
-    "CallParticipant",
-    "CallTranscript",
+    'Base',
+    'get_db',
+    'AsyncSessionLocal',
+    'engine',
+    'User',
+    'Contact',
+    'Call',
+    'CallParticipant',
+    'CallTranscript',
+    'VoiceRecording',
 ]

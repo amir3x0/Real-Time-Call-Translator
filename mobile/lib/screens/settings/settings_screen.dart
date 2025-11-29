@@ -18,7 +18,8 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedLang = 'en';
-  String? _voiceSamplePath;
+  bool _hasVoiceSample = false;
+  bool _isLoadingVoiceStatus = true;
 
   final ApiService _api = ApiService();
 
@@ -32,9 +33,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final settingsProv = Provider.of<SettingsProvider>(context, listen: false);
-      setState(() => _selectedLang = settingsProv.appLanguage);
+      _loadUserSettings();
     });
+  }
+  
+  Future<void> _loadUserSettings() async {
+    final authProv = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProv.currentUser;
+    
+    // Set language from user's primary_language
+    if (currentUser != null) {
+      setState(() {
+        _selectedLang = currentUser.primaryLanguage;
+      });
+    }
+    
+    // Check voice sample status
+    try {
+      final voiceRecordings = await _api.getVoiceRecordings();
+      setState(() {
+        _hasVoiceSample = voiceRecordings.isNotEmpty;
+        _isLoadingVoiceStatus = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingVoiceStatus = false;
+      });
+    }
   }
 
   @override
@@ -110,6 +135,121 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _showLanguageConfirmation(String newLangCode, String langName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ClipRRect(
+          borderRadius: AppTheme.borderRadiusMedium,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: AppTheme.glassDecoration(
+                color: AppTheme.darkCard.withValues(alpha: 0.9),
+                borderColor: Colors.white.withValues(alpha: 0.1),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryElectricBlue.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.language,
+                      color: AppTheme.primaryElectricBlue,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Change Language', style: AppTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Are you sure you want to change your primary language to $langName?\n\nThis will update your profile and other users will see this change.',
+                    style: AppTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(
+                            'Cancel',
+                            style: AppTheme.labelLarge.copyWith(color: AppTheme.secondaryText),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryElectricBlue,
+                            borderRadius: AppTheme.borderRadiusSmall,
+                          ),
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: Text(
+                              'Confirm',
+                              style: AppTheme.labelLarge.copyWith(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    if (confirmed == true) {
+      // Update locally
+      setState(() => _selectedLang = newLangCode);
+      final settingsProv = Provider.of<SettingsProvider>(context, listen: false);
+      settingsProv.setLanguage(_selectedLang);
+      
+      // Update in database
+      try {
+        await _api.updateUserLanguage(newLangCode);
+        
+        // Refresh current user to reflect the change
+        final authProv = Provider.of<AuthProvider>(context, listen: false);
+        await authProv.refreshCurrentUser();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Language changed to $langName'),
+              backgroundColor: AppTheme.successGreen,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error updating language: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Failed to update language'),
+              backgroundColor: AppTheme.errorRed,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildLanguageSelector() {
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusMedium,
@@ -125,7 +265,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'App Language',
+                'Primary Language',
                 style: AppTheme.titleMedium,
               ),
               const SizedBox(height: 12),
@@ -136,10 +276,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   return Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _selectedLang = lang['code']!);
-                        final settingsProv = Provider.of<SettingsProvider>(context, listen: false);
-                        settingsProv.setLanguage(_selectedLang);
+                        if (_selectedLang != lang['code']) {
+                          HapticFeedback.selectionClick();
+                          _showLanguageConfirmation(lang['code']!, lang['name']!);
+                        }
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
@@ -204,10 +344,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      gradient: AppTheme.purpleGradient,
+                      gradient: _hasVoiceSample 
+                          ? LinearGradient(colors: [AppTheme.successGreen, AppTheme.successGreen.withValues(alpha: 0.7)]) 
+                          : AppTheme.purpleGradient,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.record_voice_over, color: Colors.white),
+                    child: Icon(
+                      _hasVoiceSample ? Icons.check : Icons.record_voice_over, 
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -215,51 +360,97 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Voice Sample', style: AppTheme.titleMedium),
-                        Text(
-                          _voiceSamplePath == null
-                              ? 'No sample uploaded'
-                              : 'Sample ready',
-                          style: AppTheme.bodyMedium.copyWith(
-                            color: _voiceSamplePath == null
-                                ? AppTheme.secondaryText
-                                : AppTheme.successGreen,
-                            fontSize: 12,
-                          ),
-                        ),
+                        _isLoadingVoiceStatus
+                            ? Text(
+                                'Loading...',
+                                style: AppTheme.bodyMedium.copyWith(
+                                  color: AppTheme.secondaryText,
+                                  fontSize: 12,
+                                ),
+                              )
+                            : Text(
+                                _hasVoiceSample
+                                    ? 'Voice sample saved ✓'
+                                    : 'No sample uploaded',
+                                style: AppTheme.bodyMedium.copyWith(
+                                  color: _hasVoiceSample
+                                      ? AppTheme.successGreen
+                                      : AppTheme.secondaryText,
+                                  fontSize: 12,
+                                ),
+                              ),
                       ],
                     ),
                   ),
+                  // Re-record button when sample exists
+                  if (_hasVoiceSample && !_isLoadingVoiceStatus)
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() => _hasVoiceSample = false);
+                      },
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Re-record'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppTheme.primaryElectricBlue,
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 16),
-              VoiceRecorderWidget(
-                onUpload: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  final result = await _api.uploadVoiceSample(
-                    '/mock/path/sample.wav',
-                    'he',  // language
-                    'Sample text content for voice training',  // textContent
-                  );
-                  if (!mounted) return;
-                  setState(() {
-                    _voiceSamplePath = result['file_path'];
-                  });
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: const Text('Voice sample uploaded'),
-                      backgroundColor: AppTheme.darkCard,
-                      behavior: SnackBarBehavior.floating,
+              // Show recorder only if no sample or user wants to re-record
+              if (!_hasVoiceSample)
+                VoiceRecorderWidget(
+                  onUpload: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    setState(() {
+                      _hasVoiceSample = true;
+                    });
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: const Text('Voice sample uploaded successfully!'),
+                        backgroundColor: AppTheme.successGreen,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  onDelete: () async {
+                    setState(() => _hasVoiceSample = false);
+                  },
+                  onPlay: () async {
+                    await Future.delayed(const Duration(milliseconds: 300));
+                  },
+                )
+              else
+                // Show info when sample exists
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.successGreen.withValues(alpha: 0.1),
+                    borderRadius: AppTheme.borderRadiusSmall,
+                    border: Border.all(
+                      color: AppTheme.successGreen.withValues(alpha: 0.3),
                     ),
-                  );
-                },
-                onDelete: () async {
-                  await _api.deleteVoiceSample('user_1');
-                  setState(() => _voiceSamplePath = null);
-                },
-                onPlay: () async {
-                  await Future.delayed(const Duration(milliseconds: 300));
-                },
-              ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: AppTheme.successGreen,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Your voice sample is ready for voice cloning during calls.',
+                          style: AppTheme.bodyMedium.copyWith(
+                            color: AppTheme.successGreen,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),

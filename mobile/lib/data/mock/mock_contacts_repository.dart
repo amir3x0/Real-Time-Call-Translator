@@ -77,7 +77,6 @@ class MockContactsRepository {
       phone: user.phone,
       primaryLanguage: user.primaryLanguage,
       isOnline: user.isOnline,
-      avatarUrl: user.avatarUrl,
     );
 
     _contacts.add(contact);

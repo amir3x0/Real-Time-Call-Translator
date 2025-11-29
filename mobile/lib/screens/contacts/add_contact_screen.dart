@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../providers/contacts_provider_new.dart';
+import '../../providers/contacts_provider.dart';
 import '../../data/api/api_service.dart';
 import '../../utils/language_utils.dart';
 import '../../data/mock/mock_data.dart';
 import '../../models/user.dart';
 
-/// Add Contact Screen - מסך הוספת איש קשר
+/// Add Contact Screen
 /// 
 /// Allows users to search for other users by phone number
 /// and add them to their contacts list.
@@ -49,7 +49,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
     final query = _phoneController.text.trim();
     if (query.isEmpty) {
       setState(() {
-        _errorMessage = 'נא להזין מספר טלפון';
+        _errorMessage = 'Please enter a phone number';
         _searchResults = [];
         _hasSearched = false;
       });
@@ -65,19 +65,24 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
     List<User> results = [];
     try {
+      debugPrint('[AddContact] Searching for: $query');
       final backendResults = await _apiService.searchUsers(query);
-      results = backendResults;
+      debugPrint('[AddContact] Backend returned ${backendResults.length} results');
+      results = backendResults.map((json) => User.fromJson(json)).toList();
     } catch (e) {
-      // ignore and fallback to mock
+      debugPrint('[AddContact] Search error: $e');
     }
 
     if (results.isEmpty) {
-      // Simple mock search by phone substring against mock users
+      debugPrint('[AddContact] Falling back to mock data');
+      // Fallback to mock search by phone substring
       results = MockData.mockUsers.where((u) {
-        final phoneDigits = u.phone.replaceAll(RegExp(r'\\D'), '');
-        final qDigits = query.replaceAll(RegExp(r'\\D'), '');
-        return phoneDigits.contains(qDigits);
+        final phoneDigits = u.phone.replaceAll(RegExp(r'\D'), '');
+        final qDigits = query.replaceAll(RegExp(r'\D'), '');
+        return phoneDigits.contains(qDigits) || 
+               u.fullName.toLowerCase().contains(query.toLowerCase());
       }).where((u) => u.id != MockData.currentMockUser.id).toList();
+      debugPrint('[AddContact] Mock fallback found ${results.length} results');
     }
 
     if (!mounted) return;
@@ -85,7 +90,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
     if (results.isEmpty) {
       setState(() {
         _isSearching = false;
-        _errorMessage = 'לא נמצאו משתמשים תואמים';
+        _errorMessage = 'No matching users found';
         _searchResults = [];
       });
     } else {
@@ -96,8 +101,6 @@ class _AddContactScreenState extends State<AddContactScreen> {
       });
     }
   }
-
-  // (removed legacy _addContact; handled inline per result item)
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +114,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
-          'הוספת איש קשר',
+          'Add Contact',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -144,7 +147,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'חפש משתמשים לפי מספר טלפון כדי להוסיף אותם לאנשי הקשר שלך',
+                      'Search users by phone number or name to add them to your contacts',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 14,
@@ -202,17 +205,17 @@ class _AddContactScreenState extends State<AddContactScreen> {
           fontSize: 18,
           letterSpacing: 1,
         ),
-        keyboardType: TextInputType.phone,
+        keyboardType: TextInputType.text, // Supports both phone and name search
         textDirection: TextDirection.ltr,
         textAlign: TextAlign.center,
         decoration: InputDecoration(
-          hintText: '050-XXX-XXXX',
+          hintText: '050-XXX-XXXX or name',
           hintStyle: TextStyle(
             color: Colors.white.withValues(alpha: 0.3),
             fontSize: 18,
           ),
           prefixIcon: Icon(
-            Icons.phone,
+            Icons.search,
             color: Colors.white.withValues(alpha: 0.5),
           ),
           suffixIcon: _phoneController.text.isNotEmpty
@@ -249,7 +252,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
       onPressed: _isSearching ? null : _searchUser,
       icon: const Icon(Icons.search, size: 20),
       label: const Text(
-        'חיפוש',
+        'Search',
         style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
@@ -278,7 +281,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'מחפש...',
+            'Searching...',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 14,
@@ -335,7 +338,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'לא נמצאו תוצאות',
+            'No results found',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.5),
               fontSize: 16,
@@ -356,7 +359,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final user = _searchResults[index];
-        final isOnline = user.isOnline || user.status == 'online';
+        final isOnline = user.isOnline;
         return Container(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.05),
@@ -366,13 +369,10 @@ class _AddContactScreenState extends State<AddContactScreen> {
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: Colors.blueGrey.shade700,
-              backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-              child: user.avatarUrl == null
-                  ? Text(
-                      user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
-                      style: const TextStyle(color: Colors.white),
-                    )
-                  : null,
+              child: Text(
+                user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
+                style: const TextStyle(color: Colors.white),
+              ),
             ),
             title: Text(
               user.fullName,
@@ -404,22 +404,18 @@ class _AddContactScreenState extends State<AddContactScreen> {
                     final messenger = ScaffoldMessenger.of(context);
                     final navigator = Navigator.of(context);
 
-                    // Try backend add contact first
-                    bool ok = await _apiService.addContact(user.id);
-                    if (!ok) {
-                      // Fallback to provider mock add by phone
-                      final res = await contactsProvider.addContactByPhone(user.phone);
-                      ok = res == AddContactResult.success || res == AddContactResult.alreadyExists;
-                    }
+                    // Add contact via provider
+                    final res = await contactsProvider.addContact(user.id);
+                    final ok = res == AddContactResult.success || res == AddContactResult.alreadyExists;
 
                     if (ok) {
                       messenger.showSnackBar(
-                        SnackBar(content: Text('${user.fullName} נוסף לאנשי הקשר')),
+                        SnackBar(content: Text('${user.fullName} added to contacts')),
                       );
                       navigator.pop();
                     } else {
                       messenger.showSnackBar(
-                        const SnackBar(content: Text('נכשל בהוספת איש קשר')),
+                        const SnackBar(content: Text('Failed to add contact')),
                       );
                     }
                   },
@@ -427,7 +423,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('הוסף'),
+                  child: const Text('Add'),
                 ),
               ],
             ),

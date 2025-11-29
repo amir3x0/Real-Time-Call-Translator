@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from app.models.database import get_db
 from app.models.user import User
-from app.models.call import Call, CallStatus
+from app.models.call import Call
 from app.models.call_participant import CallParticipant
 from app.api.auth import get_current_user
 from app.config.settings import settings

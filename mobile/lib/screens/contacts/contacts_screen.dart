@@ -8,8 +8,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../providers/call_provider.dart';
 import '../../providers/contacts_provider.dart';
+import '../../models/contact.dart';
 import '../../config/app_theme.dart';
-import '../../core/navigation/app_routes.dart';
 
 class ContactsScreen extends StatefulWidget {
   final ScrollController? scrollController;
@@ -89,7 +89,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   onPressed: () async {
                     if (!mounted) return;
                     final contacts = Provider.of<ContactsProvider>(context, listen: false);
-                    await Navigator.of(context).pushNamed(AppRoutes.addContact);
+                    await Navigator.of(context).pushNamed('/contacts/add');
                     if (!mounted) return;
                     // Refresh contacts after returning from add screen
                     contacts.loadContacts();
@@ -150,7 +150,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       child: const Icon(Icons.delete_outline, color: Colors.white),
                     ),
                     confirmDismiss: (_) async {
-                      return await _showDeleteDialog(context, c.name);
+                      return await _showDeleteDialog(context, c.displayName);
                     },
                     onDismissed: (_) async {
                       final messenger = ScaffoldMessenger.of(context);
@@ -158,7 +158,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       if (!mounted) return;
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text('Deleted ${c.name}'),
+                          content: Text('Deleted ${c.displayName}'),
                           backgroundColor: AppTheme.darkCard,
                           action: SnackBarAction(
                             label: 'Undo',
@@ -260,7 +260,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     ) ?? false;
   }
 
-  Widget _buildContactCard(dynamic c, CallProvider callProv, int index) {
+  Widget _buildContactCard(Contact c, CallProvider callProv, int index) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: ClipRRect(
@@ -277,30 +277,42 @@ class _ContactsScreenState extends State<ContactsScreen> {
               child: InkWell(
                 borderRadius: AppTheme.borderRadiusMedium,
                 onTap: () {
-                  callProv.startMockCall();
-                  Navigator.pushNamed(context, '/call');
+                  // Select this contact and go to participant selection
+                  final contacts = Provider.of<ContactsProvider>(context, listen: false);
+                  contacts.clearSelection();
+                  contacts.selectContact(c.id);
+                  Navigator.pushNamed(context, '/call/select');
                 },
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      _GradientAvatar(name: c.name),
+                      _GradientAvatar(name: c.displayName),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              c.name,
+                              c.displayName,
                               style: AppTheme.titleMedium.copyWith(fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                _LanguageChip(code: c.languageCode),
+                                _LanguageChip(code: c.language),
                                 const SizedBox(width: 8),
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: c.isOnline == true ? AppTheme.successGreen : Colors.grey,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
                                 Text(
-                                  c.status,
+                                  c.isOnline == true ? 'Online' : 'Offline',
                                   style: AppTheme.bodyMedium.copyWith(fontSize: 12),
                                 ),
                               ],
@@ -321,8 +333,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         child: IconButton(
                           icon: const Icon(Icons.call, color: Colors.white, size: 20),
                           onPressed: () {
-                            callProv.startMockCall();
-                            Navigator.pushNamed(context, '/call');
+                            // Quick call - select and go directly to confirmation
+                            final contacts = Provider.of<ContactsProvider>(context, listen: false);
+                            contacts.clearSelection();
+                            contacts.selectContact(c.id);
+                            Navigator.pushNamed(context, '/call/confirm');
                           },
                         ),
                       ),

@@ -1,8 +1,15 @@
 /// Application configuration constants
 class AppConfig {
   // Backend API Configuration
-  static const String baseUrl = 'http://localhost:8000';
-  static const String wsUrl = 'ws://localhost:8000';
+  // For Android emulator: use 10.0.2.2
+  // For physical device: use your computer's WiFi IP address
+  // Make sure phone and computer are on the same WiFi network!
+  
+  // TODO: Change this based on your device:
+  // - Emulator: 'http://10.0.2.2:8000'
+  // - Physical phone: 'http://192.168.1.184:8000' (your computer's IP)
+  static const String baseUrl = 'http://192.168.1.184:8000';
+  static const String wsUrl = 'ws://192.168.1.184:8000';
   
   // API Endpoints
   static const String healthEndpoint = '/health';
