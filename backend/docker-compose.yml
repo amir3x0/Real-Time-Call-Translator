@@ -67,20 +67,19 @@ services:
       - translator_network
     restart: unless-stopped
 
-  # pgAdmin for database management
-  pgadmin:
-    image: dpage/pgadmin4:latest
+  # Adminer for database management
+  adminer:
+    image: adminer:latest
     container_name: translator_dbadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@translator.com
-      PGADMIN_DEFAULT_PASSWORD: PgAdmin2024
     ports:
-      - "5050:80"
+      - "8080:8080"
     networks:
       - translator_network
     depends_on:
       - postgres
     restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
 
 volumes:
   translator_postgres_data:

@@ -3,9 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile/providers/auth_provider.dart';
 import 'package:mobile/screens/auth/login_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('LoginScreen flow test', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
     // 1. Setup Provider & Screen
     await tester.pumpWidget(
       ChangeNotifierProvider(
@@ -35,8 +37,10 @@ void main() {
     await tester.pump(); 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    // 6. Wait for Future.delayed (1 second in mock service)
-    await tester.pumpAndSettle(const Duration(seconds: 2));
+    // 6. Wait for async login work to complete without waiting on endless animations
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
 
     // 7. Verify Navigation to Home (Checking if "Home Screen" text is present)
     expect(find.text('Home Screen'), findsOneWidget);

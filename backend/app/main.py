@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import asyncio
+import logging
 
 from app.api import router as api_router
 from app.config.redis import get_redis, close_redis
@@ -10,6 +11,8 @@ from app.services.status_service import status_service
 from app.models.database import get_db
 
 app = FastAPI(title="Real-Time Call Translator Backend")
+
+logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,6 +72,8 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                 if data.get('type') == 'heartbeat':
                     # Process heartbeat - refresh status
                     await status_service.heartbeat(user_id)
+                    # Log heartbeat for observability
+                    logger.info(f"Heartbeat received: user_id=%s session_id=%s", user_id, session_id)
                     # Send acknowledgment
                     await websocket.send_json({"type": "heartbeat_ack"})
                     continue
