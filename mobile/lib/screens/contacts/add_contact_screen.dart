@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/contacts_provider_new.dart';
+import '../../data/api/api_service.dart';
 import '../../utils/language_utils.dart';
 import '../../data/mock/mock_data.dart';
 import '../../models/user.dart';
@@ -21,10 +22,11 @@ class _AddContactScreenState extends State<AddContactScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final FocusNode _phoneFocusNode = FocusNode();
   
-  User? _foundUser;
+  List<User> _searchResults = [];
   bool _isSearching = false;
   String? _errorMessage;
   bool _hasSearched = false;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
@@ -42,14 +44,13 @@ class _AddContactScreenState extends State<AddContactScreen> {
     super.dispose();
   }
 
-  /// Search for a user by phone number
+  /// Search users via backend; falls back to mock if unavailable
   Future<void> _searchUser() async {
-    final phone = _phoneController.text.trim();
-    
-    if (phone.isEmpty) {
+    final query = _phoneController.text.trim();
+    if (query.isEmpty) {
       setState(() {
         _errorMessage = 'נא להזין מספר טלפון';
-        _foundUser = null;
+        _searchResults = [];
         _hasSearched = false;
       });
       return;
@@ -58,99 +59,45 @@ class _AddContactScreenState extends State<AddContactScreen> {
     setState(() {
       _isSearching = true;
       _errorMessage = null;
-      _foundUser = null;
+      _searchResults = [];
       _hasSearched = true;
     });
 
-    // Simulate network delay for mock
-    await Future.delayed(const Duration(milliseconds: 500));
+    List<User> results = [];
+    try {
+      final backendResults = await _apiService.searchUsers(query);
+      results = backendResults;
+    } catch (e) {
+      // ignore and fallback to mock
+    }
 
-    // Search in mock data
-    final user = MockData.findUserByPhone(phone);
-    
+    if (results.isEmpty) {
+      // Simple mock search by phone substring against mock users
+      results = MockData.mockUsers.where((u) {
+        final phoneDigits = u.phone.replaceAll(RegExp(r'\\D'), '');
+        final qDigits = query.replaceAll(RegExp(r'\\D'), '');
+        return phoneDigits.contains(qDigits);
+      }).where((u) => u.id != MockData.currentMockUser.id).toList();
+    }
+
     if (!mounted) return;
 
-    if (user != null) {
-      // Check if this is the current user
-      if (user.id == MockData.currentMockUser.id) {
-        setState(() {
-          _isSearching = false;
-          _errorMessage = 'לא ניתן להוסיף את עצמך כאיש קשר';
-          _foundUser = null;
-        });
-        return;
-      }
-
-      // Check if already a contact
-      final contactsProvider = context.read<ContactsProvider>();
-      final isAlreadyContact = contactsProvider.contacts.any(
-        (c) => c.contactUser.id == user.id,
-      );
-
-      if (isAlreadyContact) {
-        setState(() {
-          _isSearching = false;
-          _errorMessage = '${user.fullName} כבר קיים ברשימת אנשי הקשר שלך';
-          _foundUser = null;
-        });
-        return;
-      }
-
+    if (results.isEmpty) {
       setState(() {
         _isSearching = false;
-        _foundUser = user;
+        _errorMessage = 'לא נמצאו משתמשים תואמים';
+        _searchResults = [];
       });
     } else {
       setState(() {
         _isSearching = false;
-        _errorMessage = 'לא נמצא משתמש עם מספר טלפון זה';
-        _foundUser = null;
+        _errorMessage = null;
+        _searchResults = results;
       });
     }
   }
 
-  /// Add the found user as a contact
-  Future<void> _addContact() async {
-    if (_foundUser == null) return;
-
-    final contactsProvider = context.read<ContactsProvider>();
-    final result = await contactsProvider.addContactByPhone(_foundUser!.phone);
-
-    if (!mounted) return;
-
-    switch (result) {
-      case AddContactResult.success:
-        // Show success message and go back
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${_foundUser!.fullName} נוסף לאנשי הקשר'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.of(context).pop();
-        break;
-
-      case AddContactResult.alreadyExists:
-        setState(() {
-          _errorMessage = 'איש קשר זה כבר קיים';
-          _foundUser = null;
-        });
-        break;
-
-      case AddContactResult.userNotFound:
-        setState(() {
-          _errorMessage = 'משתמש לא נמצא';
-          _foundUser = null;
-        });
-        break;
-
-      case AddContactResult.error:
-        setState(() {
-          _errorMessage = 'שגיאה בהוספת איש קשר';
-        });
-        break;
-    }
-  }
+  // (removed legacy _addContact; handled inline per result item)
 
   @override
   Widget build(BuildContext context) {
@@ -225,8 +172,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
               _buildLoadingIndicator()
             else if (_errorMessage != null)
               _buildErrorMessage()
-            else if (_foundUser != null)
-              _buildUserPreviewCard()
+            else if (_searchResults.isNotEmpty)
+              _buildSearchResultsList()
             else if (_hasSearched)
               _buildNoResultMessage(),
           ],
@@ -277,9 +224,9 @@ class _AddContactScreenState extends State<AddContactScreen> {
                   onPressed: () {
                     _phoneController.clear();
                     setState(() {
-                      _foundUser = null;
                       _errorMessage = null;
                       _hasSearched = false;
+                      _searchResults = [];
                     });
                   },
                 )
@@ -399,201 +346,94 @@ class _AddContactScreenState extends State<AddContactScreen> {
     );
   }
 
-  /// Build user preview card when found
-  Widget _buildUserPreviewCard() {
-    final user = _foundUser!;
-    
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.green.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Success indicator
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(20),
+  /// Results list
+  Widget _buildSearchResultsList() {
+    final contactsProvider = context.read<ContactsProvider>();
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _searchResults.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final user = _searchResults[index];
+        final isOnline = user.isOnline || user.status == 'online';
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.blueGrey.shade700,
+              backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
+              child: user.avatarUrl == null
+                  ? Text(
+                      user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white),
+                    )
+                  : null,
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            title: Text(
+              user.fullName,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+            subtitle: Row(
               children: [
-                const Icon(
-                  Icons.check_circle,
-                  color: Colors.green,
-                  size: 16,
-                ),
+                Text(user.phone, style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+                const SizedBox(width: 10),
+                Text(LanguageUtils.getFlag(user.primaryLanguage), style: const TextStyle(fontSize: 16)),
                 const SizedBox(width: 6),
-                Text(
-                  'משתמש נמצא!',
-                  style: TextStyle(
-                    color: Colors.green.shade300,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text(LanguageUtils.getName(user.primaryLanguage), style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
               ],
             ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // User avatar
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  Colors.purple.shade400,
-                  Colors.purple.shade600,
-                ],
-              ),
-            ),
-            child: user.avatarUrl != null
-                ? ClipOval(
-                    child: Image.network(
-                      user.avatarUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Center(
-                        child: Text(
-                          user.fullName.isNotEmpty 
-                              ? user.fullName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                : Center(
-                    child: Text(
-                      user.fullName.isNotEmpty 
-                          ? user.fullName[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // User name
-          Text(
-            user.fullName,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Phone number
-          Text(
-            user.phone,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
-              fontSize: 14,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Language info
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  LanguageUtils.getFlag(user.primaryLanguage),
-                  style: const TextStyle(fontSize: 18),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  LanguageUtils.getName(user.primaryLanguage),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Online status
-          if (user.isOnline) ...[
-            const SizedBox(height: 12),
-            Row(
+            trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.green,
+                    color: isOnline ? Colors.green : Colors.grey,
                   ),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  'מחובר/ת',
-                  style: TextStyle(
-                    color: Colors.green.shade300,
-                    fontSize: 12,
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final navigator = Navigator.of(context);
+
+                    // Try backend add contact first
+                    bool ok = await _apiService.addContact(user.id);
+                    if (!ok) {
+                      // Fallback to provider mock add by phone
+                      final res = await contactsProvider.addContactByPhone(user.phone);
+                      ok = res == AddContactResult.success || res == AddContactResult.alreadyExists;
+                    }
+
+                    if (ok) {
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('${user.fullName} נוסף לאנשי הקשר')),
+                      );
+                      navigator.pop();
+                    } else {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('נכשל בהוספת איש קשר')),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
                   ),
+                  child: const Text('הוסף'),
                 ),
               ],
             ),
-          ],
-
-          const SizedBox(height: 24),
-
-          // Add contact button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _addContact,
-              icon: const Icon(Icons.person_add),
-              label: const Text(
-                'הוסף לאנשי קשר',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

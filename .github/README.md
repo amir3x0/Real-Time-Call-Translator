@@ -54,6 +54,7 @@ Comprehensive coding standards covering:
 - Python style guide (PEP 8 compliance)
 - FastAPI conventions
 - Database patterns with SQLAlchemy
+- API design principles
 - Redis usage patterns
 - Error handling strategies
 - Testing standards

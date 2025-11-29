@@ -1,19 +1,61 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/app_config.dart';
 import '../../models/user.dart';
 
 class ApiService {
-  Future<User> login(String phone, String password) async {
-    // Mock network delay
-    await Future.delayed(const Duration(seconds: 1));
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(AppConfig.userTokenKey);
+  }
 
-    // Mock User Response
+  Uri _uri(String path, [Map<String, String>? query]) {
+    return Uri.parse('${AppConfig.baseUrl}$path').replace(queryParameters: query);
+  }
+
+  Future<User> login(String phone, String password) async {
+    // Try real backend first
+    try {
+      final resp = await http.post(
+        _uri('/api/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'phone': phone, 'password': password}),
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final token = data['token'] as String?;
+        if (token != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(AppConfig.userTokenKey, token);
+          await prefs.setString(AppConfig.userIdKey, data['user_id'] as String);
+        }
+        // Fetch /auth/me for full user profile if needed; else construct minimal
+        return User(
+          id: data['user_id'] as String,
+          phone: phone,
+          fullName: data['full_name'] ?? 'User',
+          primaryLanguage: data['primary_language'] ?? 'he',
+          languageCode: data['language_code'],
+          supportedLanguages: const ['he'],
+          status: data['status'] ?? 'online',
+          createdAt: DateTime.now(),
+        );
+      }
+    } catch (_) {
+      // fall back to mock below
+    }
+
+    // Mock fallback
+    await Future.delayed(const Duration(seconds: 1));
     return User(
       id: '1',
       phone: phone,
-      fullName: 'Amir Mishayev',
+      fullName: 'Mock User',
       primaryLanguage: 'he',
       supportedLanguages: ['he', 'en'],
       createdAt: DateTime.now(),
-      avatarUrl: 'https://i.pravatar.cc/150?img=11', // Random avatar
+      avatarUrl: 'https://i.pravatar.cc/150?img=11',
     );
   }
 
@@ -33,6 +75,29 @@ class ApiService {
 
   // Mock Contacts endpoints
   Future<List<Map<String, dynamic>>> getContacts() async {
+    // Try backend
+    try {
+      final token = await _getToken();
+      final resp = await http.get(
+        _uri('/api/contacts'),
+        headers: token != null ? {'Authorization': 'Bearer $token'} : {},
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final contacts = (data['contacts'] as List).cast<Map<String, dynamic>>();
+        return contacts
+            .map((c) => {
+                  'id': c['id'],
+                  'name': c['full_name'],
+                  'phone': c['phone'],
+                  'language': c['primary_language'],
+                  'status': 'offline',
+                })
+            .toList();
+      }
+    } catch (_) {}
+
+    // Fallback mock
     await Future.delayed(const Duration(milliseconds: 300));
     return [
       {'id': 'c1', 'name': 'Daniel Fraimovich', 'phone': '052-123-4567', 'language': 'ru', 'status': 'Online'},
@@ -55,6 +120,50 @@ class ApiService {
   Future<void> deleteContact(String id) async {
     await Future.delayed(const Duration(milliseconds: 200));
     return;
+  }
+
+  // Real: search users in database
+  Future<List<User>> searchUsers(String query) async {
+    try {
+      final token = await _getToken();
+      final resp = await http.get(
+        _uri('/api/users/search', {'query': query}),
+        headers: token != null ? {'Authorization': 'Bearer $token'} : {},
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final results = (data['results'] as List).cast<Map<String, dynamic>>();
+        return results
+            .map((u) => User(
+                  id: u['id'] as String,
+                  phone: u['phone'] as String,
+                  fullName: u['full_name'] as String,
+                  primaryLanguage: u['primary_language'] as String,
+                  supportedLanguages: const ['he'],
+                  createdAt: DateTime.now(),
+                ))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // Real: add contact by user id
+  Future<bool> addContact(String userId) async {
+    try {
+      final token = await _getToken();
+      final resp = await http.post(
+        _uri('/api/contacts/add'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'contact_user_id': userId}),
+      );
+      return resp.statusCode == 200 || resp.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
   }
 
   // Mock Voice sample endpoints
