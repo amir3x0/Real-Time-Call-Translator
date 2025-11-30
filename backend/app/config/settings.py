@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = Field("supersecret", env="JWT_SECRET_KEY")
     JWT_ALGORITHM: str = Field("HS256", env="JWT_ALGORITHM")
     JWT_EXP_DAYS: int = Field(7, env="JWT_EXP_DAYS")
+    
+    # File Storage Paths
+    DATA_DIR: str = Field("/app/data", env="DATA_DIR")
+    VOICE_SAMPLES_DIR: str = Field("/app/data/voice_samples", env="VOICE_SAMPLES_DIR")
+    UPLOADS_DIR: str = Field("/app/data/uploads", env="UPLOADS_DIR")
+    MODELS_DIR: str = Field("/app/data/models", env="MODELS_DIR")
 
     class Config:
         # .env file location - look in parent directories

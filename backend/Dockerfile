@@ -20,10 +20,11 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Upgrade pip first to ensure latest package resolver
+RUN pip install --upgrade pip setuptools wheel
 
-# Ensure critical runtime deps are present (sometimes extras fail to resolve in some environments)
-RUN pip install --no-cache-dir passlib[bcrypt] python-jose[cryptography] httpx
+# Install all dependencies from requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
@@ -36,7 +37,7 @@ EXPOSE 8000
 
 # Health check (use Python stdlib to avoid external deps)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import sys,urllib.request;\
+    CMD python3 -c "import sys,urllib.request;\
 resp=urllib.request.urlopen('http://localhost:8000/health');\
 sys.exit(0 if resp.getcode()==200 else 1)"
 
