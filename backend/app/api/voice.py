@@ -24,8 +24,8 @@ from app.services.voice_training_service import voice_training_service
 
 router = APIRouter()
 
-# Voice upload directory
-VOICE_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'uploads', 'voice')
+# Voice upload directory - use settings for consistent path
+VOICE_UPLOAD_DIR = settings.VOICE_SAMPLES_DIR
 
 
 # Request/Response Models
