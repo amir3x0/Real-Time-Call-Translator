@@ -71,6 +71,10 @@ async def startup_event():
     # Start voice training worker
     await voice_training_service.start_worker()
     logger.info("✅ Voice training worker started")
+    
+    # Start translation subscription
+    asyncio.create_task(subscribe_to_translations())
+    logger.info("✅ Translation subscription started")
 
 
 @app.on_event("shutdown")
@@ -83,6 +87,28 @@ async def shutdown_event():
 
 # Include REST API routes
 app.include_router(api_router, prefix="/api")
+
+
+async def subscribe_to_translations():
+    """Background task to listen for translation results from worker."""
+    redis = await get_redis()
+    pubsub = redis.pubsub()
+    await pubsub.psubscribe("channel:translation:*")
+    
+    logger.info("✅ Subscribed to translation channels")
+    
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "pmessage":
+                try:
+                    data = json.loads(message["data"])
+                    session_id = data.get("session_id")
+                    if session_id:
+                        await connection_manager.broadcast_translation(session_id, data)
+                except Exception as e:
+                    logger.error(f"Error processing translation message: {e}")
+    except Exception as e:
+        logger.error(f"Translation subscription error: {e}")
 
 
 @app.get("/")
@@ -312,7 +338,9 @@ async def ws_endpoint(
                 )
                 
                 # Also publish to Redis for any workers (e.g., recording)
-                await publish_audio_chunk(session_id, audio_data)
+                # Note: broadcast_audio now handles translation publishing
+                # We might still want to publish raw audio for recording if not already done
+                # But let's assume broadcast_audio covers what we need for now
                 
                 # Log routing result (debug level)
                 logger.debug(f"[WebSocket] Audio routed: {result}")
@@ -360,46 +388,3 @@ async def ws_endpoint(
             
             # Mark user as offline
             await status_service.set_user_offline(user_id, db)
-
-
-# Legacy WebSocket endpoint for backwards compatibility
-@app.websocket("/ws/legacy/{session_id}")
-async def ws_legacy_endpoint(websocket: WebSocket, session_id: str):
-    """
-    Legacy WebSocket endpoint (simplified).
-    
-    This is kept for backwards compatibility with older clients.
-    """
-    await websocket.accept()
-    
-    user_id = websocket.query_params.get("user_id")
-    
-    if not user_id:
-        await websocket.close(code=1008, reason="Missing user_id")
-        return
-    
-    # Mark user as online
-    async for db in get_db():
-        await status_service.set_user_online(user_id, db)
-        break
-    
-    try:
-        while True:
-            message = await websocket.receive()
-            
-            if "text" in message:
-                data = json.loads(message["text"])
-                if data.get('type') == 'heartbeat':
-                    await status_service.heartbeat(user_id)
-                    await websocket.send_json({"type": "heartbeat_ack"})
-            
-            if "bytes" in message:
-                audio_data = message["bytes"]
-                await publish_audio_chunk(session_id, audio_data)
-    
-    except WebSocketDisconnect:
-        pass
-    finally:
-        async for db in get_db():
-            await status_service.set_user_offline(user_id, db)
-            break
