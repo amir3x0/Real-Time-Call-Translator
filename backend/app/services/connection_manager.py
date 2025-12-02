@@ -208,6 +208,31 @@ class ConnectionManager:
         
         return sent_count
     
+    async def broadcast_translation(
+        self,
+        session_id: str,
+        translation_data: Dict[str, Any]
+    ) -> int:
+        """
+        Broadcast translation result to participants who need it.
+        """
+        if session_id not in self._sessions:
+            return 0
+            
+        sent_count = 0
+        target_lang = translation_data.get("target_lang")
+        connections = list(self._sessions[session_id].values())
+        
+        for conn in connections:
+            # Send if participant language matches target language
+            # OR if it's the speaker (maybe for confirmation?) - usually no
+            # We only send to those who need this language
+            if conn.participant_language == target_lang:
+                if await conn.send_json(translation_data):
+                    sent_count += 1
+                    
+        return sent_count
+    
     async def broadcast_audio(
         self,
         session_id: str,
@@ -253,24 +278,29 @@ class ConnectionManager:
             if conn.user_id != speaker_id and not conn.is_muted
         ]
         
+        # Group by target language
+        translation_requests = set()
+        
         for conn in connections:
             if conn.dubbing_required:
-                # This participant needs translation
-                # In production: call translation pipeline
-                # For now: send raw audio with metadata
-                await conn.send_json({
-                    "type": "audio_needs_translation",
-                    "speaker_id": speaker_id,
-                    "from_language": speaker_conn.participant_language,
-                    "to_language": conn.participant_language,
-                    "timestamp_ms": timestamp_ms
-                })
-                await conn.send_bytes(audio_data)
-                result["translation_count"] += 1
+                # Add to set of needed translations (source -> target)
+                translation_requests.add((speaker_conn.participant_language, conn.participant_language))
             else:
                 # Same language - passthrough
                 await conn.send_bytes(audio_data)
                 result["passthrough_count"] += 1
+        
+        # Publish for translation
+        from app.services.rtc_service import publish_audio_chunk
+        for source_lang, target_lang in translation_requests:
+             await publish_audio_chunk(
+                 session_id=session_id,
+                 chunk=audio_data,
+                 source_lang=source_lang,
+                 target_lang=target_lang,
+                 speaker_id=speaker_id
+             )
+             result["translation_count"] += 1
         
         return result
     
