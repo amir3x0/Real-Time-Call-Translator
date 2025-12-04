@@ -330,11 +330,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             child: InkWell(
               key: const Key('login-create-account'),
               onTap: () => Navigator.pushNamed(context, '/register'),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.person_add, size: 28, color: Colors.white),
-                  const SizedBox(width: 12),
+                  Icon(Icons.person_add, size: 28, color: Colors.white),
+                  SizedBox(width: 12),
                   Text('Create account', style: AppTheme.labelLarge),
                 ],
               ),

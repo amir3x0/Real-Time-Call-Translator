@@ -5,7 +5,6 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  # שיניתי לגרסה הגיונית יותר שתעבוד עם ה-SDK הנוכחי שלך
   sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
@@ -22,6 +21,10 @@ dependencies:
   http: ^1.2.2
   http_parser: ^4.0.2
   web_socket_channel: ^3.0.1
+  
+  # QR & Scanner
+  mobile_scanner: ^7.1.3
+  qr_flutter: ^4.1.0
   
   # Audio
   record: ^6.1.2
@@ -40,24 +43,15 @@ dependencies:
   # Animation & Effects
   flutter_animate: ^4.5.0
   shimmer: ^3.0.0
-  lottie: ^3.1.0
-  avatar_glow: ^3.0.1
-  glassmorphism: ^3.0.0
-  animations: ^2.0.11
-  flutter_svg: ^2.0.10+1
-  
-  # Scanner
-  mobile_scanner: ^7.1.3
-  qr_flutter: ^4.1.0
 
+  avatar_glow: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ^3.0.1
 
 flutter:
   uses-material-design: true
 
-# --- התיקון הקריטי לשגיאת ה-Linux ---
 dependency_overrides:
   record_linux: ^1.2.0

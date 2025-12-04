@@ -216,7 +216,7 @@ class MockWebSocketService {
     if (_participants.isEmpty) return;
 
     // Get mock transcription messages
-    final messages = MockData.transcriptionMessages;
+    const messages = MockData.transcriptionMessages;
     if (messages.isEmpty) return;
 
     // Pick next message in sequence
