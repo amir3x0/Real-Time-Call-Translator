@@ -122,7 +122,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       children: [
                         Icon(Icons.contacts_outlined, size: 48, color: Colors.white.withValues(alpha: 0.6)),
                         const SizedBox(height: 12),
-                        Text('No contacts yet', style: AppTheme.titleMedium),
+                        const Text('No contacts yet', style: AppTheme.titleMedium),
                         const SizedBox(height: 6),
                         Text('Tap the + button to add one', style: AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText)),
                       ],
@@ -211,7 +211,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text(
+                  const Text(
                     'Delete Contact',
                     style: AppTheme.titleLarge,
                   ),

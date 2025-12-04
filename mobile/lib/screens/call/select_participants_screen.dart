@@ -93,7 +93,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
               Navigator.pop(context);
             },
           ),
-          Expanded(
+          const Expanded(
             child: Text(
               'Select Participants',
               style: AppTheme.titleLarge,
@@ -195,7 +195,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
     final contactsProvider = context.watch<ContactsProvider>();
     
     if (contactsProvider.isLoading) {
-      return Center(
+      return const Center(
         child: CircularProgressIndicator(
           color: AppTheme.primaryElectricBlue,
         ),
@@ -345,7 +345,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
                   bottom: -2,
                   child: Container(
                     padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: AppTheme.darkBackground,
                       shape: BoxShape.circle,
                     ),

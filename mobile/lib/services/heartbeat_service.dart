@@ -85,7 +85,7 @@ class HeartbeatService {
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(
-      Duration(seconds: _heartbeatInterval),
+      const Duration(seconds: _heartbeatInterval),
       (timer) {
         _sendHeartbeat();
       },
@@ -117,7 +117,7 @@ class HeartbeatService {
     if (!_isActive) return;
 
     debugPrint('[HeartbeatService] Reconnecting in 5 seconds...');
-    await Future.delayed(Duration(seconds: 5));
+    await Future.delayed(const Duration(seconds: 5));
 
     if (_isActive && _userId != null && _sessionId != null && _originalWsUrl != null) {
       // Use the original URL for reconnection (preserves 10.0.2.2 on Android emulator)

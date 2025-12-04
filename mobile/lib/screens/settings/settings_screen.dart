@@ -167,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text('Change Language', style: AppTheme.titleLarge),
+                  const Text('Change Language', style: AppTheme.titleLarge),
                   const SizedBox(height: 8),
                   Text(
                     'Are you sure you want to change your primary language to $langName?\n\nThis will update your profile and other users will see this change.',
@@ -239,8 +239,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         debugPrint('Error updating language: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Failed to update language'),
+            const SnackBar(
+              content: Text('Failed to update language'),
               backgroundColor: AppTheme.errorRed,
               behavior: SnackBarBehavior.floating,
             ),
@@ -264,7 +264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Primary Language',
                 style: AppTheme.titleMedium,
               ),
@@ -359,7 +359,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Voice Sample', style: AppTheme.titleMedium),
+                        const Text('Voice Sample', style: AppTheme.titleMedium),
                         _isLoadingVoiceStatus
                             ? Text(
                                 'Loading...',
@@ -406,8 +406,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _hasVoiceSample = true;
                     });
                     messenger.showSnackBar(
-                      SnackBar(
-                        content: const Text('Voice sample uploaded successfully!'),
+                      const SnackBar(
+                        content: Text('Voice sample uploaded successfully!'),
                         backgroundColor: AppTheme.successGreen,
                         behavior: SnackBarBehavior.floating,
                       ),
@@ -433,7 +433,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.info_outline,
                         color: AppTheme.successGreen,
                         size: 20,
@@ -532,9 +532,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text('Sign Out', style: AppTheme.titleLarge),
+                  const Text('Sign Out', style: AppTheme.titleLarge),
                   const SizedBox(height: 8),
-                  Text(
+                  const Text(
                     'Are you sure you want to sign out?',
                     style: AppTheme.bodyMedium,
                     textAlign: TextAlign.center,

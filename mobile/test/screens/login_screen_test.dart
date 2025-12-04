@@ -13,7 +13,7 @@ void main() {
       ChangeNotifierProvider(
         create: (_) => AuthProvider(),
         child: MaterialApp(
-          home: LoginScreen(),
+          home: const LoginScreen(),
           routes: {
             '/home': (context) => const Scaffold(body: Text("Home Screen")),
           },
