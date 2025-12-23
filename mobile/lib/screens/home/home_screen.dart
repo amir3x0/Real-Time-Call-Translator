@@ -48,38 +48,45 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _checkIncomingCall() {
     final incomingCall = _callProvider?.incomingCall;
-    
+
     // Check for new incoming call
-    if (incomingCall != null && incomingCall.id != _handledIncomingCallId && mounted) {
+    if (incomingCall != null &&
+        incomingCall.id != _handledIncomingCallId &&
+        mounted) {
+      debugPrint('[HomeScreen] Incoming call detected: ${incomingCall.id}');
       _handledIncomingCallId = incomingCall.id;
       // Navigate to incoming call screen
       Navigator.of(context).pushNamed(AppRoutes.incomingCall);
-    } 
+    }
     // Reset handled ID if call is cleared
     else if (incomingCall == null) {
+      if (_handledIncomingCallId != null)
+        debugPrint('[HomeScreen] Call cleared/handled');
       _handledIncomingCallId = null;
     }
-    
+
     // Check for status changes
     final statusChange = _callProvider?.lastStatusChange;
     if (statusChange != null && mounted) {
-      final contactsProvider = Provider.of<ContactsProvider>(context, listen: false);
+      final contactsProvider =
+          Provider.of<ContactsProvider>(context, listen: false);
       final userId = statusChange['user_id'] as String?;
       final isOnline = statusChange['is_online'] as bool?;
       if (userId != null && isOnline != null) {
         contactsProvider.updateContactStatus(userId, isOnline);
       }
     }
-    
+
     // Check for contact requests
     final contactRequest = _callProvider?.lastContactRequest;
     if (contactRequest != null && mounted) {
       // ContactsProvider listens to the stream directly now, so no need to manually refresh here.
       // We just show the notification.
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('New friend request from ${contactRequest['requester_name'] ?? 'someone'}'),
+          content: Text(
+              'New friend request from ${contactRequest['requester_name'] ?? 'someone'}'),
           backgroundColor: AppTheme.primaryElectricBlue,
           behavior: SnackBarBehavior.floating,
         ),
@@ -90,13 +97,13 @@ class _HomeScreenState extends State<HomeScreen>
   void _handleScroll() {
     final currentOffset = _scrollController.offset;
     final delta = currentOffset - _lastScrollOffset;
-    
+
     if (delta > 10 && _isNavVisible) {
       setState(() => _isNavVisible = false);
     } else if (delta < -10 && !_isNavVisible) {
       setState(() => _isNavVisible = true);
     }
-    
+
     _lastScrollOffset = currentOffset;
   }
 
@@ -182,17 +189,19 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 // Custom App Bar
                 _buildAppBar()
-                  .animate()
-                  .fadeIn(duration: 400.ms)
-                  .slideY(begin: -0.2, end: 0),
+                    .animate()
+                    .fadeIn(duration: 400.ms)
+                    .slideY(begin: -0.2, end: 0),
 
                 // Start Call Hero Button (only on Contacts tab)
                 if (_currentIndex == 0) ...[
                   const SizedBox(height: 16),
                   _buildStartCallButton()
-                    .animate()
-                    .fadeIn(delay: 200.ms, duration: 400.ms)
-                    .scale(begin: const Offset(0.95, 0.95), end: const Offset(1, 1)),
+                      .animate()
+                      .fadeIn(delay: 200.ms, duration: 400.ms)
+                      .scale(
+                          begin: const Offset(0.95, 0.95),
+                          end: const Offset(1, 1)),
                 ],
 
                 // Body Content
@@ -211,9 +220,9 @@ class _HomeScreenState extends State<HomeScreen>
             left: 40,
             right: 40,
             child: _buildFloatingNavBar()
-              .animate()
-              .fadeIn(delay: 500.ms, duration: 400.ms)
-              .slideY(begin: 0.5, end: 0),
+                .animate()
+                .fadeIn(delay: 500.ms, duration: 400.ms)
+                .slideY(begin: 0.5, end: 0),
           ),
         ],
       ),
@@ -232,7 +241,8 @@ class _HomeScreenState extends State<HomeScreen>
             decoration: BoxDecoration(
               gradient: AppTheme.primaryGradient,
               borderRadius: AppTheme.borderRadiusSmall,
-              boxShadow: AppTheme.glowShadow(AppTheme.primaryElectricBlue.withValues(alpha: 0.3)),
+              boxShadow: AppTheme.glowShadow(
+                  AppTheme.primaryElectricBlue.withValues(alpha: 0.3)),
             ),
             child: const Icon(
               Icons.translate,
@@ -247,7 +257,8 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 Text(
                   'Voice Translator',
-                  style: AppTheme.titleMedium.copyWith(fontWeight: FontWeight.w600),
+                  style: AppTheme.titleMedium
+                      .copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   _getSubtitle(),
@@ -339,7 +350,8 @@ class _HomeScreenState extends State<HomeScreen>
                         decoration: BoxDecoration(
                           gradient: AppTheme.primaryGradient,
                           shape: BoxShape.circle,
-                          boxShadow: AppTheme.glowShadow(AppTheme.primaryElectricBlue),
+                          boxShadow:
+                              AppTheme.glowShadow(AppTheme.primaryElectricBlue),
                         ),
                         child: const Icon(
                           Icons.call,
@@ -463,9 +475,12 @@ class _HomeScreenState extends State<HomeScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildNavItem(0, Icons.contacts_outlined, Icons.contacts, 'Contacts'),
-              _buildNavItem(1, Icons.history_outlined, Icons.history, 'Recents'),
-              _buildNavItem(2, Icons.settings_outlined, Icons.settings, 'Settings'),
+              _buildNavItem(
+                  0, Icons.contacts_outlined, Icons.contacts, 'Contacts'),
+              _buildNavItem(
+                  1, Icons.history_outlined, Icons.history, 'Recents'),
+              _buildNavItem(
+                  2, Icons.settings_outlined, Icons.settings, 'Settings'),
             ],
           ),
         ),
@@ -473,7 +488,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label) {
+  Widget _buildNavItem(
+      int index, IconData icon, IconData activeIcon, String label) {
     final isActive = _currentIndex == index;
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
@@ -492,14 +508,18 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             Icon(
               isActive ? activeIcon : icon,
-              color: isActive ? AppTheme.primaryElectricBlue : AppTheme.secondaryText,
+              color: isActive
+                  ? AppTheme.primaryElectricBlue
+                  : AppTheme.secondaryText,
               size: 24,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isActive ? AppTheme.primaryElectricBlue : AppTheme.secondaryText,
+                color: isActive
+                    ? AppTheme.primaryElectricBlue
+                    : AppTheme.secondaryText,
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
               ),

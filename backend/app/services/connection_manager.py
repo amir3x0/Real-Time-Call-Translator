@@ -260,6 +260,7 @@ class ConnectionManager:
             True if notification was sent, False if user not connected
         """
         # Find user's active connection (could be in any session)
+        sent_any = False
         for session_id, connections in self._sessions.items():
             for conn in connections.values():
                 if conn.user_id == user_id:
@@ -274,14 +275,15 @@ class ConnectionManager:
                     }
                     try:
                         await conn.send_json(notification)
-                        logger.info(f"Sent incoming call notification to user {user_id} for call {call_id}")
-                        return True
+                        logger.info(f"Sent incoming call notification to user {user_id} in session {session_id}")
+                        sent_any = True
                     except Exception as e:
                         logger.error(f"Error sending incoming call notification: {e}")
-                        return False
         
-        logger.debug(f"User {user_id} not connected, cannot send incoming call notification")
-        return False
+        if not sent_any:
+            logger.debug(f"User {user_id} not connected, cannot send incoming call notification")
+        
+        return sent_any
     
     async def broadcast_to_session(
         self, 

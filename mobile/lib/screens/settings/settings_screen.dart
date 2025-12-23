@@ -36,18 +36,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _loadUserSettings();
     });
   }
-  
+
   Future<void> _loadUserSettings() async {
     final authProv = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProv.currentUser;
-    
+
     // Set language from user's primary_language
     if (currentUser != null) {
       setState(() {
         _selectedLang = currentUser.primaryLanguage;
       });
     }
-    
+
     // Check voice sample status
     try {
       final voiceRecordings = await _api.getVoiceRecordings();
@@ -67,7 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Listen to settings changes for reactivity
     Provider.of<SettingsProvider>(context);
     final authProv = Provider.of<AuthProvider>(context, listen: false);
-    
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -75,32 +75,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           // Section: Language
           _buildSectionHeader('Language', Icons.translate)
-            .animate().fadeIn(delay: 100.ms, duration: 400.ms),
+              .animate()
+              .fadeIn(delay: 100.ms, duration: 400.ms),
           const SizedBox(height: 12),
-          
+
           _buildLanguageSelector()
-            .animate().fadeIn(delay: 300.ms, duration: 400.ms),
-          
+              .animate()
+              .fadeIn(delay: 300.ms, duration: 400.ms),
+
           const SizedBox(height: 24),
-          
+
           // Section: Voice
           _buildSectionHeader('Voice Profile', Icons.mic_outlined)
-            .animate().fadeIn(delay: 350.ms, duration: 400.ms),
+              .animate()
+              .fadeIn(delay: 350.ms, duration: 400.ms),
           const SizedBox(height: 12),
-          
+
           _buildVoiceSection()
-            .animate().fadeIn(delay: 400.ms, duration: 400.ms),
-          
+              .animate()
+              .fadeIn(delay: 400.ms, duration: 400.ms),
+
           const SizedBox(height: 24),
-          
+
           // Section: Account
           _buildSectionHeader('Account', Icons.person_outlined)
-            .animate().fadeIn(delay: 450.ms, duration: 400.ms),
+              .animate()
+              .fadeIn(delay: 450.ms, duration: 400.ms),
           const SizedBox(height: 12),
-          
+
           _buildLogoutButton(authProv)
-            .animate().fadeIn(delay: 500.ms, duration: 400.ms),
-          
+              .animate()
+              .fadeIn(delay: 500.ms, duration: 400.ms),
+
+          const SizedBox(height: 24),
+
+          // Section: Developer
+          _buildSectionHeader('Developer Options', Icons.developer_mode)
+              .animate()
+              .fadeIn(delay: 550.ms, duration: 400.ms),
+          const SizedBox(height: 12),
+
+          _buildResetStateButton()
+              .animate()
+              .fadeIn(delay: 600.ms, duration: 400.ms),
+
           // Extra padding for floating nav bar
           const SizedBox(height: 100),
         ],
@@ -135,7 +153,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _showLanguageConfirmation(String newLangCode, String langName) async {
+  Future<void> _showLanguageConfirmation(
+      String newLangCode, String langName) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => Dialog(
@@ -157,7 +176,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: 60,
                     height: 60,
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryElectricBlue.withValues(alpha: 0.2),
+                      color:
+                          AppTheme.primaryElectricBlue.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -182,7 +202,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           onPressed: () => Navigator.pop(ctx, false),
                           child: Text(
                             'Cancel',
-                            style: AppTheme.labelLarge.copyWith(color: AppTheme.secondaryText),
+                            style: AppTheme.labelLarge
+                                .copyWith(color: AppTheme.secondaryText),
                           ),
                         ),
                       ),
@@ -197,7 +218,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             onPressed: () => Navigator.pop(ctx, true),
                             child: Text(
                               'Confirm',
-                              style: AppTheme.labelLarge.copyWith(color: Colors.white),
+                              style: AppTheme.labelLarge
+                                  .copyWith(color: Colors.white),
                             ),
                           ),
                         ),
@@ -211,21 +233,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-    
+
     if (confirmed == true) {
       // Update locally
       setState(() => _selectedLang = newLangCode);
-      final settingsProv = Provider.of<SettingsProvider>(context, listen: false);
+      final settingsProv =
+          Provider.of<SettingsProvider>(context, listen: false);
       settingsProv.setLanguage(_selectedLang);
-      
+
       // Update in database
       try {
         await _api.updateUserLanguage(newLangCode);
-        
+
         // Refresh current user to reflect the change
         final authProv = Provider.of<AuthProvider>(context, listen: false);
         await authProv.refreshCurrentUser();
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -278,21 +301,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: () {
                         if (_selectedLang != lang['code']) {
                           HapticFeedback.selectionClick();
-                          _showLanguageConfirmation(lang['code']!, lang['name']!);
+                          _showLanguageConfirmation(
+                              lang['code']!, lang['name']!);
                         }
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 8),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppTheme.primaryElectricBlue.withValues(alpha: 0.25)
+                              ? AppTheme.primaryElectricBlue
+                                  .withValues(alpha: 0.25)
                               : Colors.transparent,
                           borderRadius: AppTheme.borderRadiusSmall,
                           border: isSelected
-                              ? Border.all(color: AppTheme.primaryElectricBlue, width: 1.5)
-                              : Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                              ? Border.all(
+                                  color: AppTheme.primaryElectricBlue,
+                                  width: 1.5)
+                              : Border.all(
+                                  color: Colors.white.withValues(alpha: 0.1)),
                         ),
                         child: Column(
                           children: [
@@ -304,8 +333,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             Text(
                               lang['name']!,
                               style: AppTheme.bodyMedium.copyWith(
-                                color: isSelected ? Colors.white : AppTheme.secondaryText,
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppTheme.secondaryText,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
                                 fontSize: 11,
                               ),
                               textAlign: TextAlign.center,
@@ -344,13 +377,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      gradient: _hasVoiceSample 
-                          ? LinearGradient(colors: [AppTheme.successGreen, AppTheme.successGreen.withValues(alpha: 0.7)]) 
+                      gradient: _hasVoiceSample
+                          ? LinearGradient(colors: [
+                              AppTheme.successGreen,
+                              AppTheme.successGreen.withValues(alpha: 0.7)
+                            ])
                           : AppTheme.purpleGradient,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      _hasVoiceSample ? Icons.check : Icons.record_voice_over, 
+                      _hasVoiceSample ? Icons.check : Icons.record_voice_over,
                       color: Colors.white,
                     ),
                   ),
@@ -547,7 +583,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           onPressed: () => Navigator.pop(ctx),
                           child: Text(
                             'Cancel',
-                            style: AppTheme.labelLarge.copyWith(color: AppTheme.secondaryText),
+                            style: AppTheme.labelLarge
+                                .copyWith(color: AppTheme.secondaryText),
                           ),
                         ),
                       ),
@@ -566,7 +603,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             },
                             child: Text(
                               'Sign Out',
-                              style: AppTheme.labelLarge.copyWith(color: Colors.white),
+                              style: AppTheme.labelLarge
+                                  .copyWith(color: Colors.white),
                             ),
                           ),
                         ),
@@ -574,6 +612,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResetStateButton() {
+    return ClipRRect(
+      borderRadius: AppTheme.borderRadiusMedium,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: Container(
+          decoration: AppTheme.glassDecoration(
+            color: Colors.orange.withValues(alpha: 0.1),
+            borderColor: Colors.orange.withValues(alpha: 0.3),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: AppTheme.borderRadiusMedium,
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  await _api.resetCallState();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Call state reset successfully'),
+                      backgroundColor: AppTheme.successGreen,
+                    ),
+                  );
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to reset: $e'),
+                      backgroundColor: AppTheme.errorRed,
+                    ),
+                  );
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.refresh, color: Colors.orange),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Reset Call State',
+                      style: AppTheme.labelLarge.copyWith(
+                        color: Colors.orange,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

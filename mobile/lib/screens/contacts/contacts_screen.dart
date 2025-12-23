@@ -13,7 +13,7 @@ import '../../config/app_theme.dart';
 
 class ContactsScreen extends StatefulWidget {
   final ScrollController? scrollController;
-  
+
   const ContactsScreen({super.key, this.scrollController});
 
   @override
@@ -67,10 +67,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         style: AppTheme.bodyLarge,
                         decoration: InputDecoration(
                           hintText: 'Search by name or phone',
-                          hintStyle: AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText),
-                          prefixIcon: const Icon(Icons.search, color: AppTheme.primaryElectricBlue),
+                          hintStyle: AppTheme.bodyMedium
+                              .copyWith(color: AppTheme.secondaryText),
+                          prefixIcon: const Icon(Icons.search,
+                              color: AppTheme.primaryElectricBlue),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
                         ),
                       ),
                     ),
@@ -88,7 +91,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   icon: const Icon(Icons.person_add_alt_1, color: Colors.white),
                   onPressed: () async {
                     if (!mounted) return;
-                    final contacts = Provider.of<ContactsProvider>(context, listen: false);
+                    final contacts =
+                        Provider.of<ContactsProvider>(context, listen: false);
                     await Navigator.of(context).pushNamed('/contacts/add');
                     if (!mounted) return;
                     // Refresh contacts after returning from add screen
@@ -99,14 +103,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
             ],
           ),
         ),
-
         Expanded(
           child: Builder(
             builder: (_) {
               if (contactsProv.isLoading) {
                 return ListView.builder(
                   controller: widget.scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   itemCount: 6,
                   itemBuilder: (_, __) => _ShimmerRow(),
                 );
@@ -121,8 +125,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 backgroundColor: AppTheme.darkCard,
                 child: ListView(
                   controller: widget.scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(), // Ensure scroll for refresh
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  physics:
+                      const AlwaysScrollableScrollPhysics(), // Ensure scroll for refresh
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   children: [
                     // Pending Requests Section
                     if (pending.isNotEmpty) ...[
@@ -131,25 +137,33 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         child: Row(
                           children: [
                             Container(
-                              width: 8, 
-                              height: 8, 
-                              decoration: const BoxDecoration(color: AppTheme.primaryElectricBlue, shape: BoxShape.circle),
-                            ).animate(onPlay: (c) => c.repeat()).fade(duration: 800.ms).scale(begin: const Offset(0.5, 0.5)),
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                  color: AppTheme.primaryElectricBlue,
+                                  shape: BoxShape.circle),
+                            )
+                                .animate(onPlay: (c) => c.repeat())
+                                .fade(duration: 800.ms)
+                                .scale(begin: const Offset(0.5, 0.5)),
                             const SizedBox(width: 8),
                             Text(
-                              'Pending Requests (${pending.length})', 
-                              style: AppTheme.labelLarge.copyWith(color: AppTheme.primaryElectricBlue),
+                              'Pending Requests (${pending.length})',
+                              style: AppTheme.labelLarge.copyWith(
+                                  color: AppTheme.primaryElectricBlue),
                             ),
                           ],
                         ),
                       ),
-                      ...pending.map((c) => _buildPendingRequestCard(c, contactsProv)),
+                      ...pending.map(
+                          (c) => _buildPendingRequestCard(c, contactsProv)),
                       const SizedBox(height: 16),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8, left: 4),
                         child: Text(
-                          'Contacts (${contacts.length})', 
-                          style: AppTheme.labelLarge.copyWith(color: AppTheme.secondaryText),
+                          'Contacts (${contacts.length})',
+                          style: AppTheme.labelLarge
+                              .copyWith(color: AppTheme.secondaryText),
                         ),
                       ),
                     ],
@@ -168,17 +182,22 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                   color: Colors.white.withValues(alpha: 0.05),
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(Icons.contacts_outlined, size: 48, color: Colors.white.withValues(alpha: 0.4)),
+                                child: Icon(Icons.contacts_outlined,
+                                    size: 48,
+                                    color: Colors.white.withValues(alpha: 0.4)),
                               ),
                               const SizedBox(height: 16),
-                              const Text('No contacts yet', style: AppTheme.titleMedium),
+                              const Text('No contacts yet',
+                                  style: AppTheme.titleMedium),
                               const SizedBox(height: 6),
-                              Text('Tap the + button to add one', style: AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText)),
+                              Text('Tap the + button to add one',
+                                  style: AppTheme.bodyMedium
+                                      .copyWith(color: AppTheme.secondaryText)),
                             ],
                           ).animate().fadeIn().scale(),
                         ),
                       )
-                     ] else ...[
+                    ] else ...[
                       ...contacts.asMap().entries.map((entry) {
                         final index = entry.key;
                         final c = entry.value;
@@ -192,10 +211,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
                               color: AppTheme.errorRed.withValues(alpha: 0.9),
                               borderRadius: AppTheme.borderRadiusMedium,
                             ),
-                            child: const Icon(Icons.delete_outline, color: Colors.white),
+                            child: const Icon(Icons.delete_outline,
+                                color: Colors.white),
                           ),
                           confirmDismiss: (_) async {
-                            return await _showDeleteDialog(context, c.displayName);
+                            return await _showDeleteDialog(
+                                context, c.displayName);
                           },
                           onDismissed: (_) async {
                             final messenger = ScaffoldMessenger.of(context);
@@ -229,83 +250,86 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Future<bool> _showDeleteDialog(BuildContext context, String name) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ClipRRect(
-          borderRadius: AppTheme.borderRadiusMedium,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: AppTheme.glassDecoration(
-                color: AppTheme.darkCard.withValues(alpha: 0.9),
-                borderColor: Colors.white.withValues(alpha: 0.1),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: AppTheme.errorRed.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.delete_outline,
-                      color: AppTheme.errorRed,
-                      size: 30,
-                    ),
+          context: context,
+          builder: (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: ClipRRect(
+              borderRadius: AppTheme.borderRadiusMedium,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: AppTheme.glassDecoration(
+                    color: AppTheme.darkCard.withValues(alpha: 0.9),
+                    borderColor: Colors.white.withValues(alpha: 0.1),
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Delete Contact',
-                    style: AppTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Are you sure you want to delete $name?',
-                    style: AppTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: Text(
-                            'Cancel',
-                            style: AppTheme.labelLarge.copyWith(color: AppTheme.secondaryText),
-                          ),
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: AppTheme.errorRed.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.delete_outline,
+                          color: AppTheme.errorRed,
+                          size: 30,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppTheme.errorRed,
-                            borderRadius: AppTheme.borderRadiusSmall,
-                          ),
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: Text(
-                              'Delete',
-                              style: AppTheme.labelLarge.copyWith(color: Colors.white),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Delete Contact',
+                        style: AppTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Are you sure you want to delete $name?',
+                        style: AppTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: Text(
+                                'Cancel',
+                                style: AppTheme.labelLarge
+                                    .copyWith(color: AppTheme.secondaryText),
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppTheme.errorRed,
+                                borderRadius: AppTheme.borderRadiusSmall,
+                              ),
+                              child: TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: Text(
+                                  'Delete',
+                                  style: AppTheme.labelLarge
+                                      .copyWith(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   Widget _buildPendingRequestCard(Contact c, ContactsProvider provider) {
@@ -329,11 +353,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
               children: [
                 Text(
                   c.displayName,
-                  style: AppTheme.titleMedium.copyWith(fontWeight: FontWeight.w600),
+                  style: AppTheme.titleMedium
+                      .copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   'Wants to be your friend',
-                  style: AppTheme.bodySmall.copyWith(color: AppTheme.secondaryText),
+                  style: AppTheme.bodySmall
+                      .copyWith(color: AppTheme.secondaryText),
                 ),
               ],
             ),
@@ -381,7 +407,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 borderRadius: AppTheme.borderRadiusMedium,
                 onTap: () {
                   // Select this contact and go to participant selection
-                  final contacts = Provider.of<ContactsProvider>(context, listen: false);
+                  final contacts =
+                      Provider.of<ContactsProvider>(context, listen: false);
                   contacts.clearSelection();
                   contacts.selectContact(c.id);
                   Navigator.pushNamed(context, '/call/select');
@@ -398,7 +425,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           children: [
                             Text(
                               c.displayName,
-                              style: AppTheme.titleMedium.copyWith(fontWeight: FontWeight.w600),
+                              style: AppTheme.titleMedium
+                                  .copyWith(fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(height: 4),
                             Row(
@@ -410,24 +438,36 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                   height: 8,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: c.isOnline == true ? AppTheme.successGreen : Colors.grey,
-                                    boxShadow: c.isOnline == true 
-                                        ? [BoxShadow(color: AppTheme.successGreen.withValues(alpha: 0.5), blurRadius: 4, spreadRadius: 1)]
+                                    color: c.isOnline == true
+                                        ? AppTheme.successGreen
+                                        : Colors.grey,
+                                    boxShadow: c.isOnline == true
+                                        ? [
+                                            BoxShadow(
+                                                color: AppTheme.successGreen
+                                                    .withValues(alpha: 0.5),
+                                                blurRadius: 4,
+                                                spreadRadius: 1)
+                                          ]
                                         : null,
                                   ),
-                                ).animate(
-                                  target: c.isOnline == true ? 1 : 0,
-                                  onPlay: (controller) => controller.repeat(reverse: true),
-                                ).scale(
-                                  begin: const Offset(1.0, 1.0), 
-                                  end: const Offset(1.2, 1.2), 
-                                  duration: 1.seconds,
-                                  curve: Curves.easeInOut,
-                                ),
+                                )
+                                    .animate(
+                                      target: c.isOnline == true ? 1 : 0,
+                                      onPlay: (controller) =>
+                                          controller.repeat(reverse: true),
+                                    )
+                                    .scale(
+                                      begin: const Offset(1.0, 1.0),
+                                      end: const Offset(1.2, 1.2),
+                                      duration: 1.seconds,
+                                      curve: Curves.easeInOut,
+                                    ),
                                 const SizedBox(width: 4),
                                 Text(
                                   c.isOnline == true ? 'Online' : 'Offline',
-                                  style: AppTheme.bodyMedium.copyWith(fontSize: 12),
+                                  style: AppTheme.bodyMedium
+                                      .copyWith(fontSize: 12),
                                 ),
                               ],
                             ),
@@ -442,16 +482,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             colors: [AppTheme.successGreen, Color(0xFF059669)],
                           ),
                           shape: BoxShape.circle,
-                          boxShadow: AppTheme.glowShadow(AppTheme.successGreen.withValues(alpha: 0.3)),
+                          boxShadow: AppTheme.glowShadow(
+                              AppTheme.successGreen.withValues(alpha: 0.3)),
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.call, color: Colors.white, size: 20),
+                          icon: const Icon(Icons.call,
+                              color: Colors.white, size: 20),
                           onPressed: () {
-                            // Quick call - select and go directly to confirmation
-                            final contacts = Provider.of<ContactsProvider>(context, listen: false);
+                            // Quick call - select and go directly to call
+                            final contacts = Provider.of<ContactsProvider>(
+                                context,
+                                listen: false);
                             contacts.clearSelection();
                             contacts.selectContact(c.id);
-                            Navigator.pushNamed(context, '/call/confirm');
+                            _initiateCall(context, c);
                           },
                         ),
                       ),
@@ -463,20 +507,58 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
         ),
       ),
-    ).animate()
-      .fadeIn(delay: Duration(milliseconds: 100 * index), duration: 400.ms)
-      .slideX(begin: 0.1, end: 0);
+    )
+        .animate()
+        .fadeIn(delay: Duration(milliseconds: 100 * index), duration: 400.ms)
+        .slideX(begin: 0.1, end: 0);
   }
 
   void _handleSearchChanged(String value) {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
-      Provider.of<ContactsProvider>(context, listen: false).setSearchQuery(value);
+      Provider.of<ContactsProvider>(context, listen: false)
+          .setSearchQuery(value);
     });
   }
 
-  
+  Future<void> _initiateCall(BuildContext context, Contact contact) async {
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await callProvider.startCall([contact.contactUserId]);
+
+      if (!mounted) return;
+      // Close loader
+      Navigator.of(context).pop();
+
+      // Navigate to active call
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/call/active',
+        (route) => route.isFirst,
+        arguments: {
+          'contacts': [contact]
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Close loader
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to start call: $e'),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+    }
+  }
 }
 
 class _LanguageChip extends StatelessWidget {
@@ -554,7 +636,7 @@ class _GradientAvatar extends StatelessWidget {
     // Use name hash for consistent color
     final colorIndex = name.hashCode.abs() % colors.length;
     final nextIndex = (colorIndex + 1) % colors.length;
-    
+
     return Container(
       width: 48,
       height: 48,

@@ -521,3 +521,22 @@ async def start_call_legacy(
     """
     req.skip_contact_validation = True
     return await start_call(req, db, current_user)
+
+
+@router.post("/calls/debug/reset_state")
+async def reset_user_call_state(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Debug endpoint: Force leave all active calls for current user.
+    Use this if you get 'Already in an active call' errors.
+    """
+    try:
+        call_ids = await call_service.force_leave_all_calls(db, current_user.id)
+        return {
+            "message": f"Reset successful. Left {len(call_ids)} calls.",
+            "calls_left": call_ids
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -7,7 +7,7 @@ import '../../config/app_config.dart';
 import '../../models/user.dart';
 
 /// API Service for Real-Time Call Translator backend
-/// 
+///
 /// Implements endpoints for:
 /// - Authentication (login, register, me)
 /// - Contacts management
@@ -20,7 +20,8 @@ class ApiService {
   }
 
   Uri _uri(String path, [Map<String, String>? query]) {
-    return Uri.parse('${AppConfig.baseUrl}$path').replace(queryParameters: query);
+    return Uri.parse('${AppConfig.baseUrl}$path')
+        .replace(queryParameters: query);
   }
 
   Map<String, String> _authHeaders(String? token) {
@@ -40,7 +41,7 @@ class ApiService {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'phone': phone, 'password': password}),
     );
-    
+
     if (resp.statusCode == 200) {
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final token = data['token'] as String?;
@@ -57,12 +58,13 @@ class ApiService {
         createdAt: DateTime.now(),
       );
     }
-    
+
     final error = jsonDecode(resp.body)['detail'] ?? 'Login failed';
     throw Exception(error);
   }
 
-  Future<User> register(String phone, String fullName, String password, String primaryLanguage) async {
+  Future<User> register(String phone, String fullName, String password,
+      String primaryLanguage) async {
     final resp = await http.post(
       _uri('/api/auth/register'),
       headers: {'Content-Type': 'application/json'},
@@ -73,7 +75,7 @@ class ApiService {
         'primary_language': primaryLanguage,
       }),
     );
-    
+
     if (resp.statusCode == 201 || resp.statusCode == 200) {
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final token = data['token'] as String?;
@@ -81,7 +83,7 @@ class ApiService {
       final prefs = await SharedPreferences.getInstance();
       if (token != null) await prefs.setString(AppConfig.userTokenKey, token);
       if (userId != null) await prefs.setString(AppConfig.userIdKey, userId);
-      
+
       return User(
         id: userId ?? '',
         phone: phone,
@@ -90,7 +92,7 @@ class ApiService {
         createdAt: DateTime.now(),
       );
     }
-    
+
     final error = jsonDecode(resp.body)['detail'] ?? 'Registration failed';
     throw Exception(error);
   }
@@ -104,7 +106,7 @@ class ApiService {
         _uri('/api/auth/me'),
         headers: _authHeaders(token),
       );
-      
+
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
         return User(
@@ -139,7 +141,7 @@ class ApiService {
     } catch (e) {
       debugPrint('Logout error: $e');
     }
-    
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(AppConfig.userTokenKey);
     await prefs.remove(AppConfig.userIdKey);
@@ -149,13 +151,13 @@ class ApiService {
   Future<User> updateUserLanguage(String language) async {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
-    
+
     final resp = await http.patch(
       _uri('/api/auth/profile'),
       headers: _authHeaders(token),
       body: jsonEncode({'primary_language': language}),
     );
-    
+
     if (resp.statusCode == 200) {
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       return User(
@@ -169,8 +171,9 @@ class ApiService {
         createdAt: DateTime.now(),
       );
     }
-    
-    final error = jsonDecode(resp.body)['detail'] ?? 'Failed to update language';
+
+    final error =
+        jsonDecode(resp.body)['detail'] ?? 'Failed to update language';
     throw Exception(error);
   }
 
@@ -180,13 +183,13 @@ class ApiService {
 
   Future<Map<String, dynamic>> getContacts() async {
     final token = await _getToken();
-    
+
     try {
       final resp = await http.get(
         _uri('/api/contacts'),
         headers: _authHeaders(token),
       );
-      
+
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
         if (data is Map<String, dynamic>) {
@@ -205,13 +208,13 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     final token = await _getToken();
-    
+
     try {
       final resp = await http.get(
         _uri('/api/contacts/search', {'q': query}),
         headers: _authHeaders(token),
       );
-      
+
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
         if (data is Map && data['users'] != null) {
@@ -229,22 +232,22 @@ class ApiService {
 
   Future<Map<String, dynamic>> addContact(String contactUserId) async {
     final token = await _getToken();
-    
+
     final resp = await http.post(
       _uri('/api/contacts/add/$contactUserId'),
       headers: _authHeaders(token),
     );
-    
+
     if (resp.statusCode == 200 || resp.statusCode == 201) {
       return jsonDecode(resp.body) as Map<String, dynamic>;
     }
-    
+
     throw Exception('Failed to add contact');
   }
 
   Future<void> deleteContact(String contactId) async {
     final token = await _getToken();
-    
+
     await http.delete(
       _uri('/api/contacts/$contactId'),
       headers: _authHeaders(token),
@@ -253,12 +256,12 @@ class ApiService {
 
   Future<void> acceptContactRequest(String requestId) async {
     final token = await _getToken();
-    
+
     final resp = await http.post(
       _uri('/api/contacts/$requestId/accept'),
       headers: _authHeaders(token),
     );
-    
+
     if (resp.statusCode != 200) {
       throw Exception('Failed to accept request: ${resp.body}');
     }
@@ -266,12 +269,12 @@ class ApiService {
 
   Future<void> rejectContactRequest(String requestId) async {
     final token = await _getToken();
-    
+
     final resp = await http.post(
       _uri('/api/contacts/$requestId/reject'),
       headers: _authHeaders(token),
     );
-    
+
     if (resp.statusCode != 200) {
       throw Exception('Failed to reject request: ${resp.body}');
     }
@@ -281,9 +284,10 @@ class ApiService {
   // CALL ENDPOINTS
   // ============================================
 
-  Future<Map<String, dynamic>> startCall(List<String> participantUserIds) async {
+  Future<Map<String, dynamic>> startCall(
+      List<String> participantUserIds) async {
     final token = await _getToken();
-    
+
     final resp = await http.post(
       _uri('/api/calls/start'),
       headers: _authHeaders(token),
@@ -292,17 +296,17 @@ class ApiService {
         'skip_contact_validation': true, // For demo
       }),
     );
-    
+
     if (resp.statusCode == 200 || resp.statusCode == 201) {
       return jsonDecode(resp.body) as Map<String, dynamic>;
     }
-    
+
     throw Exception('Failed to start call: ${resp.body}');
   }
 
   Future<void> endCall(String callId) async {
     final token = await _getToken();
-    
+
     await http.post(
       _uri('/api/calls/$callId/end'),
       headers: _authHeaders(token),
@@ -311,7 +315,7 @@ class ApiService {
 
   Future<void> leaveCall(String callId) async {
     final token = await _getToken();
-    
+
     await http.post(
       _uri('/api/calls/$callId/leave'),
       headers: _authHeaders(token),
@@ -320,7 +324,7 @@ class ApiService {
 
   Future<void> muteCall(String callId, bool muted) async {
     final token = await _getToken();
-    
+
     await http.post(
       _uri('/api/calls/$callId/mute'),
       headers: _authHeaders(token),
@@ -330,13 +334,13 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> getCallHistory() async {
     final token = await _getToken();
-    
+
     try {
       final resp = await http.get(
         _uri('/api/calls/history'),
         headers: _authHeaders(token),
       );
-      
+
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
         if (data is Map && data['calls'] != null) {
@@ -354,13 +358,13 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> getPendingCalls() async {
     final token = await _getToken();
-    
+
     try {
       final resp = await http.get(
         _uri('/api/calls/pending'),
         headers: _authHeaders(token),
       );
-      
+
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
         if (data is List) {
@@ -375,29 +379,42 @@ class ApiService {
 
   Future<Map<String, dynamic>> acceptCall(String callId) async {
     final token = await _getToken();
-    
+
     final resp = await http.post(
       _uri('/api/calls/$callId/accept'),
       headers: _authHeaders(token),
     );
-    
+
     if (resp.statusCode == 200 || resp.statusCode == 201) {
       return jsonDecode(resp.body) as Map<String, dynamic>;
     }
-    
+
     throw Exception('Failed to accept call: ${resp.body}');
   }
 
   Future<void> rejectCall(String callId) async {
     final token = await _getToken();
-    
+
     final resp = await http.post(
       _uri('/api/calls/$callId/reject'),
       headers: _authHeaders(token),
     );
-    
+
     if (resp.statusCode != 200 && resp.statusCode != 201) {
       throw Exception('Failed to reject call: ${resp.body}');
+    }
+  }
+
+  Future<void> resetCallState() async {
+    final token = await _getToken();
+
+    final resp = await http.post(
+      _uri('/api/calls/debug/reset_state'),
+      headers: _authHeaders(token),
+    );
+
+    if (resp.statusCode != 200) {
+      throw Exception('Failed to reset state: ${resp.body}');
     }
   }
 
@@ -405,9 +422,10 @@ class ApiService {
   // VOICE SAMPLE ENDPOINTS
   // ============================================
 
-  Future<Map<String, dynamic>> uploadVoiceSample(String filePath, String language, String textContent) async {
+  Future<Map<String, dynamic>> uploadVoiceSample(
+      String filePath, String language, String textContent) async {
     final token = await _getToken();
-    
+
     var request = http.MultipartRequest('POST', _uri('/api/voice/upload'));
     // Don't add Content-Type header for multipart - it's set automatically
     if (token != null) {
@@ -415,7 +433,7 @@ class ApiService {
     }
     request.fields['language'] = language;
     request.fields['text_content'] = textContent;
-    
+
     // Explicitly set content type for WAV audio file
     final file = await http.MultipartFile.fromPath(
       'file',
@@ -423,30 +441,30 @@ class ApiService {
       contentType: MediaType('audio', 'wav'),
     );
     request.files.add(file);
-    
+
     debugPrint('[API] Uploading voice to: ${_uri('/api/voice/upload')}');
-    
+
     final streamedResponse = await request.send();
     final resp = await http.Response.fromStream(streamedResponse);
-    
+
     debugPrint('[API] Upload response: ${resp.statusCode} - ${resp.body}');
-    
+
     if (resp.statusCode == 200 || resp.statusCode == 201) {
       return jsonDecode(resp.body) as Map<String, dynamic>;
     }
-    
+
     throw Exception('Failed to upload voice sample: ${resp.body}');
   }
 
   Future<List<Map<String, dynamic>>> getVoiceRecordings() async {
     final token = await _getToken();
-    
+
     try {
       final resp = await http.get(
         _uri('/api/voice/recordings'),
         headers: _authHeaders(token),
       );
-      
+
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
         if (data is Map && data['recordings'] != null) {
@@ -461,20 +479,20 @@ class ApiService {
 
   Future<Map<String, dynamic>> getVoiceStatus() async {
     final token = await _getToken();
-    
+
     try {
       final resp = await http.get(
         _uri('/api/voice/status'),
         headers: _authHeaders(token),
       );
-      
+
       if (resp.statusCode == 200) {
         return jsonDecode(resp.body) as Map<String, dynamic>;
       }
     } catch (e) {
       debugPrint('Error getting voice status: $e');
     }
-    
+
     return {
       'has_voice_sample': false,
       'voice_model_trained': false,
@@ -485,7 +503,7 @@ class ApiService {
 
   Future<void> deleteVoiceRecording(String recordingId) async {
     final token = await _getToken();
-    
+
     await http.delete(
       _uri('/api/voice/recordings/$recordingId'),
       headers: _authHeaders(token),
@@ -499,16 +517,16 @@ class ApiService {
 
   Future<Map<String, dynamic>> trainVoiceModel() async {
     final token = await _getToken();
-    
+
     final resp = await http.post(
       _uri('/api/voice/train'),
       headers: _authHeaders(token),
     );
-    
+
     if (resp.statusCode == 200) {
       return jsonDecode(resp.body) as Map<String, dynamic>;
     }
-    
+
     throw Exception('Failed to start training');
   }
 
@@ -526,7 +544,8 @@ class ApiService {
   }
 
   /// Legacy compatibility method
-  Future<Map<String, dynamic>> createContact(String name, String language, {String? phone}) async {
+  Future<Map<String, dynamic>> createContact(String name, String language,
+      {String? phone}) async {
     // This would need a user search first in real implementation
     throw UnimplementedError('Use searchUsers + addContact instead');
   }
