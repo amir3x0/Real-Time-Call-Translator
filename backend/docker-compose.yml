@@ -14,7 +14,7 @@ services:
     networks:
       - translator_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U translator_admin -d call_translator"]
+      test: [ "CMD-SHELL", "pg_isready -U translator_admin -d call_translator" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,7 +32,7 @@ services:
     networks:
       - translator_network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,6 +59,8 @@ services:
       - ./app:/app/app
       - ./tests:/app/tests
       - ./data:/app/data
+    # Hot reload for development - auto-restart on code changes
+    command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
     ports:
       - "8000:8000"
     depends_on:
@@ -78,11 +80,29 @@ services:
       - "8080:8080"
     networks:
       - translator_network
-    depends_on:
-      - postgres
     restart: unless-stopped
     environment:
       ADMINER_DEFAULT_SERVER: postgres
+
+  # Verification Script Runner
+  verifier:
+    image: python:3.10-slim
+    container_name: translator_verifier
+    working_dir: /app
+    volumes:
+      - ../scripts:/app/scripts
+    environment:
+      - BASE_URL=http://backend:8000
+      - WS_URL=ws://backend:8000
+    command: >
+      sh -c "pip install httpx websockets && python scripts/verify_flow.py"
+    networks:
+      - translator_network
+    depends_on:
+      backend:
+        condition: service_started
+    profiles:
+      - test
 
 volumes:
   translator_postgres_data:

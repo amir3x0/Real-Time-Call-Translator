@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/contact.dart';
 import '../models/user.dart';
 import '../data/api/api_service.dart';
+import '../data/websocket/websocket_service.dart';
+import 'call_provider.dart';
 
 /// Result of adding a contact
 enum AddContactResult {
@@ -21,9 +24,44 @@ enum AddContactResult {
 /// - Adding new contacts
 class ContactsProvider with ChangeNotifier {
   final ApiService _api = ApiService();
+  CallProvider? _callProvider;
+  StreamSubscription? _callEventsSub;
+  
+  void updateCallProvider(CallProvider callProvider) {
+    if (_callProvider == callProvider) return;
+    _callProvider = callProvider;
+    _callEventsSub?.cancel();
+    _listenToCallEvents();
+  }
+  
+  ContactsProvider();
+
+  void _listenToCallEvents() {
+    _callEventsSub = _callProvider?.events.listen((event) {
+      if (event.type == WSMessageType.contactRequest) {
+        refreshContacts();
+      } else if (event.type == WSMessageType.userStatusChanged) {
+        final data = event.data;
+        if (data != null) {
+          updateContactStatus(
+            data['user_id'] as String? ?? '', 
+            data['is_online'] as bool? ?? false
+          );
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _callEventsSub?.cancel();
+    super.dispose();
+  }
   
   List<Contact> _allContacts = [];
   List<Contact> _filteredContacts = [];
+  List<Contact> _pendingIncoming = [];
+  List<Contact> _pendingOutgoing = [];
   final Set<String> _selectedContactIds = {};
   String _searchQuery = '';
   bool _isLoading = false;
@@ -37,6 +75,12 @@ class ContactsProvider with ChangeNotifier {
   
   /// Filtered contacts based on search query
   List<Contact> get contacts => List.unmodifiable(_filteredContacts);
+  
+  /// Incoming friend requests
+  List<Contact> get pendingIncoming => List.unmodifiable(_pendingIncoming);
+  
+  /// Outgoing pending requests
+  List<Contact> get pendingOutgoing => List.unmodifiable(_pendingOutgoing);
   
   /// All contacts without filtering
   List<Contact> get allContacts => List.unmodifiable(_allContacts);
@@ -81,7 +125,61 @@ class ContactsProvider with ChangeNotifier {
 
     try {
       final contactsData = await _api.getContacts();
-      _allContacts = contactsData.map((json) => Contact.fromJson(json)).toList();
+      
+      // Parse main contacts
+      final contactsConfig = contactsData['contacts'] as List? ?? [];
+      final mainContacts = contactsConfig
+          .map((json) {
+            if (json is Map<String, dynamic>) {
+              return Contact.fromJson(json);
+            }
+            return null;
+          })
+          .whereType<Contact>()
+          .toList();
+          
+      // Parse incoming requests
+      final incomingConfig = contactsData['pending_incoming'] as List? ?? [];
+      final incoming = incomingConfig
+          .map((json) {
+            if (json is! Map<String, dynamic>) return null;
+            
+            // Transform request format to Contact for UI
+            final requester = json['requester'];
+            if (requester == null) return null;
+
+            return Contact(
+              id: json['request_id'] ?? json['contact_id'] ?? '', // Use request_id for actions
+              userId: requester['id'], // Requester is the 'user'
+              contactUserId: '', // Not needed for UI here
+              contactName: requester['full_name'],
+              addedAt: DateTime.tryParse(json['added_at'] ?? '') ?? DateTime.now(),
+              fullName: requester['full_name'],
+              phone: requester['phone'],
+              primaryLanguage: requester['primary_language'],
+              isOnline: requester['is_online'],
+              status: 'pending',
+            );
+          })
+          .whereType<Contact>()
+          .toList();
+
+      // Parse outgoing requests
+      final outgoingConfig = contactsData['pending_outgoing'] as List? ?? [];
+      final outgoing = outgoingConfig
+          .map((json) {
+             if (json is Map<String, dynamic>) {
+               return Contact.fromJson(json);
+             }
+             return null;
+          })
+          .whereType<Contact>()
+          .toList();
+      
+      _allContacts = mainContacts.cast<Contact>();
+      _pendingIncoming = incoming.cast<Contact>();
+      _pendingOutgoing = outgoing.cast<Contact>();
+      
       _applyFilter();
       _initialized = true;
     } catch (e) {
@@ -96,6 +194,8 @@ class ContactsProvider with ChangeNotifier {
   Future<void> refreshContacts() async {
     _initialized = false;
     _allContacts.clear();
+    _pendingIncoming.clear();
+    _pendingOutgoing.clear();
     await loadContacts();
   }
 
@@ -237,6 +337,39 @@ class ContactsProvider with ChangeNotifier {
     }
   }
 
+  /// Accept a friend request
+  Future<bool> acceptContactRequest(String requestId) async {
+    _setLoading(true);
+    try {
+      await _api.acceptContactRequest(requestId);
+      await refreshContacts();
+      return true;
+    } catch (e) {
+      _error = 'Failed to accept request: $e';
+      debugPrint(_error);
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Reject a friend request
+  Future<bool> rejectContactRequest(String requestId) async {
+    _setLoading(true);
+    try {
+      await _api.rejectContactRequest(requestId);
+      _pendingIncoming.removeWhere((c) => c.id == requestId);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = 'Failed to reject request: $e';
+      debugPrint(_error);
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   /// Toggle favorite status (calls backend if available)
   Future<bool> toggleFavorite(String contactId) async {
     try {
@@ -290,4 +423,19 @@ class ContactsProvider with ChangeNotifier {
 
   /// Get online contacts count
   int get onlineCount => _allContacts.where((c) => c.isOnline ?? false).length;
+  
+  /// Update contact online status
+  void updateContactStatus(String contactUserId, bool isOnline) {
+    bool updated = false;
+    for (int i = 0; i < _allContacts.length; i++) {
+      if (_allContacts[i].contactUserId == contactUserId) {
+        _allContacts[i] = _allContacts[i].copyWith(isOnline: isOnline);
+        updated = true;
+        break;
+      }
+    }
+    if (updated) {
+      _applyFilter();
+    }
+  }
 }

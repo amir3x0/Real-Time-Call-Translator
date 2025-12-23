@@ -6,7 +6,6 @@ import 'providers/auth_provider.dart';
 import 'providers/call_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/contacts_provider.dart';
-import 'services/heartbeat_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/register_voice_screen.dart';
@@ -14,13 +13,27 @@ import 'screens/home/home_screen.dart';
 import 'screens/call/active_call_screen.dart';
 import 'screens/call/select_participants_screen.dart';
 import 'screens/call/call_confirmation_screen.dart';
+import 'screens/call/incoming_call_screen.dart';
 import 'screens/contacts/contacts_screen.dart';
 import 'screens/contacts/add_contact_screen.dart';
 import 'screens/settings/settings_screen.dart';
-import 'config/app_config.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => CallProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProxyProvider<CallProvider, ContactsProvider>(
+          create: (_) => ContactsProvider(),
+          update: (_, callProvider, contactsProvider) =>
+              contactsProvider!..updateCallProvider(callProvider),
+        ),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -31,111 +44,139 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  final HeartbeatService _heartbeatService = HeartbeatService();
+  bool _isAuthChecked = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Setup callbacks and connect to lobby on start if logged in
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setupLogoutCallback();
+      _initAuth();
+    });
+  }
+
+  /// Check authentication status on startup
+  Future<void> _initAuth() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+
+    final token = await authProvider.checkAuthStatus();
+
+    if (mounted) {
+      if (token != null) {
+        debugPrint('[MyApp] User is authenticated, connecting to lobby...');
+        // Connect to lobby with the valid token
+        callProvider.connectToLobby(token: token);
+      } else {
+        debugPrint('[MyApp] User is NOT authenticated, waiting for login...');
+      }
+
+      setState(() {
+        _isAuthChecked = true;
+      });
+    }
+  }
+
+  /// Setup callback to disconnect from Lobby when user logs out
+  void _setupLogoutCallback() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+
+    authProvider.setOnLogoutCallback(() {
+      callProvider.disconnectFromLobby();
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _heartbeatService.stop();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground - start heartbeat
-        debugPrint('[App] Resumed - starting heartbeat');
-        _startHeartbeatIfLoggedIn();
+        // App is in foreground - reconnect to lobby if authenticated
+        debugPrint('[App] Resumed - checking connection...');
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final callProvider = Provider.of<CallProvider>(context, listen: false);
+
+        if (authProvider.isAuthenticated) {
+          debugPrint(
+              '[App] User authenticated, reconnecting/refreshing connection...');
+          // We can get the token from shared prefs or auth provider
+          SharedPreferences.getInstance().then((prefs) {
+            final token = prefs.getString('user_token');
+            if (token != null) {
+              callProvider.connectToLobby(token: token);
+            }
+          });
+        }
         break;
-      
+
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
-        // App is in background - stop heartbeat
-        debugPrint('[App] Paused/Inactive - stopping heartbeat');
-        _heartbeatService.stop();
+        // App is in background
+        debugPrint('[App] Paused/Inactive');
         break;
-      
+
       case AppLifecycleState.detached:
-        // App is being terminated
-        debugPrint('[App] Detached - cleaning up');
-        _heartbeatService.stop();
+        debugPrint('[App] Detached');
         break;
-      
+
       case AppLifecycleState.hidden:
-        // App is hidden (iOS)
-        debugPrint('[App] Hidden - stopping heartbeat');
-        _heartbeatService.stop();
         break;
     }
   }
 
-  Future<void> _startHeartbeatIfLoggedIn() async {
-    // Check if user is logged in (retrieve from your auth provider/storage)
-    final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('user_id');
-    final sessionId = prefs.getString('session_id') ?? 'default_session';
-    
-    if (userId != null && userId.isNotEmpty) {
-      final wsUrl = '${AppConfig.wsUrl}/ws/$sessionId';
-      await _heartbeatService.start(
-        wsUrl: wsUrl,
-        userId: userId,
-        sessionId: sessionId,
-      );
-    }
-  }
+  // Removed _connectToLobby as it is replaced by _initAuth and explicit calls
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => CallProvider()),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
-        ChangeNotifierProvider(create: (_) => ContactsProvider()),
-      ],
-      child: Consumer<SettingsProvider>(
-        builder: (context, settings, child) {
-          return MaterialApp(
-            title: 'Real-Time Call Translator',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            themeMode: settings.themeMode,
-            initialRoute: '/',
-            routes: {
-              // Auth Flow
-              '/': (context) => const LoginScreen(),
-              '/register': (context) => const RegisterScreen(),
-              '/register/voice': (context) => const RegisterVoiceScreen(),
-              
-              // Main App
-              '/home': (context) => const HomeScreen(),
-              
-              // Call Flow (ordered)
-              '/call/select': (context) => const SelectParticipantsScreen(),
-              '/call/confirm': (context) => const CallConfirmationScreen(),
-              '/call/active': (context) => const ActiveCallScreen(),
-              
-              // Contacts
-              '/contacts': (context) => const ContactsScreen(),
-              '/contacts/add': (context) => const AddContactScreen(),
-              
-              // Settings
-              '/settings': (context) => const SettingsScreen(),
-            },
-          );
-        },
-      ),
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, child) {
+        return MaterialApp(
+          title: 'Real-Time Call Translator',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: settings.themeMode,
+          // If auth hasn't been checked yet, show a splash screen/loader
+          // Otherwise, navigate based on authentication state
+          home: !_isAuthChecked
+              ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+              : (context.read<AuthProvider>().isAuthenticated
+                  ? const HomeScreen()
+                  : const LoginScreen()),
+          routes: {
+            // Auth Flow
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegisterScreen(),
+            '/register/voice': (context) => const RegisterVoiceScreen(),
+
+            // Main App
+            '/home': (context) => const HomeScreen(),
+
+            // Call Flow (ordered)
+            '/call/select': (context) => const SelectParticipantsScreen(),
+            '/call/confirm': (context) => const CallConfirmationScreen(),
+            '/call/incoming': (context) => const IncomingCallScreen(),
+            '/call/active': (context) => const ActiveCallScreen(),
+
+            // Contacts
+            '/contacts': (context) => const ContactsScreen(),
+            '/contacts/add': (context) => const AddContactScreen(),
+
+            // Settings
+            '/settings': (context) => const SettingsScreen(),
+          },
+        );
+      },
     );
   }
 }

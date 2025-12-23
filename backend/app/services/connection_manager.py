@@ -25,7 +25,7 @@ class CallConnection:
         websocket: WebSocket, 
         user_id: str, 
         session_id: str,
-        call_id: str,
+        call_id: Optional[str],
         participant_language: str = "en",
         call_language: str = "en",
         dubbing_required: bool = False,
@@ -86,7 +86,7 @@ class ConnectionManager:
         websocket: WebSocket, 
         session_id: str,
         user_id: str,
-        call_id: str,
+        call_id: Optional[str] = None,
         participant_language: str = "en",
         call_language: str = "en",
         dubbing_required: bool = False,
@@ -175,6 +175,113 @@ class ConnectionManager:
             })
         
         return session_id
+    
+    async def broadcast_user_status(
+        self,
+        user_id: str,
+        is_online: bool,
+        contact_user_ids: List[str]
+    ) -> int:
+        """
+        Broadcast user status change to all their contacts.
+        
+        Args:
+            user_id: ID of the user whose status changed
+            is_online: New online status
+            contact_user_ids: List of contact user IDs to notify
+            
+        Returns:
+            Number of contacts notified
+        """
+        if not contact_user_ids:
+            return 0
+        
+        notification = {
+            "type": "user_status_changed",
+            "user_id": user_id,
+            "is_online": is_online,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        notified_count = 0
+        # Find all connections for contact users
+        for contact_user_id in contact_user_ids:
+            # Find user's active connection (could be in any session)
+            for session_id, connections in self._sessions.items():
+                for conn in connections.values():
+                    if conn.user_id == contact_user_id:
+                        try:
+                            await conn.send_json(notification)
+                            notified_count += 1
+                            logger.debug(f"Notified user {contact_user_id} about {user_id} status: {is_online}")
+                        except Exception as e:
+                            logger.error(f"Error notifying user {contact_user_id}: {e}")
+        
+        return notified_count
+    
+    async def notify_contact_request(
+        self,
+        target_user_id: str,
+        requester_id: str,
+        requester_name: str,
+        request_id: str
+    ) -> bool:
+        """
+        Notify a user of a new contact request.
+        """
+        notification = {
+            "type": "contact_request",
+            "request_id": request_id,
+            "requester_id": requester_id,
+            "requester_name": requester_name,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        return await self.send_to_user(target_user_id, notification)
+    
+    async def notify_incoming_call(
+        self,
+        user_id: str,
+        call_id: str,
+        caller_id: str,
+        caller_name: str,
+        caller_language: str
+    ) -> bool:
+        """
+        Send incoming call notification to user via WebSocket if connected.
+        
+        Args:
+            user_id: ID of the user to notify
+            call_id: ID of the incoming call
+            caller_id: ID of the caller
+            caller_name: Name of the caller
+            caller_language: Language of the call
+            
+        Returns:
+            True if notification was sent, False if user not connected
+        """
+        # Find user's active connection (could be in any session)
+        for session_id, connections in self._sessions.items():
+            for conn in connections.values():
+                if conn.user_id == user_id:
+                    # Send notification
+                    notification = {
+                        "type": "incoming_call",
+                        "call_id": call_id,
+                        "caller_id": caller_id,
+                        "caller_name": caller_name,
+                        "call_language": caller_language,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                    try:
+                        await conn.send_json(notification)
+                        logger.info(f"Sent incoming call notification to user {user_id} for call {call_id}")
+                        return True
+                    except Exception as e:
+                        logger.error(f"Error sending incoming call notification: {e}")
+                        return False
+        
+        logger.debug(f"User {user_id} not connected, cannot send incoming call notification")
+        return False
     
     async def broadcast_to_session(
         self, 

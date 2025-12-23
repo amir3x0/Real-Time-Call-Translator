@@ -23,6 +23,9 @@ class AppRoutes {
   /// Confirm call before starting (shows participants + languages)
   static const String callConfirmation = '/call/confirm';
   
+  /// Incoming call screen (accept/reject)
+  static const String incomingCall = '/call/incoming';
+  
   /// Active call screen with real-time translation
   static const String activeCall = '/call/active';
 
@@ -56,6 +59,7 @@ class AppRoutes {
   static bool isCallRoute(String route) {
     return route == selectParticipants || 
            route == callConfirmation || 
+           route == incomingCall ||
            route == activeCall;
   }
 
@@ -68,6 +72,7 @@ class AppRoutes {
       case home: return 'Home';
       case selectParticipants: return 'Select Participants';
       case callConfirmation: return 'Call Confirmation';
+      case incomingCall: return 'Incoming Call';
       case activeCall: return 'Active Call';
       case contacts: return 'Contacts';
       case addContact: return 'Add Contact';

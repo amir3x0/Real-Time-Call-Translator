@@ -13,6 +13,7 @@ class Contact {
   final String? contactName;
   final bool isBlocked;
   final bool isFavorite;
+  final String status; // 'pending', 'accepted'
   final DateTime addedAt;
   final DateTime? createdAt;
   
@@ -29,6 +30,7 @@ class Contact {
     this.contactName,
     this.isBlocked = false,
     this.isFavorite = false,
+    this.status = 'accepted',
     required this.addedAt,
     this.createdAt,
     this.fullName,
@@ -56,6 +58,7 @@ class Contact {
       contactName: json['contact_name'],
       isBlocked: json['is_blocked'] ?? false,
       isFavorite: json['is_favorite'] ?? false,
+      status: json['status'] ?? 'accepted',
       addedAt: json['added_at'] != null 
           ? DateTime.parse(json['added_at'])
           : DateTime.now(),

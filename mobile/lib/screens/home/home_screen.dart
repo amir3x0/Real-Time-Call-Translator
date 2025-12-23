@@ -1,9 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 import '../contacts/contacts_screen.dart';
 import '../settings/settings_screen.dart';
 import '../../config/app_theme.dart';
+import '../../providers/call_provider.dart';
+import '../../providers/contacts_provider.dart';
+import '../../core/navigation/app_routes.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen>
   final ScrollController _scrollController = ScrollController();
   bool _isNavVisible = true;
   double _lastScrollOffset = 0;
+  CallProvider? _callProvider;
 
   @override
   void initState() {
@@ -29,6 +34,57 @@ class _HomeScreenState extends State<HomeScreen>
     )..repeat(reverse: true);
 
     _scrollController.addListener(_handleScroll);
+  }
+
+  String? _handledIncomingCallId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen for incoming calls
+    _callProvider = Provider.of<CallProvider>(context, listen: false);
+    _callProvider?.addListener(_checkIncomingCall);
+  }
+
+  void _checkIncomingCall() {
+    final incomingCall = _callProvider?.incomingCall;
+    
+    // Check for new incoming call
+    if (incomingCall != null && incomingCall.id != _handledIncomingCallId && mounted) {
+      _handledIncomingCallId = incomingCall.id;
+      // Navigate to incoming call screen
+      Navigator.of(context).pushNamed(AppRoutes.incomingCall);
+    } 
+    // Reset handled ID if call is cleared
+    else if (incomingCall == null) {
+      _handledIncomingCallId = null;
+    }
+    
+    // Check for status changes
+    final statusChange = _callProvider?.lastStatusChange;
+    if (statusChange != null && mounted) {
+      final contactsProvider = Provider.of<ContactsProvider>(context, listen: false);
+      final userId = statusChange['user_id'] as String?;
+      final isOnline = statusChange['is_online'] as bool?;
+      if (userId != null && isOnline != null) {
+        contactsProvider.updateContactStatus(userId, isOnline);
+      }
+    }
+    
+    // Check for contact requests
+    final contactRequest = _callProvider?.lastContactRequest;
+    if (contactRequest != null && mounted) {
+      // ContactsProvider listens to the stream directly now, so no need to manually refresh here.
+      // We just show the notification.
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('New friend request from ${contactRequest['requester_name'] ?? 'someone'}'),
+          backgroundColor: AppTheme.primaryElectricBlue,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _handleScroll() {
@@ -46,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    _callProvider?.removeListener(_checkIncomingCall);
     _backgroundController.dispose();
     _scrollController.dispose();
     super.dispose();

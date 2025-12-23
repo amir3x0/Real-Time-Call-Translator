@@ -1,6 +1,7 @@
 /// Call status enum matching backend
 enum CallStatus {
   initiating('initiating'),
+  idle('idle'),
   ringing('ringing'),
   ongoing('ongoing'),
   ended('ended'),
@@ -184,6 +185,8 @@ class Call {
         return 'Cancelled';
       case CallStatus.pending:
         return 'Pending';
+      case CallStatus.idle:
+        return 'Idle';
     }
   }
 }

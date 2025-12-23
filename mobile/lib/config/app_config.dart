@@ -1,15 +1,47 @@
+import 'package:flutter/foundation.dart';
+
 /// Application configuration constants
 class AppConfig {
+  // ============================================
   // Backend API Configuration
-  // For Android emulator: use 10.0.2.2
-  // For physical device: use your computer's WiFi IP address
-  // Make sure phone and computer are on the same WiFi network!
+  // ============================================
 
-  // TODO: Change this based on your device:
-  // - Emulator: 'http://10.0.2.2:8000'
-  // - Physical phone: 'http://192.168.1.184:8000' (your computer's IP)
-  static const String baseUrl = 'http://127.0.0.1:8000';
-  static const String wsUrl = 'ws://127.0.0.1:8000';
+  /// Backend server port
+  static const int _backendPort = 8000;
+
+  /// Development server hosts for different testing scenarios
+  static const String _devHostPhysical = '10.223.167.22';
+  // Uncomment and use these when testing on emulator/simulator:
+  // static const String _devHostEmulator = '10.0.2.2'; // Android emulator
+  // static const String _devHostSimulator = 'localhost'; // iOS simulator
+
+  /// Production server host (update when deploying)
+  static const String _prodHost = 'your-production-server.com';
+
+  /// Get backend host based on build mode
+  /// **For Debug Mode:**
+  /// - Change `_devHostPhysical` to your computer's WiFi IP for physical device testing
+  /// **For Release Mode:**
+  /// - Update `_prodHost` with your production server URL
+  static String _getBackendHost() {
+    if (kDebugMode) {
+      // Switch between these based on your testing scenario:
+      return _devHostPhysical; // Physical device
+      // For Android emulator, uncomment and use:
+      // return '10.0.2.2';
+      // For iOS simulator, uncomment and use:
+      // return 'localhost';
+    }
+
+    // Production server
+    return _prodHost;
+  }
+
+  /// Base URL for REST API
+  static String get baseUrl => 'http://${_getBackendHost()}:$_backendPort';
+
+  /// WebSocket URL for real-time communication
+  static String get wsUrl => 'ws://${_getBackendHost()}:$_backendPort';
 
   // API Endpoints
   static const String healthEndpoint = '/health';

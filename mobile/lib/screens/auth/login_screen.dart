@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/call_provider.dart';
 import '../../config/app_theme.dart';
 import '../../widgets/flash_bar.dart';
 
@@ -13,7 +14,8 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
   String? _error;
@@ -71,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               );
             },
           ),
-          
+
           // Floating orbs for depth
           Positioned(
             top: -100,
@@ -88,10 +90,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   ],
                 ),
               ),
-            ).animate(onPlay: (controller) => controller.repeat(reverse: true))
-              .scale(duration: 4.seconds, begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2)),
+            )
+                .animate(
+                    onPlay: (controller) => controller.repeat(reverse: true))
+                .scale(
+                    duration: 4.seconds,
+                    begin: const Offset(0.8, 0.8),
+                    end: const Offset(1.2, 1.2)),
           ),
-          
+
           Positioned(
             bottom: -150,
             left: -150,
@@ -107,10 +114,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   ],
                 ),
               ),
-            ).animate(onPlay: (controller) => controller.repeat(reverse: true))
-              .scale(duration: 5.seconds, begin: const Offset(0.9, 0.9), end: const Offset(1.1, 1.1)),
+            )
+                .animate(
+                    onPlay: (controller) => controller.repeat(reverse: true))
+                .scale(
+                    duration: 5.seconds,
+                    begin: const Offset(0.9, 0.9),
+                    end: const Offset(1.1, 1.1)),
           ),
-          
+
           // Main Content
           SafeArea(
             child: Center(
@@ -127,19 +139,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: AppTheme.primaryGradient,
-                        boxShadow: AppTheme.glowShadow(AppTheme.primaryElectricBlue),
+                        boxShadow:
+                            AppTheme.glowShadow(AppTheme.primaryElectricBlue),
                       ),
                       child: const Icon(
                         Icons.translate,
                         size: 50,
                         color: Colors.white,
                       ),
-                    ).animate()
-                      .fadeIn(duration: 600.ms)
-                      .scale(delay: 200.ms, duration: 400.ms),
-                    
+                    )
+                        .animate()
+                        .fadeIn(duration: 600.ms)
+                        .scale(delay: 200.ms, duration: 400.ms),
+
                     const SizedBox(height: 24),
-                    
+
                     // Title
                     Text(
                       "Real-Time\nCall Translator",
@@ -148,89 +162,97 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         fontSize: 36,
                         height: 1.2,
                       ),
-                    ).animate()
-                      .fadeIn(delay: 400.ms, duration: 600.ms)
-                      .slideY(begin: 0.3, end: 0, duration: 600.ms),
-                    
+                    )
+                        .animate()
+                        .fadeIn(delay: 400.ms, duration: 600.ms)
+                        .slideY(begin: 0.3, end: 0, duration: 600.ms),
+
                     const SizedBox(height: 12),
-                    
+
                     Text(
                       "Break language barriers with AI",
                       textAlign: TextAlign.center,
                       style: AppTheme.bodyMedium.copyWith(
                         color: AppTheme.secondaryText,
                       ),
-                    ).animate()
-                      .fadeIn(delay: 600.ms, duration: 600.ms),
-                    
+                    ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
+
                     const SizedBox(height: 48),
-                    
+
                     // Glassmorphism Phone Input
                     _buildGlassInput(
                       controller: _phoneController,
                       label: "Phone",
                       icon: Icons.phone_android_outlined,
                       keyboardType: TextInputType.phone,
-                    ).animate()
-                      .fadeIn(delay: 800.ms, duration: 400.ms)
-                      .slideX(begin: -0.2, end: 0, duration: 400.ms),
-                    
+                    )
+                        .animate()
+                        .fadeIn(delay: 800.ms, duration: 400.ms)
+                        .slideX(begin: -0.2, end: 0, duration: 400.ms),
+
                     const SizedBox(height: 16),
-                    
+
                     // Glassmorphism Password Input
                     _buildGlassInput(
                       controller: _passController,
                       label: "Password",
                       icon: Icons.lock_outline,
                       obscureText: true,
-                    ).animate()
-                      .fadeIn(delay: 1000.ms, duration: 400.ms)
-                      .slideX(begin: -0.2, end: 0, duration: 400.ms),
-                    
+                    )
+                        .animate()
+                        .fadeIn(delay: 1000.ms, duration: 400.ms)
+                        .slideX(begin: -0.2, end: 0, duration: 400.ms),
+
                     const SizedBox(height: 24),
-                    
+
                     // Error Message
                     if (_error != null)
                       FlashBar(message: _error!)
-                        .animate()
-                        .shake(duration: 400.ms),
-                    
+                          .animate()
+                          .shake(duration: 400.ms),
+
                     const SizedBox(height: 16),
-                    
+
                     // Pill-Shaped Login Button
                     _buildPillButton(
                       label: _isLoading ? "Signing in..." : "Sign In",
-                      onPressed: _isLoading ? null : () => _handleLogin(authProvider),
+                      onPressed:
+                          _isLoading ? null : () => _handleLogin(authProvider),
                       isLoading: _isLoading,
-                    ).animate()
-                      .fadeIn(delay: 1200.ms, duration: 400.ms)
-                      .slideY(begin: 0.2, end: 0, duration: 400.ms),
-                    
+                    )
+                        .animate()
+                        .fadeIn(delay: 1200.ms, duration: 400.ms)
+                        .slideY(begin: 0.2, end: 0, duration: 400.ms),
+
                     const SizedBox(height: 16),
-                    
+
                     // Divider
                     Row(
                       children: [
-                        Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.2))),
+                        Expanded(
+                            child: Divider(
+                                color: Colors.white.withValues(alpha: 0.2))),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
                             "OR",
-                            style: AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText),
+                            style: AppTheme.bodyMedium
+                                .copyWith(color: AppTheme.secondaryText),
                           ),
                         ),
-                        Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.2))),
+                        Expanded(
+                            child: Divider(
+                                color: Colors.white.withValues(alpha: 0.2))),
                       ],
-                    ).animate()
-                      .fadeIn(delay: 1400.ms),
-                    
+                    ).animate().fadeIn(delay: 1400.ms),
+
                     const SizedBox(height: 16),
-                    
+
                     // Instead of a Google Sign-In button, we present a 'Create Account' button
                     _buildCreateAccountButton()
-                      .animate()
-                      .fadeIn(delay: 1600.ms, duration: 400.ms)
-                      .slideY(begin: 0.2, end: 0, duration: 400.ms),
+                        .animate()
+                        .fadeIn(delay: 1600.ms, duration: 400.ms)
+                        .slideY(begin: 0.2, end: 0, duration: 400.ms),
                   ],
                 ),
               ),
@@ -267,7 +289,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               labelStyle: AppTheme.bodyMedium,
               prefixIcon: Icon(icon, color: AppTheme.primaryElectricBlue),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             ),
           ),
         ),
@@ -348,28 +371,32 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Future<void> _handleLogin(AuthProvider authProvider) async {
     final phoneOk = _isValidPhone(_phoneController.text);
     final passOk = _isValidPass(_passController.text);
-    
+
     if (!phoneOk || !passOk) {
       setState(() => _error = 'Invalid credentials');
       return;
     }
-    
+
     setState(() {
       _isLoading = true;
       _error = null;
     });
-    
+
     final navigator = Navigator.of(context);
     final success = await authProvider.login(
       _phoneController.text,
       _passController.text,
     );
-    
+
     if (!mounted) return;
-    
+
     setState(() => _isLoading = false);
-    
+
     if (success) {
+      // Connect to lobby after successful login to mark user as online
+      if (mounted) {
+        Provider.of<CallProvider>(context, listen: false).connectToLobby();
+      }
       navigator.pushReplacementNamed('/home');
     } else {
       setState(() => _error = 'Login failed. Please try again.');

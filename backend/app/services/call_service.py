@@ -11,12 +11,15 @@ from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
 
 from app.models.user import User
 from app.models.contact import Contact
 from app.models.call import Call
 from app.models.call_participant import CallParticipant
 from app.models.call_transcript import CallTranscript
+
+logger = logging.getLogger(__name__)
 
 
 class CallServiceError(Exception):
@@ -237,7 +240,7 @@ class CallService:
             caller_user_id=caller_id,
             call_language=caller.primary_language,  # IMMUTABLE
             is_active=True,
-            status='ongoing',
+            status='initiating',  # Will change to 'ringing' when notifications sent
             started_at=datetime.utcnow(),
             participant_count=total_participants,
         )
@@ -285,17 +288,20 @@ class CallService:
             call_id=call.id,
             user_id=user.id,
             participant_language=user.primary_language,
-            target_language=user.primary_language,
-            speaking_language=user.primary_language,
             joined_at=datetime.utcnow() if is_caller else None,
             is_connected=is_caller,
         )
         
         # Set dubbing requirement based on language match
-        participant.determine_dubbing_required(call.call_language)
-        
-        # Set voice clone quality
-        participant.set_voice_clone_quality(user.voice_quality_score)
+        try:
+            participant.determine_dubbing_required(call.call_language)
+            participant.set_voice_clone_quality(user.voice_quality_score)
+        except AttributeError as e:
+            logger.error(f"Error setting participant properties: {e}")
+            # Set defaults
+            participant.dubbing_required = (participant.participant_language != call.call_language)
+            participant.voice_clone_quality = 'fallback'
+            participant.use_voice_clone = False
         
         db.add(participant)
         await db.flush()
@@ -610,6 +616,178 @@ class CallService:
         await db.refresh(transcript)
         
         return transcript
+    
+    @classmethod
+    async def mark_call_ringing(
+        cls,
+        db: AsyncSession,
+        call_id: str
+    ) -> Call:
+        """
+        Mark a call as ringing (notifications sent).
+        
+        Args:
+            db: Database session
+            call_id: ID of the call
+            
+        Returns:
+            Updated Call object
+        """
+        result = await db.execute(select(Call).where(Call.id == call_id))
+        call = result.scalar_one_or_none()
+        
+        if not call:
+            raise CallNotFoundError(f"Call {call_id} not found")
+        
+        call.status = 'ringing'
+        await db.commit()
+        await db.refresh(call)
+        
+        return call
+    
+    @classmethod
+    async def accept_call(
+        cls,
+        db: AsyncSession,
+        call_id: str,
+        user_id: str
+    ) -> Call:
+        """
+        Accept an incoming call.
+        
+        Args:
+            db: Database session
+            call_id: ID of the call
+            user_id: ID of the user accepting
+            
+        Returns:
+            Updated Call object
+        """
+        result = await db.execute(select(Call).where(Call.id == call_id))
+        call = result.scalar_one_or_none()
+        
+        if not call:
+            raise CallNotFoundError(f"Call {call_id} not found")
+        
+        # Verify user is a participant
+        participant_result = await db.execute(
+            select(CallParticipant).where(
+                and_(
+                    CallParticipant.call_id == call_id,
+                    CallParticipant.user_id == user_id
+                )
+            )
+        )
+        participant = participant_result.scalar_one_or_none()
+        
+        if not participant:
+            raise CallServiceError(f"User {user_id} is not a participant in call {call_id}")
+        
+        # Update call status
+        call.status = 'ongoing'
+        
+        # Update participant
+        participant.joined_at = datetime.utcnow()
+        participant.is_connected = True
+        
+        await db.commit()
+        await db.refresh(call)
+        
+        return call
+    
+    @classmethod
+    async def reject_call(
+        cls,
+        db: AsyncSession,
+        call_id: str,
+        user_id: str
+    ) -> Call:
+        """
+        Reject an incoming call.
+        
+        Args:
+            db: Database session
+            call_id: ID of the call
+            user_id: ID of the user rejecting
+            
+        Returns:
+            Updated Call object
+        """
+        result = await db.execute(select(Call).where(Call.id == call_id))
+        call = result.scalar_one_or_none()
+        
+        if not call:
+            raise CallNotFoundError(f"Call {call_id} not found")
+        
+        # Verify user is a participant
+        participant_result = await db.execute(
+            select(CallParticipant).where(
+                and_(
+                    CallParticipant.call_id == call_id,
+                    CallParticipant.user_id == user_id
+                )
+            )
+        )
+        participant = participant_result.scalar_one_or_none()
+        
+        if not participant:
+            raise CallServiceError(f"User {user_id} is not a participant in call {call_id}")
+        
+        # Update call status
+        call.status = 'rejected'
+        call.is_active = False
+        call.ended_at = datetime.utcnow()
+        
+        # Update participant
+        participant.is_connected = False
+        participant.left_at = datetime.utcnow()
+        
+        await db.commit()
+        await db.refresh(call)
+        
+        return call
+    
+    @classmethod
+    async def get_pending_calls(
+        cls,
+        db: AsyncSession,
+        user_id: str
+    ) -> List[Call]:
+        """
+        Get all pending incoming calls for a user.
+        
+        Returns calls where:
+        - status is 'ringing' or 'initiating'
+        - user is a participant but not the caller
+        - call was created in last 30 seconds
+        
+        Args:
+            db: Database session
+            user_id: ID of the user
+            
+        Returns:
+            List of pending Call objects
+        """
+        from datetime import timedelta
+        
+        cutoff_time = datetime.utcnow() - timedelta(seconds=30)
+        
+        # Get all calls where user is a participant
+        result = await db.execute(
+            select(Call)
+            .join(CallParticipant, Call.id == CallParticipant.call_id)
+            .where(
+                and_(
+                    CallParticipant.user_id == user_id,
+                    Call.caller_user_id != user_id,  # Not the caller
+                    Call.status.in_(['ringing', 'initiating']),
+                    Call.created_at >= cutoff_time
+                )
+            )
+            .order_by(Call.created_at.desc())
+        )
+        
+        return list(result.scalars().all())
 
 
 # Singleton instance
