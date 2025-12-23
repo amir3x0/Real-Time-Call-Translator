@@ -28,6 +28,7 @@ from app.services.call_service import (
     CallNotFoundError,
     InvalidParticipantCountError,
 )
+from app.services.connection_manager import connection_manager
 
 router = APIRouter()
 
@@ -155,12 +156,30 @@ async def start_call(
                 full_name=user.full_name,
                 phone=user.phone or user.phone_number,
                 primary_language=user.primary_language,
-                target_language=p.target_language,
-                speaking_language=p.speaking_language,
+                target_language=p.participant_language,  # Use participant_language for target
+                speaking_language=p.participant_language,  # Use participant_language for speaking
                 dubbing_required=p.dubbing_required,
                 use_voice_clone=p.use_voice_clone,
                 voice_clone_quality=p.voice_clone_quality,
             ))
+    
+    # Mark call as ringing and send notifications to non-caller participants
+    await call_service.mark_call_ringing(db, call.id)
+    
+    # Get caller info for notifications
+    caller_result = await db.execute(select(User).where(User.id == current_user.id))
+    caller = caller_result.scalar_one_or_none()
+    
+    # Send WebSocket notifications to all participants except caller
+    for participant in participants:
+        if participant.user_id != current_user.id:
+            await connection_manager.notify_incoming_call(
+                user_id=participant.user_id,
+                call_id=call.id,
+                caller_id=current_user.id,
+                caller_name=caller.full_name if caller else "Unknown",
+                caller_language=call.call_language
+            )
     
     # Build WebSocket URL
     websocket_url = f"ws://{settings.API_HOST}:{settings.API_PORT}/ws/{call.session_id}"
@@ -279,8 +298,8 @@ async def get_call(
                 full_name=user.full_name,
                 phone=user.phone or user.phone_number,
                 primary_language=user.primary_language,
-                target_language=p.target_language,
-                speaking_language=p.speaking_language,
+                target_language=p.participant_language,  # Use participant_language for target
+                speaking_language=p.participant_language,  # Use participant_language for speaking
                 dubbing_required=p.dubbing_required,
                 use_voice_clone=p.use_voice_clone,
                 voice_clone_quality=p.voice_clone_quality,
@@ -357,6 +376,140 @@ async def toggle_mute(
 
 
 # Legacy endpoint for backwards compatibility
+@router.get("/calls/pending", response_model=List[CallDetailResponse])
+async def get_pending_calls(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all pending incoming calls for current user.
+    Returns calls where:
+    - status is 'ringing' or 'initiating'
+    - user is a participant but not the caller
+    - call was created in last 30 seconds
+    """
+    try:
+        pending_calls = await call_service.get_pending_calls(db, current_user.id)
+        
+        # Build response for each call
+        result = []
+        for call in pending_calls:
+            # Get participants
+            participants_result = await db.execute(
+                select(CallParticipant).where(CallParticipant.call_id == call.id)
+            )
+            participants = participants_result.scalars().all()
+            
+            # Build participant info
+            participants_info = []
+            for p in participants:
+                user_result = await db.execute(select(User).where(User.id == p.user_id))
+                user = user_result.scalar_one_or_none()
+                
+                if user:
+                    participants_info.append(ParticipantInfo(
+                        id=p.id,
+                        user_id=user.id,
+                        full_name=user.full_name,
+                        phone=user.phone or user.phone_number,
+                        primary_language=user.primary_language,
+                        target_language=p.participant_language,
+                        speaking_language=p.participant_language,
+                        dubbing_required=p.dubbing_required,
+                        use_voice_clone=p.use_voice_clone,
+                        voice_clone_quality=p.voice_clone_quality,
+                    ))
+            
+            result.append(CallDetailResponse(
+                call_id=call.id,
+                session_id=call.session_id,
+                call_language=call.call_language,
+                status=call.status,
+                is_active=call.is_active,
+                started_at=call.started_at.isoformat() if call.started_at else None,
+                ended_at=call.ended_at.isoformat() if call.ended_at else None,
+                duration_seconds=call.duration_seconds,
+                participants=participants_info,
+            ))
+        
+        return result
+    except CallServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/calls/{call_id}/accept")
+async def accept_call(
+    call_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Accept an incoming call."""
+    try:
+        call = await call_service.accept_call(db, call_id, current_user.id)
+        
+        # Get participants for response
+        participants_result = await db.execute(
+            select(CallParticipant).where(CallParticipant.call_id == call.id)
+        )
+        participants = participants_result.scalars().all()
+        
+        participants_info = []
+        for p in participants:
+            user_result = await db.execute(select(User).where(User.id == p.user_id))
+            user = user_result.scalar_one_or_none()
+            
+            if user:
+                participants_info.append(ParticipantInfo(
+                    id=p.id,
+                    user_id=user.id,
+                    full_name=user.full_name,
+                    phone=user.phone or user.phone_number,
+                    primary_language=user.primary_language,
+                    target_language=p.participant_language,
+                    speaking_language=p.participant_language,
+                    dubbing_required=p.dubbing_required,
+                    use_voice_clone=p.use_voice_clone,
+                    voice_clone_quality=p.voice_clone_quality,
+                ))
+        
+        return CallDetailResponse(
+            call_id=call.id,
+            session_id=call.session_id,
+            call_language=call.call_language,
+            status=call.status,
+            is_active=call.is_active,
+            started_at=call.started_at.isoformat() if call.started_at else None,
+            ended_at=call.ended_at.isoformat() if call.ended_at else None,
+            duration_seconds=call.duration_seconds,
+            participants=participants_info,
+        )
+    except CallNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except CallServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/calls/{call_id}/reject")
+async def reject_call(
+    call_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Reject an incoming call."""
+    try:
+        call = await call_service.reject_call(db, call_id, current_user.id)
+        
+        return {
+            "status": "rejected",
+            "call_id": call.id,
+            "message": "Call rejected successfully"
+        }
+    except CallNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except CallServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/calls/start_legacy", response_model=StartCallResponse)
 async def start_call_legacy(
     req: StartCallRequest,

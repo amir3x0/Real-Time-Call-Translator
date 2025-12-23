@@ -5,6 +5,7 @@ Tracks each participant in a call with language, dubbing requirements, and mute 
 """
 from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, UniqueConstraint
 from datetime import datetime
+from typing import Optional
 import uuid
 
 from .database import Base
@@ -43,6 +44,28 @@ class CallParticipant(Base):
     __table_args__ = (
         UniqueConstraint('call_id', 'user_id', name='uq_call_user'),
     )
+    
+    def determine_dubbing_required(self, call_language: str) -> None:
+        """Set dubbing_required based on language match."""
+        self.dubbing_required = (self.participant_language != call_language)
+    
+    def set_voice_clone_quality(self, voice_quality_score: Optional[int]) -> None:
+        """Set voice_clone_quality based on score."""
+        if voice_quality_score is None:
+            self.voice_clone_quality = 'fallback'
+            self.use_voice_clone = False
+        elif voice_quality_score > 80:
+            self.voice_clone_quality = 'excellent'
+            self.use_voice_clone = True
+        elif voice_quality_score > 60:
+            self.voice_clone_quality = 'good'
+            self.use_voice_clone = True
+        elif voice_quality_score > 40:
+            self.voice_clone_quality = 'fair'
+            self.use_voice_clone = True
+        else:
+            self.voice_clone_quality = 'fallback'
+            self.use_voice_clone = False
     
     def to_dict(self):
         return {

@@ -178,7 +178,7 @@ class ApiService {
   // CONTACTS ENDPOINTS
   // ============================================
 
-  Future<List<Map<String, dynamic>>> getContacts() async {
+  Future<Map<String, dynamic>> getContacts() async {
     final token = await _getToken();
     
     try {
@@ -189,17 +189,18 @@ class ApiService {
       
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
-        if (data is Map && data['contacts'] != null) {
-          return List<Map<String, dynamic>>.from(data['contacts']);
+        if (data is Map<String, dynamic>) {
+          return data;
         }
+        // Fallback for compatibility if old list format
         if (data is List) {
-          return List<Map<String, dynamic>>.from(data);
+          return {'contacts': List<Map<String, dynamic>>.from(data)};
         }
       }
     } catch (e) {
       debugPrint('Error getting contacts: $e');
     }
-    return [];
+    return {'contacts': []};
   }
 
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
@@ -248,6 +249,32 @@ class ApiService {
       _uri('/api/contacts/$contactId'),
       headers: _authHeaders(token),
     );
+  }
+
+  Future<void> acceptContactRequest(String requestId) async {
+    final token = await _getToken();
+    
+    final resp = await http.post(
+      _uri('/api/contacts/$requestId/accept'),
+      headers: _authHeaders(token),
+    );
+    
+    if (resp.statusCode != 200) {
+      throw Exception('Failed to accept request: ${resp.body}');
+    }
+  }
+
+  Future<void> rejectContactRequest(String requestId) async {
+    final token = await _getToken();
+    
+    final resp = await http.post(
+      _uri('/api/contacts/$requestId/reject'),
+      headers: _authHeaders(token),
+    );
+    
+    if (resp.statusCode != 200) {
+      throw Exception('Failed to reject request: ${resp.body}');
+    }
   }
 
   // ============================================
@@ -323,6 +350,55 @@ class ApiService {
       debugPrint('Error getting call history: $e');
     }
     return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingCalls() async {
+    final token = await _getToken();
+    
+    try {
+      final resp = await http.get(
+        _uri('/api/calls/pending'),
+        headers: _authHeaders(token),
+      );
+      
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error getting pending calls: $e');
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> acceptCall(String callId) async {
+    final token = await _getToken();
+    
+    final resp = await http.post(
+      _uri('/api/calls/$callId/accept'),
+      headers: _authHeaders(token),
+    );
+    
+    if (resp.statusCode == 200 || resp.statusCode == 201) {
+      return jsonDecode(resp.body) as Map<String, dynamic>;
+    }
+    
+    throw Exception('Failed to accept call: ${resp.body}');
+  }
+
+  Future<void> rejectCall(String callId) async {
+    final token = await _getToken();
+    
+    final resp = await http.post(
+      _uri('/api/calls/$callId/reject'),
+      headers: _authHeaders(token),
+    );
+    
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw Exception('Failed to reject call: ${resp.body}');
+    }
   }
 
   // ============================================

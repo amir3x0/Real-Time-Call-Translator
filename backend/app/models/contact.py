@@ -29,6 +29,9 @@ class Contact(Base):
     is_blocked = Column(Boolean, default=False)
     is_favorite = Column(Boolean, default=False)
     
+    # Friendship Status: 'pending', 'accepted'
+    status = Column(String(20), default='accepted', nullable=False) # default='accepted' for backward compatibility
+    
     # Timestamp
     added_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
@@ -45,5 +48,6 @@ class Contact(Base):
             "contact_name": self.contact_name,
             "is_blocked": self.is_blocked,
             "is_favorite": self.is_favorite,
+            "status": self.status,
             "added_at": self.added_at.isoformat() if self.added_at else None,
         }

@@ -1,0 +1,308 @@
+# Real-Time Call Translation — Updated Implementation Plan
+# Date: December 13, 2025
+# Deadline: January 1, 2026 (19 days)
+# Project: 25-2-D-5
+
+## Executive Summary
+
+This plan addresses the critical gaps identified in the codebase audit.
+The focus is on achieving a functional MVP where:
+- User A can call User B
+- User B receives "Incoming Call" notification
+- Real audio is recorded and transmitted
+- Translation happens in real-time
+- Users hear translated audio in their language
+
+---
+
+## Current State (As of Dec 13, 2025)
+
+### What Works (~55% complete)
+- Infrastructure: Docker, PostgreSQL, Redis, FastAPI — 90%
+- Backend API: Auth, Contacts, Calls, Voice endpoints — 75%
+- Mobile App: All screens, navigation, providers — 70%
+- WebSocket: Connection management, message routing — 60%
+
+### Critical Gaps
+1. Backend 500 Error on /api/calls/start (voice_quality_score = None)
+2. Audio Recording: Mock only, no real microphone capture
+3. Audio Playback: Not implemented
+4. Incoming Call Notification: Does not exist
+5. GCP Pipeline: Not tested end-to-end
+6. Voice Cloning: Not integrated with Chatterbox
+
+---
+
+## Sprint Structure (3-Day Sprints)
+
+### Sprint 1: Dec 13-15 — Foundation Fixes
+**Goal:** Enable call initiation to work
+
+#### Day 1 (Dec 13) — Fix Backend 500 Error
+- [ ] Fix call_service.py:298 — handle None voice_quality_score
+- [ ] Fix call_service.py — validate all user fields before creating participant
+- [ ] Add try/catch wrapper for participant creation
+- [ ] Test /api/calls/start endpoint works
+- [ ] Verify database records are created correctly
+
+#### Day 2 (Dec 14) — Incoming Call Backend
+- [ ] Create GET /api/calls/pending endpoint
+- [ ] Add "incoming_call" message type to WebSocket
+- [ ] Create pending_calls table or use call status
+- [ ] Implement 30-second timeout for unanswered calls
+- [ ] Add POST /api/calls/{call_id}/accept endpoint
+- [ ] Add POST /api/calls/{call_id}/reject endpoint
+
+#### Day 3 (Dec 15) — Incoming Call Flutter
+- [ ] Create IncomingCallScreen with caller info, accept/reject buttons
+- [ ] Listen for 'incoming_call' WebSocket message in app
+- [ ] Show IncomingCallScreen when WebSocket receives incoming_call
+- [ ] Handle call timeout (auto-reject after 30 seconds)
+- [ ] Navigate to ActiveCallScreen on accept
+
+**Note:** Using WebSocket for incoming calls (not Firebase) since this is a demo app
+where both users will have the app open during calls.
+
+**Sprint 1 Deliverable:** User A calls User B, B sees incoming call, can accept/reject
+
+---
+
+### Sprint 2: Dec 16-18 — Real Audio Recording
+**Goal:** Capture and transmit real microphone audio
+
+#### Day 4 (Dec 16) — Audio Recording Implementation
+- [ ] Add 'record' package to pubspec.yaml
+- [ ] Implement RealAudioService class
+- [ ] Request microphone permissions
+- [ ] Configure 16kHz mono PCM recording
+- [ ] Stream audio chunks every 200ms
+- [ ] Test recording on Android device
+
+#### Day 5 (Dec 17) — Audio Transmission
+- [ ] Connect RealAudioService to WebSocketService
+- [ ] Encode audio chunks as base64 for WebSocket
+- [ ] Add audio message type to WebSocket protocol
+- [ ] Test audio reaches backend
+- [ ] Log audio chunk sizes and frequencies
+
+#### Day 6 (Dec 18) — Audio Playback Implementation
+- [ ] Add 'just_audio' package to pubspec.yaml
+- [ ] Create AudioPlaybackService
+- [ ] Implement audio queue to prevent overlap
+- [ ] Play received audio chunks
+- [ ] Test playback on Android device
+- [ ] Handle audio focus and interruptions
+
+**Sprint 2 Deliverable:** Audio flows: Mic → WebSocket → Backend → WebSocket → Speaker
+
+---
+
+### Sprint 3: Dec 19-21 — GCP Translation Pipeline
+**Goal:** Complete STT → Translate → TTS pipeline
+
+#### Day 7 (Dec 19) — GCP STT Integration
+- [ ] Configure GCP credentials in backend
+- [ ] Test gcp_pipeline.py transcribe_audio() function
+- [ ] Handle streaming vs batch transcription
+- [ ] Support Hebrew, English, Russian language codes
+- [ ] Log transcription results
+
+#### Day 8 (Dec 20) — Translation & TTS
+- [ ] Test gcp_pipeline.py translate_text() function
+- [ ] Test gcp_pipeline.py synthesize_speech() function
+- [ ] Configure voice selection per language
+- [ ] Implement translation caching
+- [ ] Measure latency (target: <500ms)
+
+#### Day 9 (Dec 21) — End-to-End Pipeline
+- [ ] Connect audio_worker.py to GCP pipeline
+- [ ] Route translated audio back to correct participants
+- [ ] Add transcript message to WebSocket
+- [ ] Display live transcription in Flutter
+- [ ] Test HE→EN, EN→RU, RU→HE translations
+
+**Sprint 3 Deliverable:** Speak Hebrew → Hear English (and vice versa)
+
+---
+
+### Sprint 4: Dec 22-24 — Voice Cloning (Chatterbox)
+**Goal:** Integrate Chatterbox for voice synthesis
+
+#### Day 10 (Dec 22) — Chatterbox Setup
+- [ ] Replace Coqui xTTS with Chatterbox in requirements
+- [ ] Update Dockerfile with Chatterbox dependencies
+- [ ] Create ChatterboxService class
+- [ ] Test basic voice synthesis
+
+#### Day 11 (Dec 23) — Voice Model Training
+- [ ] Update voice recording flow (30 seconds)
+- [ ] Add random text prompts (jokes/facts) per language
+- [ ] Upload recording to backend
+- [ ] Train voice model with Chatterbox
+- [ ] Store model reference in database
+
+#### Day 12 (Dec 24) — Pipeline Integration
+- [ ] Replace Google TTS with Chatterbox in pipeline
+- [ ] Implement fallback to Google TTS if no voice model
+- [ ] Test voice quality
+- [ ] Measure latency (target: <1s with voice cloning)
+
+**Sprint 4 Deliverable:** Translations use cloned voice
+
+---
+
+### Sprint 5: Dec 25-27 — Multi-Party & Status
+**Goal:** Support 3-4 participants, online/offline status
+
+#### Day 13 (Dec 25) — Multi-Party Calls
+- [ ] Test 3-party call setup
+- [ ] Verify N-to-N translation logic
+- [ ] Handle participant join during active call
+- [ ] Handle participant leave during active call
+- [ ] Retry mechanism for unanswered participants
+
+#### Day 14 (Dec 26) — Online/Offline Status
+- [ ] Verify status_service.py heartbeat logic
+- [ ] Add real-time status updates to Flutter
+- [ ] Show online/offline indicator on contacts
+- [ ] Handle reconnection gracefully
+
+#### Day 15 (Dec 27) — Call History
+- [ ] Implement call history storage
+- [ ] Create call history screen (WhatsApp style)
+- [ ] Show participants, duration, date
+- [ ] Allow calling from history
+
+**Sprint 5 Deliverable:** Group calls work, contacts show status
+
+---
+
+### Sprint 6: Dec 28-31 — Testing & Polish
+**Goal:** Stable, demo-ready MVP
+
+#### Day 16 (Dec 28) — Integration Testing
+- [ ] Test 2-party call end-to-end (HE↔EN)
+- [ ] Test 3-party call end-to-end (HE↔EN↔RU)
+- [ ] Test voice cloning quality
+- [ ] Test network interruption handling
+
+#### Day 17 (Dec 29) — Bug Fixes
+- [ ] Fix critical bugs found in testing
+- [ ] Improve error handling
+- [ ] Add user-friendly error messages
+- [ ] Test on multiple devices
+
+#### Day 18 (Dec 30) — Performance Optimization
+- [ ] Measure and optimize latency
+- [ ] Optimize audio chunk size
+- [ ] Add connection quality indicator
+- [ ] Memory leak fixes
+
+#### Day 19 (Dec 31) — Final Testing
+- [ ] Full regression test
+- [ ] Document known issues
+- [ ] Prepare demo script
+- [ ] Verify all critical features work
+
+**Sprint 6 Deliverable:** Demo-ready MVP
+
+---
+
+## Priority Matrix
+
+### P0 — Must Have (Days 1-9)
+1. Fix 500 error
+2. Incoming call notification
+3. Real audio recording
+4. Real audio playback
+5. GCP translation pipeline
+
+### P1 — Should Have (Days 10-15)
+6. Voice cloning (Chatterbox)
+7. Multi-party calls
+8. Online/offline status
+9. Call history
+
+### P2 — Nice to Have (Days 16-19)
+10. Performance optimization
+11. Polish and bug fixes
+12. Demo preparation
+
+---
+
+## Technical Requirements
+
+### Backend Changes Required
+- Fix: call_service.py:298 (None handling)
+- Add: GET /api/calls/pending
+- Add: POST /api/calls/{call_id}/accept
+- Add: POST /api/calls/{call_id}/reject
+- Add: WebSocket "incoming_call" message type
+- Replace: Coqui xTTS → Chatterbox
+
+### Flutter Changes Required
+- Replace: Mock AudioService → Real AudioService with 'record' package
+- Add: AudioPlaybackService with 'just_audio' package
+- Add: IncomingCallScreen
+- Add: PendingCallsPollingService
+- Update: ContactsScreen with online/offline indicators
+- Add: CallHistoryScreen
+
+### Dependencies to Add
+```yaml
+# pubspec.yaml
+dependencies:
+  record: ^5.0.4
+  just_audio: ^0.9.36
+```
+
+```txt
+# requirements.txt
+chatterbox-tts>=0.1.0  # Replace coqui-tts
+```
+
+---
+
+## Risk Mitigation
+
+### Risk 1: GCP Latency Too High
+- Mitigation: Use streaming STT instead of batch
+- Fallback: Reduce audio chunk size
+
+### Risk 2: Chatterbox Integration Fails
+- Mitigation: Keep Google TTS as fallback
+- Fallback: Use Google TTS for MVP
+
+### Risk 3: Audio Quality Issues
+- Mitigation: Test on multiple devices early
+- Fallback: Adjust sample rate/encoding
+
+### Risk 4: Time Overrun
+- Mitigation: Cut P2 features if needed
+- Fallback: Focus only on P0 for MVP
+
+---
+
+## Daily Standup Questions
+1. What did I complete yesterday?
+2. What will I do today?
+3. What blockers do I have?
+
+---
+
+## Success Criteria for Jan 1
+- [ ] User A can call User B
+- [ ] User B receives incoming call notification
+- [ ] Call connects with real audio
+- [ ] Speech is transcribed (GCP STT)
+- [ ] Speech is translated (GCP Translate)
+- [ ] Translation is spoken (TTS/Chatterbox)
+- [ ] Live transcription shows on screen
+- [ ] Call ends cleanly
+- [ ] No 500 errors
+
+---
+
+## Contact
+- Amir Mishayev (Backend Lead)
+- Daniel Fraimovich (Frontend Lead)

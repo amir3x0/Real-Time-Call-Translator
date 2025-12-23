@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.redis import get_redis
 from app.models.user import User
+from app.models.contact import Contact
 from app.models.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,22 @@ class StatusService:
     CLEANUP_INTERVAL = 120  # seconds - how often to sync Redis → DB
     
     @staticmethod
-    async def set_user_online(user_id: str, db: AsyncSession = None):
+    async def get_user_contacts(user_id: str, db: AsyncSession) -> List[str]:
+        """Get list of contact user IDs for a user."""
+        result1 = await db.execute(
+            select(Contact.contact_user_id).where(Contact.user_id == user_id)
+        )
+        outgoing =  [row[0] for row in result1.all()]
+        result2 = await db.execute(
+            select(Contact.user_id).where(Contact.contact_user_id == user_id)
+        )
+        incoming =  [row[0] for row in result2.all()]
+        return list(set(outgoing + incoming))
+
+
+    
+    @staticmethod
+    async def set_user_online(user_id: str, db: AsyncSession = None, connection_manager=None):
         """
         Mark user as online.
         
@@ -50,7 +66,8 @@ class StatusService:
         await redis.set(redis_key, "1", ex=StatusService.HEARTBEAT_TTL)
         logger.info(f"User {user_id} marked online (Redis)")
         
-        # Update database
+        # Update database and notify contacts
+        contact_user_ids = []
         if db:
             result = await db.execute(select(User).where(User.id == user_id))
             user = result.scalar_one_or_none()
@@ -59,9 +76,21 @@ class StatusService:
                 user.last_seen = datetime.utcnow()
                 await db.commit()
                 logger.info(f"User {user_id} ({user.full_name}) marked online (DB)")
+                
+                # Get contacts to notify
+                contact_user_ids = await StatusService.get_user_contacts(user_id, db)
+        
+        # Broadcast status change to contacts via WebSocket
+        if connection_manager and contact_user_ids:
+            notified = await connection_manager.broadcast_user_status(
+                user_id=user_id,
+                is_online=True,
+                contact_user_ids=contact_user_ids
+            )
+            logger.info(f"Notified {notified} contacts about user {user_id} going online")
     
     @staticmethod
-    async def set_user_offline(user_id: str, db: AsyncSession = None):
+    async def set_user_offline(user_id: str, db: AsyncSession = None, connection_manager=None):
         """
         Mark user as offline.
         
@@ -77,7 +106,8 @@ class StatusService:
         await redis.delete(redis_key)
         logger.info(f"User {user_id} marked offline (Redis)")
         
-        # Update database
+        # Update database and notify contacts
+        contact_user_ids = []
         if db:
             result = await db.execute(select(User).where(User.id == user_id))
             user = result.scalar_one_or_none()
@@ -86,6 +116,18 @@ class StatusService:
                 user.last_seen = datetime.utcnow()
                 await db.commit()
                 logger.info(f"User {user_id} ({user.full_name}) marked offline (DB)")
+                
+                # Get contacts to notify
+                contact_user_ids = await StatusService.get_user_contacts(user_id, db)
+        
+        # Broadcast status change to contacts via WebSocket
+        if connection_manager and contact_user_ids:
+            notified = await connection_manager.broadcast_user_status(
+                user_id=user_id,
+                is_online=False,
+                contact_user_ids=contact_user_ids
+            )
+            logger.info(f"Notified {notified} contacts about user {user_id} going offline")
     
     @staticmethod
     async def heartbeat(user_id: str):

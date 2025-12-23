@@ -12,7 +12,12 @@ import '../models/participant.dart';
 
 class CallProvider with ChangeNotifier {
   static const List<String> _languagePool = ['he', 'en', 'ru'];
-  static const List<String> _connectionQualities = ['excellent', 'good', 'fair', 'poor'];
+  static const List<String> _connectionQualities = [
+    'excellent',
+    'good',
+    'fair',
+    'poor'
+  ];
   static const List<String> _mockNames = [
     'Daniel',
     'Emma',
@@ -38,11 +43,21 @@ class CallProvider with ChangeNotifier {
   String? _activeSpeakerId;
   bool _disposed = false;
 
+  // Incoming call state
+  Call? _incomingCall;
+  CallStatus? _incomingCallStatus;
+  Timer? _callTimeoutTimer;
+  String? _incomingCallerName;
+
   CallStatus get status => _status;
   List<CallParticipant> get participants => List.unmodifiable(_participants);
   String get liveTranscription => _liveTranscription;
-  List<LiveCaptionData> get captionBubbles => List.unmodifiable(_captionBubbles);
+  List<LiveCaptionData> get captionBubbles =>
+      List.unmodifiable(_captionBubbles);
   String? get activeSpeakerId => _activeSpeakerId;
+  Call? get incomingCall => _incomingCall;
+  CallStatus? get incomingCallStatus => _incomingCallStatus;
+  String? get incomingCallerName => _incomingCallerName;
 
   @visibleForTesting
   void setParticipantsForTesting(List<CallParticipant> participants) {
@@ -54,7 +69,7 @@ class CallProvider with ChangeNotifier {
   void startMockCall() {
     _status = CallStatus.active;
     _activeSessionId = "session_123";
-    
+
     // Create Mock Participants
     _participants = [
       CallParticipant(
@@ -110,7 +125,7 @@ class CallProvider with ChangeNotifier {
         displayName: 'Igor',
       ),
     ];
-    
+
     // start mock ws
     _wsService.connect(_activeSessionId ?? 'mock_session');
     _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
@@ -126,7 +141,9 @@ class CallProvider with ChangeNotifier {
     final parts = resp['participants'] as List<dynamic>;
 
     // Map participants
-    _participants = parts.map((p) => CallParticipant.fromJson(Map<String, dynamic>.from(p))).toList();
+    _participants = parts
+        .map((p) => CallParticipant.fromJson(Map<String, dynamic>.from(p)))
+        .toList();
     _status = CallStatus.active;
     _activeSessionId = sessionId;
 
@@ -154,13 +171,46 @@ class CallProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Connects to the Lobby websocket to receive real-time updates and incoming calls
+  Future<void> connectToLobby({String? token}) async {
+    debugPrint('[CallProvider] Connecting to Lobby...');
+    _status = CallStatus.idle;
+    _activeSessionId = 'lobby';
+
+    // Connect to lobby session
+    final success = await _wsService.connect('lobby', token: token);
+
+    if (success) {
+      _wsSub?.cancel();
+      _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
+      debugPrint('[CallProvider] Connected to Lobby successfully');
+    } else {
+      debugPrint('[CallProvider] Failed to connect to Lobby');
+    }
+    notifyListeners();
+  }
+
+  /// Disconnects from Lobby WebSocket (called on logout)
+  void disconnectFromLobby() {
+    if (_activeSessionId == 'lobby') {
+      debugPrint('[CallProvider] Disconnecting from Lobby...');
+      _wsSub?.cancel();
+      _wsService.disconnect();
+      _activeSessionId = null;
+      _status = CallStatus.idle;
+      notifyListeners();
+      debugPrint('[CallProvider] Disconnected from Lobby');
+    }
+  }
+
   /// Adds a mock participant to the active call UI for demo purposes.
   /// Returns `true` if a participant was added, otherwise `false`.
   bool addMockParticipant() {
     if (_status != CallStatus.active) return false;
     if (_participants.length >= 6) return false; // keep grid readable
 
-    final speakingLanguage = _languagePool[_random.nextInt(_languagePool.length)];
+    final speakingLanguage =
+        _languagePool[_random.nextInt(_languagePool.length)];
     String targetLanguage = speakingLanguage;
     while (targetLanguage == speakingLanguage) {
       targetLanguage = _languagePool[_random.nextInt(_languagePool.length)];
@@ -176,7 +226,8 @@ class CallProvider with ChangeNotifier {
       joinedAt: DateTime.now(),
       createdAt: DateTime.now(),
       isConnected: true,
-      connectionQuality: _connectionQualities[_random.nextInt(_connectionQualities.length)],
+      connectionQuality:
+          _connectionQualities[_random.nextInt(_connectionQualities.length)],
       isMuted: _random.nextBool(),
       displayName: displayName,
     );
@@ -186,18 +237,27 @@ class CallProvider with ChangeNotifier {
     return true;
   }
 
+  // Broadcast stream for other providers
+  final _eventController = StreamController<WSMessage>.broadcast();
+  Stream<WSMessage> get events => _eventController.stream;
+
   void _handleWebSocketMessage(WSMessage message) {
-    if (_participants.isEmpty) return;
-    
+    // Re-broadcast to external listeners
+    if (!_eventController.isClosed) {
+      _eventController.add(message);
+    }
+
     // Handle different message types
     switch (message.type) {
       case WSMessageType.transcript:
-        final text = message.data?['text'] as String? ?? '';
-        final speakerId = message.data?['speaker_id'] as String? ?? 
-            _participants[_random.nextInt(_participants.length)].id;
-        _liveTranscription = text;
-        _setActiveSpeaker(speakerId);
-        _addCaptionBubble(speakerId, text);
+        if (_participants.isNotEmpty) {
+          final text = message.data?['text'] as String? ?? '';
+          final speakerId = message.data?['speaker_id'] as String? ??
+              _participants[_random.nextInt(_participants.length)].id;
+          _liveTranscription = text;
+          _setActiveSpeaker(speakerId);
+          _addCaptionBubble(speakerId, text);
+        }
         break;
       case WSMessageType.participantJoined:
         // Handle participant joined
@@ -210,6 +270,15 @@ class CallProvider with ChangeNotifier {
         break;
       case WSMessageType.callEnded:
         endCall();
+        break;
+      case WSMessageType.incomingCall:
+        handleIncomingCall(message);
+        break;
+      case WSMessageType.userStatusChanged:
+        _handleUserStatusChanged(message);
+        break;
+      case WSMessageType.contactRequest:
+        _handleContactRequest(message);
         break;
       case WSMessageType.error:
         debugPrint('[CallProvider] WebSocket error: ${message.data}');
@@ -256,12 +325,148 @@ class CallProvider with ChangeNotifier {
     _captionBubbles.clear();
   }
 
+  void handleIncomingCall(WSMessage message) {
+    final callData = message.data;
+    if (callData == null) return;
+
+    try {
+      _incomingCall = Call(
+        id: callData['call_id'] as String? ?? '',
+        sessionId: '', // Will be set when accepted
+        status: CallStatus.ringing,
+        callLanguage: callData['call_language'] as String? ?? 'he',
+        callerUserId: callData['caller_id'] as String?,
+        createdBy: callData['caller_id'] as String? ?? '',
+        createdAt: DateTime.now(),
+      );
+      _incomingCallerName = callData['caller_name'] as String?;
+      _incomingCallStatus = CallStatus.ringing;
+      _startCallTimeout();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[CallProvider] Error parsing incoming call: $e');
+    }
+  }
+
+  void _startCallTimeout() {
+    _callTimeoutTimer?.cancel();
+    _callTimeoutTimer = Timer(const Duration(seconds: 30), () {
+      if (_incomingCall != null) {
+        // Auto-reject after timeout
+        rejectIncomingCall();
+      }
+    });
+  }
+
+  Future<void> acceptIncomingCall() async {
+    if (_incomingCall == null) return;
+
+    try {
+      // Call API to accept - returns CallDetailResponse with session_id
+      final callData = await _apiService.acceptCall(_incomingCall!.id);
+
+      final sessionId = callData['session_id'] as String?;
+      if (sessionId != null) {
+        // Start call normally
+        _status = CallStatus.active;
+        _activeSessionId = sessionId;
+
+        // Get participants from response
+        final parts = callData['participants'] as List<dynamic>?;
+        if (parts != null) {
+          _participants = parts
+              .map(
+                  (p) => CallParticipant.fromJson(Map<String, dynamic>.from(p)))
+              .toList();
+        }
+
+        // Connect to WS and listen
+        _wsService.connect(sessionId);
+        _wsSub?.cancel();
+        _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
+      } else {
+        throw Exception('No session_id in accept call response');
+      }
+
+      _incomingCall = null;
+      _incomingCallStatus = null;
+      _incomingCallerName = null;
+      _callTimeoutTimer?.cancel();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[CallProvider] Error accepting call: $e');
+      // Clear incoming call state on error
+      _incomingCall = null;
+      _incomingCallStatus = null;
+      _incomingCallerName = null;
+      _callTimeoutTimer?.cancel();
+      notifyListeners();
+    }
+  }
+
+  Future<void> rejectIncomingCall() async {
+    if (_incomingCall == null) return;
+
+    try {
+      await _apiService.rejectCall(_incomingCall!.id);
+    } catch (e) {
+      debugPrint('[CallProvider] Error rejecting call: $e');
+    }
+
+    _incomingCall = null;
+    _incomingCallStatus = null;
+    _incomingCallerName = null;
+    _callTimeoutTimer?.cancel();
+    notifyListeners();
+  }
+
+  /// Get last user status change from WebSocket (cleared after read)
+  Map<String, dynamic>? get lastStatusChange {
+    final change = _lastStatusChange;
+    _lastStatusChange = null; // Clear after read
+    return change;
+  }
+
+  Map<String, dynamic>? _lastStatusChange;
+
+  void _handleUserStatusChanged(WSMessage message) {
+    final data = message.data;
+    if (data == null) return;
+
+    final userId = data['user_id'] as String?;
+    final isOnline = data['is_online'] as bool?;
+
+    if (userId != null && isOnline != null) {
+      _lastStatusChange = {'user_id': userId, 'is_online': isOnline};
+      notifyListeners();
+    }
+  }
+
+  /// Get last contact request (cleared after read)
+  Map<String, dynamic>? get lastContactRequest {
+    final req = _lastContactRequest;
+    _lastContactRequest = null;
+    return req;
+  }
+
+  Map<String, dynamic>? _lastContactRequest;
+
+  void _handleContactRequest(WSMessage message) {
+    if (message.data != null) {
+      _lastContactRequest = message.data;
+      notifyListeners();
+    }
+  }
+
+  @override
   @override
   void dispose() {
     _disposed = true;
+    _eventController.close();
     _wsSub?.cancel();
     _wsService.disconnect();
     _clearBubbles();
+    _callTimeoutTimer?.cancel();
     super.dispose();
   }
 }

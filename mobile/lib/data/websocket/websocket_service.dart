@@ -21,6 +21,9 @@ enum WSMessageType {
   muteStatusChanged,
   callEnded,
   transcript,
+  incomingCall,
+  userStatusChanged,
+  contactRequest,
   error,
 }
 
@@ -66,6 +69,12 @@ class WSMessage {
         return WSMessageType.callEnded;
       case 'transcript':
         return WSMessageType.transcript;
+      case 'incoming_call':
+        return WSMessageType.incomingCall;
+      case 'user_status_changed':
+        return WSMessageType.userStatusChanged;
+      case 'contact_request':
+        return WSMessageType.contactRequest;
       case 'error':
         return WSMessageType.error;
       default:
@@ -75,7 +84,7 @@ class WSMessage {
 }
 
 /// WebSocket service for real-time call communication
-/// 
+///
 /// Handles:
 /// - Connection to call session
 /// - Sending/receiving audio data
@@ -109,11 +118,13 @@ class WebSocketService {
   String? get callId => _callId;
 
   /// Connect to a call session
-  /// 
+  ///
   /// Parameters:
   /// - sessionId: Call session ID from startCall response
   /// - callId: Call ID (optional, for database reference)
-  Future<bool> connect(String sessionId, {String? callId}) async {
+  /// - token: JWT Token for authentication
+  Future<bool> connect(String sessionId,
+      {String? callId, String? token}) async {
     if (_isConnected) {
       await disconnect();
     }
@@ -122,9 +133,17 @@ class WebSocketService {
       // Get user ID and token from storage
       final prefs = await SharedPreferences.getInstance();
       _userId = prefs.getString(AppConfig.userIdKey);
-      
+
+      // Use provided token or fallback to storage
+      final authToken = token ?? prefs.getString(AppConfig.userTokenKey);
+
       if (_userId == null) {
         debugPrint('[WebSocketService] No user ID found');
+        return false;
+      }
+
+      if (authToken == null) {
+        debugPrint('[WebSocketService] No auth token found');
         return false;
       }
 
@@ -132,12 +151,17 @@ class WebSocketService {
       _callId = callId;
 
       // Build WebSocket URL with query parameters
-      final wsUrl = '${AppConfig.wsUrl}/$sessionId?user_id=$_userId';
+      // backend expects /ws/{session_id}?token={token}
+      final wsUrl =
+          '${AppConfig.wsUrl}${AppConfig.wsEndpoint}/$sessionId?token=$authToken';
+
       if (callId != null) {
-        // Add call_id if available
+        // Add call_id if available (though backend might not check it if not in params explicitly)
+        // Adding it anyway for completeness if backend updates
       }
 
-      debugPrint('[WebSocketService] Connecting to: $wsUrl');
+      debugPrint(
+          '[WebSocketService] Connecting directly to session: $sessionId');
 
       // Create WebSocket connection
       _channel = IOWebSocketChannel.connect(
@@ -285,7 +309,7 @@ class WebSocketService {
     debugPrint('[WebSocketService] Connection closed');
     _isConnected = false;
     _stopHeartbeat();
-    
+
     _messageController?.add(WSMessage(
       type: WSMessageType.callEnded,
       data: {'reason': 'connection_closed'},
@@ -306,9 +330,10 @@ class MockWebSocketService extends WebSocketService {
   int _transcriptIndex = 0;
 
   @override
-  Future<bool> connect(String sessionId, {String? callId}) async {
+  Future<bool> connect(String sessionId,
+      {String? callId, String? token}) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     _messageController = StreamController<WSMessage>.broadcast();
     _audioController = StreamController<Uint8List>.broadcast();
     _isConnected = true;

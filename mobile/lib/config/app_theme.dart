@@ -161,6 +161,13 @@ class AppTheme {
     color: secondaryText,
   );
 
+  static const TextStyle bodySmall = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.4,
+    color: secondaryText,
+  );
+
   static const TextStyle labelLarge = TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w500,
@@ -295,6 +302,7 @@ class AppTheme {
       titleMedium: titleMedium,
       bodyLarge: bodyLarge,
       bodyMedium: bodyMedium,
+      bodySmall: bodySmall,
       labelLarge: labelLarge,
     ),
   );

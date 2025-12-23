@@ -24,6 +24,7 @@ from app.services.voice_training_service import voice_training_service
 from app.services.call_service import call_service
 from app.models.database import get_db, AsyncSessionLocal, Base, engine
 from app.models.user import User
+from app.services.auth_service import decode_token
 from app.models.call import Call
 from app.models.call_participant import CallParticipant
 from app.models.contact import Contact
@@ -136,7 +137,7 @@ async def health():
 async def ws_endpoint(
     websocket: WebSocket,
     session_id: str,
-    user_id: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),
     call_id: Optional[str] = Query(None)
 ):
     """
@@ -150,7 +151,7 @@ async def ws_endpoint(
     
     Query Parameters:
         session_id: Call session ID (path parameter)
-        user_id: User ID (required)
+        token: JWT Token (required)
         call_id: Call ID (optional, will look up from session_id if not provided)
     
     Message Types (JSON):
@@ -163,10 +164,20 @@ async def ws_endpoint(
     """
     await websocket.accept()
     
-    # Validate user_id
-    if not user_id:
-        await websocket.close(code=1008, reason="Missing user_id")
+    # Validate token
+    if not token:
+        logger.warning(f"[WebSocket] Missing token for session {session_id}")
+        await websocket.close(code=1008, reason="Missing token")
         return
+
+    # Decode token to get user_id
+    payload = decode_token(token)
+    if not payload or not payload.get("sub"):
+        logger.warning(f"[WebSocket] Invalid token for session {session_id}")
+        await websocket.close(code=1008, reason="Invalid token")
+        return
+        
+    user_id = payload.get("sub")
     
     logger.info(f"[WebSocket] Connection attempt: user_id={user_id}, session_id={session_id}")
     
@@ -185,50 +196,70 @@ async def ws_endpoint(
                 await websocket.close(code=1008, reason="User not found")
                 return
             
-            # Find call by session_id
-            result = await db.execute(select(Call).where(Call.session_id == session_id))
-            call = result.scalar_one_or_none()
-            
-            if not call:
-                await websocket.close(code=1008, reason="Call session not found")
-                return
-            
-            call_info = {
-                "call_id": call.id,
-                "call_language": call.call_language,
-                "is_active": call.is_active
-            }
-            call_start_time = call.started_at
-            
-            # Get participant record
-            result = await db.execute(
-                select(CallParticipant).where(
-                    and_(
-                        CallParticipant.call_id == call.id,
-                        CallParticipant.user_id == user_id
+            if session_id == "lobby":
+                # Handle Lobby connection
+                call_info = {
+                    "call_id": None,
+                    "call_language": "en",
+                    "is_active": True
+                }
+                
+                participant_info = {
+                    "participant_language": user.primary_language,
+                    "dubbing_required": False,
+                    "use_voice_clone": False,
+                    "voice_clone_quality": "fallback"
+                }
+                
+                # Mark user as online and notify contacts
+                await status_service.set_user_online(user_id, db, connection_manager)
+                
+            else:
+                # Handle standard Call connection
+                # Find call by session_id
+                result = await db.execute(select(Call).where(Call.session_id == session_id))
+                call = result.scalar_one_or_none()
+                
+                if not call:
+                    await websocket.close(code=1008, reason="Call session not found")
+                    return
+                
+                call_info = {
+                    "call_id": call.id,
+                    "call_language": call.call_language,
+                    "is_active": call.is_active
+                }
+                call_start_time = call.started_at
+                
+                # Get participant record
+                result = await db.execute(
+                    select(CallParticipant).where(
+                        and_(
+                            CallParticipant.call_id == call.id,
+                            CallParticipant.user_id == user_id
+                        )
                     )
                 )
-            )
-            participant = result.scalar_one_or_none()
-            
-            if not participant:
-                await websocket.close(code=1008, reason="Not a participant in this call")
-                return
-            
-            participant_info = {
-                "participant_language": participant.participant_language,
-                "dubbing_required": participant.dubbing_required,
-                "use_voice_clone": participant.use_voice_clone,
-                "voice_clone_quality": participant.voice_clone_quality
-            }
-            
-            # Update participant as connected
-            participant.is_connected = True
-            participant.joined_at = datetime.utcnow()
-            await db.commit()
-            
-            # Mark user as online
-            await status_service.set_user_online(user_id, db)
+                participant = result.scalar_one_or_none()
+                
+                if not participant:
+                    await websocket.close(code=1008, reason="Not a participant in this call")
+                    return
+                
+                participant_info = {
+                    "participant_language": participant.participant_language,
+                    "dubbing_required": participant.dubbing_required,
+                    "use_voice_clone": participant.use_voice_clone,
+                    "voice_clone_quality": participant.voice_clone_quality
+                }
+                
+                # Update participant as connected
+                participant.is_connected = True
+                participant.joined_at = datetime.utcnow()
+                await db.commit()
+                
+                # Mark user as online and notify contacts
+                await status_service.set_user_online(user_id, db, connection_manager)
     
     except Exception as e:
         logger.error(f"[WebSocket] Database error during connection: {e}")
@@ -262,6 +293,31 @@ async def ws_endpoint(
         "participant_language": participant_info["participant_language"],
         "dubbing_required": participant_info["dubbing_required"]
     })
+    
+    # Send initial status of contacts (Lobby only)
+    if session_id == "lobby":
+        try:
+            async with AsyncSessionLocal() as db:
+                # Get online contacts
+                result = await db.execute(
+                    select(Contact).join(User, Contact.contact_user_id == User.id)
+                    .where(
+                        and_(
+                            Contact.user_id == user_id,
+                            User.is_online == True
+                        )
+                    )
+                )
+                online_contacts = result.scalars().all()
+                
+                for contact in online_contacts:
+                    await websocket.send_json({
+                        "type": "user_status_changed",
+                        "user_id": contact.contact_user_id,
+                        "is_online": True
+                    })
+        except Exception as e:
+            logger.error(f"[WebSocket] Error sending initial status: {e}")
     
     try:
         while True:
@@ -356,35 +412,38 @@ async def ws_endpoint(
         await connection_manager.disconnect(user_id)
         
         # Update database
+        # Update database
         async with AsyncSessionLocal() as db:
-            # Mark participant as disconnected
-            result = await db.execute(
-                select(CallParticipant).where(
-                    and_(
-                        CallParticipant.call_id == call_info["call_id"],
-                        CallParticipant.user_id == user_id
+            # Only update CallParticipant if this was a real call (not lobby)
+            if session_id != "lobby" and call_info and call_info.get("call_id"):
+                # Mark participant as disconnected
+                result = await db.execute(
+                    select(CallParticipant).where(
+                        and_(
+                            CallParticipant.call_id == call_info["call_id"],
+                            CallParticipant.user_id == user_id
+                        )
                     )
                 )
-            )
-            participant = result.scalar_one_or_none()
-            if participant:
-                participant.is_connected = False
-                participant.left_at = datetime.utcnow()
-                await db.commit()
-            
-            # Check if call should end (fewer than 2 participants)
-            call_ended, _ = await call_service.handle_participant_left(
-                db, call_info["call_id"], user_id
-            )
-            
-            if call_ended:
-                logger.info(f"[WebSocket] Call {call_info['call_id']} ended - fewer than 2 participants")
+                participant = result.scalar_one_or_none()
+                if participant:
+                    participant.is_connected = False
+                    participant.left_at = datetime.utcnow()
+                    await db.commit()
                 
-                # Notify remaining participants that call ended
-                await connection_manager.broadcast_to_session(
-                    session_id,
-                    {"type": "call_ended", "reason": "insufficient_participants"}
+                # Check if call should end (fewer than 2 participants)
+                call_ended, _ = await call_service.handle_participant_left(
+                    db, call_info["call_id"], user_id
                 )
+                
+                if call_ended:
+                    logger.info(f"[WebSocket] Call {call_info['call_id']} ended - fewer than 2 participants")
+                    
+                    # Notify remaining participants that call ended
+                    await connection_manager.broadcast_to_session(
+                        session_id,
+                        {"type": "call_ended", "reason": "insufficient_participants"}
+                    )
             
-            # Mark user as offline
-            await status_service.set_user_offline(user_id, db)
+            # Mark user as offline and notify contacts
+            await status_service.set_user_offline(user_id, db, connection_manager)
