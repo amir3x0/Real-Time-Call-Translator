@@ -420,7 +420,46 @@ class CallService:
             return True, call
         
         await db.commit()
+        await db.commit()
         return False, call
+
+    @classmethod
+    async def force_leave_all_calls(
+        cls,
+        db: AsyncSession,
+        user_id: str
+    ) -> List[str]:
+        """
+        Force user to leave all active calls.
+        
+        Args:
+            db: Database session
+            user_id: ID of the user
+            
+        Returns:
+            List of call IDs left
+        """
+        # Find all active participations
+        result = await db.execute(
+            select(CallParticipant).join(Call).where(
+                and_(
+                    Call.is_active == True,
+                    CallParticipant.user_id == user_id,
+                    CallParticipant.left_at.is_(None)
+                )
+            )
+        )
+        active_participants = result.scalars().all()
+        
+        call_ids = []
+        for participant in active_participants:
+            call_id = participant.call_id
+            call_ids.append(call_id)
+            
+            # Use handle_participant_left logic
+            await cls.handle_participant_left(db, call_id, user_id)
+            
+        return call_ids
     
     @classmethod
     async def end_call(

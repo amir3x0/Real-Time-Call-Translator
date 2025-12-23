@@ -45,6 +45,11 @@ class CallParticipant(Base):
         UniqueConstraint('call_id', 'user_id', name='uq_call_user'),
     )
     
+    def leave_call(self):
+        """Mark participant as left."""
+        self.left_at = datetime.utcnow()
+        self.is_connected = False
+    
     def determine_dubbing_required(self, call_language: str) -> None:
         """Set dubbing_required based on language match."""
         self.dubbing_required = (self.participant_language != call_language)
