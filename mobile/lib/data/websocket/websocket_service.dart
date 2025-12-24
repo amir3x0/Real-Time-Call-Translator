@@ -196,7 +196,8 @@ class WebSocketService {
 
   /// Disconnect from the WebSocket
   Future<void> disconnect() async {
-    debugPrint('[WebSocketService] Disconnecting...');
+    debugPrint(
+        '[WebSocketService] Disconnecting... from:\n${StackTrace.current}');
 
     _stopHeartbeat();
 
@@ -314,82 +315,5 @@ class WebSocketService {
       type: WSMessageType.callEnded,
       data: {'reason': 'connection_closed'},
     ));
-  }
-}
-
-/// Mock WebSocket service for testing/development
-class MockWebSocketService extends WebSocketService {
-  Timer? _mockTimer;
-  final List<String> _mockTranscripts = [
-    'שלום, מה שלומך?',
-    'Hello, how are you?',
-    'Привет, как дела?',
-    'התרגום עובד מצוין',
-    'The translation is working great',
-  ];
-  int _transcriptIndex = 0;
-
-  @override
-  Future<bool> connect(String sessionId,
-      {String? callId, String? token}) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    _messageController = StreamController<WSMessage>.broadcast();
-    _audioController = StreamController<Uint8List>.broadcast();
-    _isConnected = true;
-    _sessionId = sessionId;
-    _callId = callId;
-
-    // Send connected message
-    _messageController?.add(WSMessage(
-      type: WSMessageType.connected,
-      data: {
-        'session_id': sessionId,
-        'call_id': callId ?? 'mock_call',
-        'call_language': 'he',
-        'participant_language': 'he',
-        'dubbing_required': false,
-      },
-    ));
-
-    // Start mock transcription
-    _startMockTranscription();
-
-    return true;
-  }
-
-  void _startMockTranscription() {
-    _mockTimer?.cancel();
-    _mockTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!_isConnected) return;
-
-      _messageController?.add(WSMessage(
-        type: WSMessageType.transcript,
-        data: {
-          'text': _mockTranscripts[_transcriptIndex % _mockTranscripts.length],
-          'speaker_id': 'mock_speaker',
-          'language': _transcriptIndex % 2 == 0 ? 'he' : 'en',
-        },
-      ));
-
-      _transcriptIndex++;
-    });
-  }
-
-  @override
-  Future<void> disconnect() async {
-    _mockTimer?.cancel();
-    _mockTimer = null;
-    await super.disconnect();
-  }
-
-  @override
-  void sendAudio(Uint8List audioData) {
-    // Mock: Echo back after delay
-    if (_isConnected) {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _audioController?.add(audioData);
-      });
-    }
   }
 }

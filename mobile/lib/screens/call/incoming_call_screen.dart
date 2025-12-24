@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/call_provider.dart';
+import '../../models/call.dart';
 
 class IncomingCallScreen extends StatefulWidget {
   const IncomingCallScreen({super.key});
@@ -58,11 +59,22 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     final callProvider = Provider.of<CallProvider>(context);
     final incomingCall = callProvider.incomingCall;
 
-    if (incomingCall == null) {
-      // No incoming call, navigate back
+    // Only pop if incoming call is null AND we are not in active state (accepted)
+    if (incomingCall == null && callProvider.status != CallStatus.active) {
+      // No incoming call and not active, navigate back
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.of(context).pop();
+        // Ensure we don't pop if we're already navigating away or unmounted
+        if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+          Navigator.of(context).pop();
+        }
       });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (incomingCall == null && callProvider.status == CallStatus.active) {
+      // Call accepted, waiting for navigation or already navigating
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -160,7 +172,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            _getLanguageName(incomingCall.callLanguage),
+                            _getLanguageName(incomingCall!.callLanguage),
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 16,
@@ -194,9 +206,10 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                         onPressed: () async {
                           _countdownTimer?.cancel();
                           await callProvider.acceptIncomingCall();
-                          // Navigation to active call will be handled by CallProvider
+                          // Navigation to active call
                           if (mounted) {
-                            Navigator.of(context).pop();
+                            Navigator.of(context)
+                                .pushReplacementNamed('/call/active');
                           }
                         },
                       ),
@@ -250,4 +263,3 @@ class _ActionButton extends StatelessWidget {
     );
   }
 }
-

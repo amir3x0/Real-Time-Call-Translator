@@ -6,10 +6,10 @@ import '../../models/user.dart';
 import '../../providers/contacts_provider.dart';
 import '../../providers/call_provider.dart';
 import '../../utils/language_utils.dart';
-import '../../data/mock/mock_data.dart';
+import '../../providers/auth_provider.dart';
 
 /// Call Confirmation Screen - מסך אישור שיחה
-/// 
+///
 /// Displays a preview of selected participants and their languages
 /// before initiating the call. Shows:
 /// - Current user (initiator) at the top
@@ -23,7 +23,7 @@ class CallConfirmationScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final contactsProvider = context.watch<ContactsProvider>();
     final selectedContacts = contactsProvider.selectedContacts;
-    final currentUser = MockData.currentMockUser;
+    final currentUser = context.read<AuthProvider>().currentUser!;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A2E),
@@ -84,17 +84,17 @@ class CallConfirmationScreen extends StatelessWidget {
 
                   // Selected contacts
                   ...selectedContacts.map((contact) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildParticipantCard(
-                      context,
-                      name: contact.displayName,
-                      language: contact.language,
-                      isCurrentUser: false,
-                      onRemove: () {
-                        contactsProvider.toggleSelection(contact.id);
-                      },
-                    ),
-                  )),
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildParticipantCard(
+                          context,
+                          name: contact.displayName,
+                          language: contact.language,
+                          isCurrentUser: false,
+                          onRemove: () {
+                            contactsProvider.toggleSelection(contact.id);
+                          },
+                        ),
+                      )),
 
                   // Languages summary
                   if (selectedContacts.isNotEmpty) ...[
@@ -124,12 +124,12 @@ class CallConfirmationScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isCurrentUser 
-          ? const Color(0xFF00D9FF).withValues(alpha: 0.1)
-          : Colors.white.withValues(alpha: 0.05),
+        color: isCurrentUser
+            ? const Color(0xFF00D9FF).withValues(alpha: 0.1)
+            : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: isCurrentUser 
+          color: isCurrentUser
               ? const Color(0xFF00D9FF).withValues(alpha: 0.3)
               : Colors.white.withValues(alpha: 0.1),
         ),
@@ -220,7 +220,7 @@ class CallConfirmationScreen extends StatelessWidget {
   /// Build avatar widget
   Widget _buildAvatar(String name, bool isCurrentUser) {
     final letter = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    
+
     return Container(
       width: 50,
       height: 50,
@@ -256,8 +256,9 @@ class CallConfirmationScreen extends StatelessWidget {
     List<String> targetLanguages,
   ) {
     // Remove source language from targets if present
-    final uniqueTargets = targetLanguages.where((l) => l != sourceLanguage).toList();
-    
+    final uniqueTargets =
+        targetLanguages.where((l) => l != sourceLanguage).toList();
+
     if (uniqueTargets.isEmpty) {
       // Same language - no translation needed
       return Container(
@@ -309,7 +310,7 @@ class CallConfirmationScreen extends StatelessWidget {
             children: [
               // Source language
               _buildLanguageChip(sourceLanguage),
-              
+
               // Arrow
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -319,7 +320,7 @@ class CallConfirmationScreen extends StatelessWidget {
                   size: 24,
                 ),
               ),
-              
+
               // Target languages
               ...uniqueTargets.asMap().entries.map((entry) {
                 final isLast = entry.key == uniqueTargets.length - 1;
@@ -413,23 +414,25 @@ class CallConfirmationScreen extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: allLanguages.map((lang) => Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 6,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                LanguageUtils.formatDisplay(lang),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                ),
-              ),
-            )).toList(),
+            children: allLanguages
+                .map((lang) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        LanguageUtils.formatDisplay(lang),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ))
+                .toList(),
           ),
           if (allLanguages.length > 1) ...[
             const SizedBox(height: 12),
@@ -496,9 +499,7 @@ class CallConfirmationScreen extends StatelessWidget {
             Expanded(
               flex: 2,
               child: ElevatedButton(
-                onPressed: hasParticipants
-                    ? () => _startCall(context)
-                    : null,
+                onPressed: hasParticipants ? () => _startCall(context) : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00D9FF),
                   foregroundColor: Colors.black,
@@ -516,9 +517,8 @@ class CallConfirmationScreen extends StatelessWidget {
                     Icon(
                       Icons.call,
                       size: 22,
-                      color: hasParticipants 
-                          ? Colors.black 
-                          : Colors.grey.shade500,
+                      color:
+                          hasParticipants ? Colors.black : Colors.grey.shade500,
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -526,8 +526,8 @@ class CallConfirmationScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: hasParticipants 
-                            ? Colors.black 
+                        color: hasParticipants
+                            ? Colors.black
                             : Colors.grey.shade500,
                       ),
                     ),
@@ -550,13 +550,12 @@ class CallConfirmationScreen extends StatelessWidget {
     if (selectedContacts.isEmpty) return;
 
     // Extract user IDs from selected contacts for the API call
-    final participantUserIds = selectedContacts
-        .map((contact) => contact.contactUserId)
-        .toList();
+    final participantUserIds =
+        selectedContacts.map((contact) => contact.contactUserId).toList();
 
     // Start the call using CallProvider
     callProvider.startCall(participantUserIds);
-    
+
     // Clear selection after starting call
     contactsProvider.clearSelection();
 

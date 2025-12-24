@@ -387,17 +387,26 @@ class ConnectionManager:
             if conn.user_id != speaker_id and not conn.is_muted
         ]
         
+        logger.info(f"[ConnectionManager] Broadcasting audio from {speaker_id} to {len(connections)} participants in session {session_id}")
+        for c in connections:
+             logger.debug(f"Target: {c.user_id}, Muted: {c.is_muted}, Dubbing: {c.dubbing_required}")
+
         # Group by target language
         translation_requests = set()
         
         for conn in connections:
+            # Debug logging
             if conn.dubbing_required:
-                # Add to set of needed translations (source -> target)
-                translation_requests.add((speaker_conn.participant_language, conn.participant_language))
-            else:
-                # Same language - passthrough
-                await conn.send_bytes(audio_data)
-                result["passthrough_count"] += 1
+                logger.debug(f"User {conn.user_id} requires dubbing from {speaker_conn.participant_language} to {conn.participant_language}")
+            
+            # FORCE PASSTHROUGH FOR DEBUGGING
+            # if conn.dubbing_required:
+            #     # Add to set of needed translations (source -> target)
+            #     translation_requests.add((speaker_conn.participant_language, conn.participant_language))
+            # else:
+            #     # Same language - passthrough
+            await conn.send_bytes(audio_data)
+            result["passthrough_count"] += 1
         
         # Publish for translation
         from app.services.rtc_service import publish_audio_chunk

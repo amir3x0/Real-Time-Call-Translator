@@ -4,11 +4,11 @@ import 'package:provider/provider.dart';
 import '../../providers/contacts_provider.dart';
 import '../../data/api/api_service.dart';
 import '../../utils/language_utils.dart';
-import '../../data/mock/mock_data.dart';
+
 import '../../models/user.dart';
 
 /// Add Contact Screen
-/// 
+///
 /// Allows users to search for other users by phone number
 /// and add them to their contacts list.
 class AddContactScreen extends StatefulWidget {
@@ -21,7 +21,7 @@ class AddContactScreen extends StatefulWidget {
 class _AddContactScreenState extends State<AddContactScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final FocusNode _phoneFocusNode = FocusNode();
-  
+
   List<User> _searchResults = [];
   bool _isSearching = false;
   String? _errorMessage;
@@ -44,7 +44,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
     super.dispose();
   }
 
-  /// Search users via backend; falls back to mock if unavailable
+  /// Search users via backend
   Future<void> _searchUser() async {
     final query = _phoneController.text.trim();
     if (query.isEmpty) {
@@ -63,41 +63,37 @@ class _AddContactScreenState extends State<AddContactScreen> {
       _hasSearched = true;
     });
 
-    List<User> results = [];
     try {
       debugPrint('[AddContact] Searching for: $query');
       final backendResults = await _apiService.searchUsers(query);
-      debugPrint('[AddContact] Backend returned ${backendResults.length} results');
-      results = backendResults.map((json) => User.fromJson(json)).toList();
+      debugPrint(
+          '[AddContact] Backend returned ${backendResults.length} results');
+
+      final results =
+          backendResults.map((json) => User.fromJson(json)).toList();
+
+      if (!mounted) return;
+
+      if (results.isEmpty) {
+        setState(() {
+          _isSearching = false;
+          _errorMessage = 'No matching users found';
+          _searchResults = [];
+        });
+      } else {
+        setState(() {
+          _isSearching = false;
+          _errorMessage = null;
+          _searchResults = results;
+        });
+      }
     } catch (e) {
       debugPrint('[AddContact] Search error: $e');
-    }
-
-    if (results.isEmpty) {
-      debugPrint('[AddContact] Falling back to mock data');
-      // Fallback to mock search by phone substring
-      results = MockData.mockUsers.where((u) {
-        final phoneDigits = u.phone.replaceAll(RegExp(r'\D'), '');
-        final qDigits = query.replaceAll(RegExp(r'\D'), '');
-        return phoneDigits.contains(qDigits) || 
-               u.fullName.toLowerCase().contains(query.toLowerCase());
-      }).where((u) => u.id != MockData.currentMockUser.id).toList();
-      debugPrint('[AddContact] Mock fallback found ${results.length} results');
-    }
-
-    if (!mounted) return;
-
-    if (results.isEmpty) {
+      if (!mounted) return;
       setState(() {
         _isSearching = false;
-        _errorMessage = 'No matching users found';
+        _errorMessage = 'Search failed. Please try again.';
         _searchResults = [];
-      });
-    } else {
-      setState(() {
-        _isSearching = false;
-        _errorMessage = null;
-        _searchResults = results;
       });
     }
   }
@@ -376,15 +372,22 @@ class _AddContactScreenState extends State<AddContactScreen> {
             ),
             title: Text(
               user.fullName,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w600),
             ),
             subtitle: Row(
               children: [
-                Text(user.phone, style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+                Text(user.phone,
+                    style:
+                        TextStyle(color: Colors.white.withValues(alpha: 0.6))),
                 const SizedBox(width: 10),
-                Text(LanguageUtils.getFlag(user.primaryLanguage), style: const TextStyle(fontSize: 16)),
+                Text(LanguageUtils.getFlag(user.primaryLanguage),
+                    style: const TextStyle(fontSize: 16)),
                 const SizedBox(width: 6),
-                Text(LanguageUtils.getName(user.primaryLanguage), style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+                Text(LanguageUtils.getName(user.primaryLanguage),
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 12)),
               ],
             ),
             trailing: Row(
@@ -406,11 +409,14 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
                     // Add contact via provider
                     final res = await contactsProvider.addContact(user.id);
-                    final ok = res == AddContactResult.success || res == AddContactResult.alreadyExists;
+                    final ok = res == AddContactResult.success ||
+                        res == AddContactResult.alreadyExists;
 
                     if (ok) {
                       messenger.showSnackBar(
-                        SnackBar(content: Text('${user.fullName} added to contacts')),
+                        SnackBar(
+                            content:
+                                Text('${user.fullName} added to contacts')),
                       );
                       navigator.pop();
                     } else {
