@@ -2,17 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
-// import 'package:flutter_sound/flutter_sound.dart';
+import 'package:flutter_sound/flutter_sound.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../data/websocket/websocket_service.dart';
 import '../data/api/api_service.dart';
 import '../models/call.dart';
 import '../models/live_caption.dart';
 import '../models/participant.dart';
-import '../utils/pcm_stream_source.dart';
-import 'package:just_audio/just_audio.dart' as ja;
 
 class CallProvider with ChangeNotifier {
   CallStatus _status = CallStatus.pending;
@@ -28,15 +25,16 @@ class CallProvider with ChangeNotifier {
 
   bool _disposed = false;
 
+  // Audio - using flutter_sound for direct PCM playback
   AudioRecorder? _audioRecorder;
-  ja.AudioPlayer? _audioPlayer; // Just Audio player
+  FlutterSoundPlayer? _audioPlayer;
   AudioSession? _audioSession;
   StreamSubscription<Uint8List>? _micStreamSub;
   StreamSubscription<Uint8List>? _incomingAudioSub;
-  StreamController<List<int>>?
-      _audioStreamController; // Controller for incoming audio
+  bool _isPlayerInitialized = false;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
+  bool _audioInitializing = false; // Prevent concurrent initialization
 
   // Incoming call state
   Call? _incomingCall;
@@ -93,125 +91,159 @@ class CallProvider with ChangeNotifier {
   }
 
   Future<void> _initAudio() async {
+    // Prevent concurrent initialization
+    if (_audioInitializing) {
+      debugPrint(
+          '[CallProvider] Audio initialization already in progress, skipping');
+      return;
+    }
+    _audioInitializing = true;
+
     try {
       debugPrint('[CallProvider] Initializing audio...');
 
-      // Request permissions
-      final status = await Permission.microphone.request();
-      if (status != PermissionStatus.granted) {
-        debugPrint('[CallProvider] Microphone permission denied');
-        return;
-      }
-
-      // Configure Audio Session for Voice Call
+      // 1. Configure Audio Session (Required for Speaker/Mic)
       _audioSession = await AudioSession.instance;
-      await _audioSession?.configure(AudioSessionConfiguration(
+      await _audioSession!.configure(AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
         avAudioSessionCategoryOptions:
-            AVAudioSessionCategoryOptions.defaultToSpeaker |
-                AVAudioSessionCategoryOptions.allowBluetooth |
-                AVAudioSessionCategoryOptions.allowBluetoothA2dp,
+            AVAudioSessionCategoryOptions.allowBluetooth |
+                AVAudioSessionCategoryOptions.defaultToSpeaker,
         avAudioSessionMode: AVAudioSessionMode.voiceChat,
-        androidAudioAttributes: const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.speech,
-          flags: AndroidAudioFlags.none,
-          usage: AndroidAudioUsage.voiceCommunication,
-        ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-        androidWillPauseWhenDucked: true,
       ));
 
-      _isSpeakerOn = true; // Default to speaker for now for testing
+      _isSpeakerOn = true;
 
-      // Initialize Player (just_audio)
-      if (_audioPlayer == null) {
-        _audioPlayer = ja.AudioPlayer();
-      }
+      // 2. Dispose previous player cleanly before creating new ones
+      await _cleanupAudioPlayer();
 
-      // Create stream controller for incoming audio
-      _audioStreamController?.close();
-      _audioStreamController = StreamController<List<int>>();
+      // 3. Create and initialize flutter_sound player
+      _audioPlayer = FlutterSoundPlayer();
+      await _audioPlayer!.openPlayer();
+      _isPlayerInitialized = true;
 
-      // Set audio source
-      final source =
-          PCMStreamSource(audioStream: _audioStreamController!.stream);
-      await _audioPlayer!.setAudioSource(source);
+      // 4. Start player in stream mode (direct PCM playback)
+      await _audioPlayer!.startPlayerFromStream(
+        codec: Codec.pcm16,
+        numChannels: 1,
+        sampleRate: 16000,
+        bufferSize: 8192,
+        interleaved: true,
+      );
+      debugPrint('[CallProvider] Player started in stream mode');
 
-      // Start playing immediately (buffer will fill from stream)
-      _audioPlayer!.play();
-
-      // Listen to incoming audio from WebSocket and feed to player
+      // 5. Listen to incoming audio from WebSocket and write directly to player
       _incomingAudioSub?.cancel();
-      int _chunksReceived = 0;
-      _incomingAudioSub = _wsService.audioStream.listen((data) {
-        if (_audioPlayer != null &&
-            _audioStreamController != null &&
-            !_audioStreamController!.isClosed) {
-          if (data.isNotEmpty) {
-            _audioStreamController!.add(data);
-            _chunksReceived++;
-            if (_chunksReceived % 20 == 0) {
+      int chunksReceived = 0;
+      _incomingAudioSub = _wsService.audioStream.listen(
+        (data) {
+          // Feed audio data directly to the player
+          if (_audioPlayer != null && _isPlayerInitialized && data.isNotEmpty) {
+            _audioPlayer!.uint8ListSink!.add(data);
+            chunksReceived++;
+            if (chunksReceived % 50 == 0) {
               debugPrint(
-                  '[CallProvider] Playing chunk #$_chunksReceived (${data.length} bytes)');
+                  '[CallProvider] Playing chunk #$chunksReceived (${data.length} bytes)');
             }
           }
-        }
-      });
+        },
+        onError: (e) {
+          debugPrint('[CallProvider] Incoming audio stream error: $e');
+        },
+        cancelOnError: false, // Keep listening even after errors
+      );
 
-      // Initialize Recorder (Mic)
+      // 6. Initialize Microphone
       _audioRecorder ??= AudioRecorder();
-
       if (await _audioRecorder!.hasPermission()) {
-        final stream = await _audioRecorder!.startStream(
-          const RecordConfig(
-            encoder: AudioEncoder.pcm16bits,
-            sampleRate: 16000,
-            numChannels: 1,
-          ),
-        );
+        final isRecording = await _audioRecorder!.isRecording();
+        if (!isRecording) {
+          final stream = await _audioRecorder!.startStream(
+            const RecordConfig(
+              encoder: AudioEncoder.pcm16bits,
+              sampleRate: 16000,
+              numChannels: 1,
+            ),
+          );
 
-        int _chunksSent = 0;
-        _micStreamSub = stream.listen((data) {
-          if (!_isMuted) {
-            _wsService.sendAudio(data);
-            _chunksSent++;
-            if (_chunksSent % 50 == 0) {
-              debugPrint(
-                  '[CallProvider] Sent 50 chunks of audio (${data.length} bytes each)');
-            }
-          }
-        });
+          int chunksSent = 0;
+          _micStreamSub?.cancel();
+          _micStreamSub = stream.listen(
+            (data) {
+              if (!_isMuted) {
+                _wsService.sendAudio(data);
+                chunksSent++;
+                if (chunksSent % 50 == 0) {
+                  debugPrint(
+                      '[CallProvider] Sent 50 chunks of audio (${data.length} bytes each)');
+                }
+              }
+            },
+            onError: (e) => debugPrint("Mic stream error: $e"),
+            cancelOnError: false,
+          );
+
+          debugPrint("[CallProvider] Microphone started");
+        } else {
+          debugPrint("[CallProvider] Microphone already recording");
+        }
+      } else {
+        debugPrint("❌ No microphone permission");
       }
 
       debugPrint('[CallProvider] Audio initialized successfully');
     } catch (e) {
-      debugPrint('[CallProvider] Error initializing audio: $e');
+      debugPrint("❌ Error initializing audio: $e");
+      // Do not rethrow to avoid crashing the app flow
+    } finally {
+      _audioInitializing = false;
+    }
+  }
+
+  /// Clean up audio player resources
+  Future<void> _cleanupAudioPlayer() async {
+    // Cancel incoming audio subscription
+    await _incomingAudioSub?.cancel();
+    _incomingAudioSub = null;
+
+    // Stop and close player
+    if (_audioPlayer != null && _isPlayerInitialized) {
+      try {
+        if (_audioPlayer!.isPlaying) {
+          await _audioPlayer!.stopPlayer();
+        }
+        await _audioPlayer!.closePlayer();
+      } catch (e) {
+        debugPrint('[CallProvider] Error disposing player: $e');
+      }
+      _audioPlayer = null;
+      _isPlayerInitialized = false;
     }
   }
 
   Future<void> _disposeAudio() async {
-    _micStreamSub?.cancel();
-    _incomingAudioSub?.cancel();
+    debugPrint('[CallProvider] Disposing audio...');
 
-    // Close stream controller
-    _audioStreamController?.close();
-    _audioStreamController = null;
+    // Cancel microphone subscription first
+    await _micStreamSub?.cancel();
+    _micStreamSub = null;
 
+    // Use the shared cleanup function for player-related resources
+    await _cleanupAudioPlayer();
+
+    // Stop and dispose recorder
     try {
-      _audioRecorder?.stop();
+      if (_audioRecorder != null) {
+        await _audioRecorder!.stop();
+        _audioRecorder!.dispose();
+      }
     } catch (e) {
       debugPrint('[CallProvider] Error stopping recorder: $e');
     }
-
-    try {
-      _audioPlayer?.stop();
-    } catch (e) {
-      debugPrint('[CallProvider] Error stopping player: $e');
-    }
-
     _audioRecorder = null;
-    _audioPlayer = null;
     _audioSession = null;
+
+    debugPrint('[CallProvider] Audio disposed');
   }
 
   void endCall() {
