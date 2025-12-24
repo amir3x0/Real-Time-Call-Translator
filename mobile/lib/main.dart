@@ -8,6 +8,7 @@ import 'providers/settings_provider.dart';
 import 'providers/contacts_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
+import 'models/call.dart';
 import 'screens/auth/register_voice_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/call/active_call_screen.dart';
@@ -107,6 +108,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         final callProvider = Provider.of<CallProvider>(context, listen: false);
 
         if (authProvider.isAuthenticated) {
+          // FIX: Check if we are in an active call to avoid disrupting it
+          if (callProvider.status == CallStatus.active ||
+              callProvider.status == CallStatus.ringing ||
+              callProvider.incomingCall != null) {
+            debugPrint(
+                '[App] In active/ringing call - skipping Lobby reconnection');
+            return;
+          }
+
           debugPrint(
               '[App] User authenticated, reconnecting/refreshing connection...');
           // We can get the token from shared prefs or auth provider
