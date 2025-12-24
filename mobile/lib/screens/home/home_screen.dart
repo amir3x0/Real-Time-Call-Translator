@@ -60,8 +60,9 @@ class _HomeScreenState extends State<HomeScreen>
     }
     // Reset handled ID if call is cleared
     else if (incomingCall == null) {
-      if (_handledIncomingCallId != null)
+      if (_handledIncomingCallId != null) {
         debugPrint('[HomeScreen] Call cleared/handled');
+      }
       _handledIncomingCallId = null;
     }
 

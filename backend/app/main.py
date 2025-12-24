@@ -378,6 +378,13 @@ async def ws_endpoint(
             # Handle binary messages (audio data)
             elif "bytes" in message:
                 audio_data = message["bytes"]
+                logger.debug(f"[WebSocket] Received {len(audio_data)} bytes from {user_id}")
+                if len(audio_data) > 0:
+                     pass # just to ensure we have the block, relying on broadcast_audio logs
+            
+            else:
+                logger.warning(f"[WebSocket] Unexpected message structure from {user_id}: {message.keys()}")
+
                 
                 # Calculate timestamp from call start
                 timestamp_ms = 0

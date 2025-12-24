@@ -15,18 +15,10 @@ void main() {
       expect(callProvider.participants, isEmpty);
     });
 
-    test('startMockCall should add participants and change status to active', () {
-      callProvider.startMockCall();
-
-      expect(callProvider.status, CallStatus.active);
-      expect(callProvider.participants.length, 4); // startMockCall adds 4 mock participants
-      expect(callProvider.liveTranscription, contains('מתרגם'));
-    });
-
     test('endCall should clear participants and change status to ended', () {
       // Start first
-      callProvider.startMockCall();
-      
+      callProvider.setStatusForTesting(CallStatus.active);
+
       // Then End
       callProvider.endCall();
 
@@ -35,9 +27,10 @@ void main() {
     });
 
     test('endCall should not throw when participants list is fixed-length', () {
-      callProvider.startMockCall();
+      callProvider.setStatusForTesting(CallStatus.active);
       // Convert to a fixed-length list to reproduce the earlier edge-case
-      final fixedParticipants = callProvider.participants.toList(growable: false);
+      final fixedParticipants =
+          callProvider.participants.toList(growable: false);
       callProvider.setParticipantsForTesting(fixedParticipants);
 
       expect(() => callProvider.endCall(), returnsNormally);

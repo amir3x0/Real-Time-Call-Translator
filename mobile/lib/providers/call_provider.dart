@@ -1,8 +1,10 @@
 import 'dart:async';
-import 'dart:math';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:record/record.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:audio_session/audio_session.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../data/websocket/websocket_service.dart';
 import '../data/api/api_service.dart';
@@ -11,37 +13,26 @@ import '../models/live_caption.dart';
 import '../models/participant.dart';
 
 class CallProvider with ChangeNotifier {
-  static const List<String> _languagePool = ['he', 'en', 'ru'];
-  static const List<String> _connectionQualities = [
-    'excellent',
-    'good',
-    'fair',
-    'poor'
-  ];
-  static const List<String> _mockNames = [
-    'Daniel',
-    'Emma',
-    'Noa',
-    'Igor',
-    'Amir',
-    'Lena',
-    'Sasha',
-    'Yael',
-    'Omer',
-    'Svetlana',
-  ];
   CallStatus _status = CallStatus.pending;
   List<CallParticipant> _participants = [];
   String? _activeSessionId;
-  String _liveTranscription = "המתן, השרת מתרגם..."; // Mock subtitle
+  String _liveTranscription = "";
   final WebSocketService _wsService = WebSocketService();
   final ApiService _apiService = ApiService();
   StreamSubscription<WSMessage>? _wsSub;
   final List<LiveCaptionData> _captionBubbles = [];
   final Map<String, Timer> _bubbleTimers = {};
-  final Random _random = Random();
   String? _activeSpeakerId;
+
   bool _disposed = false;
+
+  AudioRecorder? _audioRecorder;
+  FlutterSoundPlayer? _player;
+  AudioSession? _audioSession;
+  StreamSubscription<Uint8List>? _micStreamSub;
+  StreamSubscription<Uint8List>? _incomingAudioSub;
+  bool _isMuted = false;
+  bool _isSpeakerOn = false;
 
   // Incoming call state
   Call? _incomingCall;
@@ -65,70 +56,9 @@ class CallProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Start a mock call
-  void startMockCall() {
-    _status = CallStatus.active;
-    _activeSessionId = "session_123";
-
-    // Create Mock Participants
-    _participants = [
-      CallParticipant(
-        id: 'p1',
-        callId: 'c1',
-        userId: 'u1',
-        targetLanguage: 'he',
-        speakingLanguage: 'en',
-        joinedAt: DateTime.now(),
-        createdAt: DateTime.now(),
-        isConnected: true,
-        connectionQuality: 'excellent', // Green
-        isMuted: false,
-        displayName: 'Daniel',
-      ),
-      CallParticipant(
-        id: 'p2',
-        callId: 'c1',
-        userId: 'u2',
-        targetLanguage: 'en',
-        speakingLanguage: 'ru',
-        joinedAt: DateTime.now(),
-        createdAt: DateTime.now(),
-        isConnected: true,
-        connectionQuality: 'good', // Light Green
-        isMuted: true,
-        displayName: 'Emma',
-      ),
-      CallParticipant(
-        id: 'p3',
-        callId: 'c1',
-        userId: 'u3',
-        targetLanguage: 'ru',
-        speakingLanguage: 'en',
-        joinedAt: DateTime.now(),
-        createdAt: DateTime.now(),
-        isConnected: true,
-        connectionQuality: 'fair',
-        isMuted: false,
-        displayName: 'Noa',
-      ),
-      CallParticipant(
-        id: 'p4',
-        callId: 'c1',
-        userId: 'u4',
-        targetLanguage: 'en',
-        speakingLanguage: 'he',
-        joinedAt: DateTime.now(),
-        createdAt: DateTime.now(),
-        isConnected: true,
-        connectionQuality: 'excellent',
-        isMuted: false,
-        displayName: 'Igor',
-      ),
-    ];
-
-    // start mock ws
-    _wsService.connect(_activeSessionId ?? 'mock_session');
-    _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
+  @visibleForTesting
+  void setStatusForTesting(CallStatus status) {
+    _status = status;
     notifyListeners();
   }
 
@@ -148,13 +78,122 @@ class CallProvider with ChangeNotifier {
     _activeSessionId = sessionId;
 
     // Connect to WS and listen
-    _wsService.connect(sessionId);
-    _wsSub?.cancel();
+    await _wsSub?.cancel(); // Cancel lobby subscription first
+    await _wsService.connect(sessionId);
     _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
+
+    // Initialize Audio
+    await _initAudio();
+
     notifyListeners();
   }
 
+  Future<void> _initAudio() async {
+    try {
+      debugPrint('[CallProvider] Initializing audio...');
+
+      // Request permissions
+      final status = await Permission.microphone.request();
+      if (status != PermissionStatus.granted) {
+        debugPrint('[CallProvider] Microphone permission denied');
+        return;
+      }
+
+      // Configure Audio Session
+      _audioSession = await AudioSession.instance;
+      await _audioSession?.configure(const AudioSessionConfiguration.speech());
+
+      // Initialize Player
+      if (_player == null) {
+        _player = FlutterSoundPlayer();
+        await _player!.openPlayer();
+      }
+
+      await _player!.startPlayerFromStream(
+        codec: Codec.pcm16,
+        numChannels: 1,
+        sampleRate: 16000,
+        bufferSize: 8192,
+        interleaved: false,
+      );
+
+      // Listen to incoming audio from WebSocket and feed to player
+      _incomingAudioSub?.cancel();
+      int _chunksReceived = 0;
+      _incomingAudioSub = _wsService.audioStream.listen((data) {
+        if (_player != null && !_player!.isStopped) {
+          (_player as dynamic).foodSink?.add(FoodData(data));
+          _chunksReceived++;
+          if (_chunksReceived % 50 == 0) {
+            debugPrint(
+                '[CallProvider] Received 50 chunks of audio (${data.length} bytes each)');
+          }
+        }
+      });
+
+      // Initialize Recorder (Mic)
+      _audioRecorder ??= AudioRecorder();
+
+      if (await _audioRecorder!.hasPermission()) {
+        final stream = await _audioRecorder!.startStream(
+          const RecordConfig(
+            encoder: AudioEncoder.pcm16bits,
+            sampleRate: 16000,
+            numChannels: 1,
+          ),
+        );
+
+        int _chunksSent = 0;
+        _micStreamSub = stream.listen((data) {
+          if (!_isMuted) {
+            _wsService.sendAudio(data);
+            _chunksSent++;
+            if (_chunksSent % 50 == 0) {
+              debugPrint(
+                  '[CallProvider] Sent 50 chunks of audio (${data.length} bytes each)');
+            }
+          }
+        });
+      }
+
+      debugPrint('[CallProvider] Audio initialized successfully');
+    } catch (e) {
+      debugPrint('[CallProvider] Error initializing audio: $e');
+    }
+  }
+
+  Future<void> _disposeAudio() async {
+    try {
+      _micStreamSub?.cancel();
+      if (_audioRecorder != null) {
+        try {
+          // Check if recording before stopping to avoid "Recorder not created" error
+          if (await _audioRecorder!.isRecording()) {
+            await _audioRecorder!.stop();
+          }
+        } catch (e) {
+          debugPrint('[CallProvider] Ignored error stopping recorder: $e');
+        }
+        await _audioRecorder!.dispose();
+        _audioRecorder = null;
+      }
+
+      _incomingAudioSub?.cancel();
+      if (_player != null) {
+        await _player!.stopPlayer();
+        await _player!.closePlayer();
+        _player = null;
+      }
+
+      _audioSession = null;
+    } catch (e) {
+      debugPrint('[CallProvider] Error disposing audio: $e');
+    }
+  }
+
   void endCall() {
+    debugPrint('[CallProvider] endCall called from:\n${StackTrace.current}');
+    _disposeAudio();
     _status = CallStatus.ended;
     // Ensure we assign a new growable empty list instead of trying to clear
     // a fixed-length list (which may have been set by .toList(growable:false)).
@@ -167,9 +206,36 @@ class CallProvider with ChangeNotifier {
   }
 
   void toggleMute() {
-    // Logic to toggle mute would go here
+    _isMuted = !_isMuted;
+    _wsService.setMuted(_isMuted);
+
+    // Update self in participants list for UI
+    if (_participants.isNotEmpty && _activeSessionId != null) {
+      // Just notify
+    }
+
+    // Actually we don't have our own ID easily accessible unless we store it or find it.
+    // But sending WS message will eventually bounce back a "muteStatusChanged" if backend handles it.
+    // For local UI responsiveness:
     notifyListeners();
   }
+
+  Future<void> toggleSpeaker() async {
+    _isSpeakerOn = !_isSpeakerOn;
+    if (_audioSession != null) {
+      await _audioSession!.configure(AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions: _isSpeakerOn
+            ? AVAudioSessionCategoryOptions.defaultToSpeaker
+            : AVAudioSessionCategoryOptions.none, // Earpiece
+        avAudioSessionMode: AVAudioSessionMode.voiceChat,
+      ));
+    }
+    notifyListeners();
+  }
+
+  bool get isMuted => _isMuted;
+  bool get isSpeakerOn => _isSpeakerOn;
 
   /// Connects to the Lobby websocket to receive real-time updates and incoming calls
   Future<void> connectToLobby({String? token}) async {
@@ -203,40 +269,6 @@ class CallProvider with ChangeNotifier {
     }
   }
 
-  /// Adds a mock participant to the active call UI for demo purposes.
-  /// Returns `true` if a participant was added, otherwise `false`.
-  bool addMockParticipant() {
-    if (_status != CallStatus.active) return false;
-    if (_participants.length >= 6) return false; // keep grid readable
-
-    final speakingLanguage =
-        _languagePool[_random.nextInt(_languagePool.length)];
-    String targetLanguage = speakingLanguage;
-    while (targetLanguage == speakingLanguage) {
-      targetLanguage = _languagePool[_random.nextInt(_languagePool.length)];
-    }
-
-    final displayName = _mockNames[_random.nextInt(_mockNames.length)];
-    final newParticipant = CallParticipant(
-      id: 'p${DateTime.now().millisecondsSinceEpoch}',
-      callId: _participants.isNotEmpty ? _participants.first.callId : 'c1',
-      userId: 'u${_participants.length + 1}',
-      targetLanguage: targetLanguage,
-      speakingLanguage: speakingLanguage,
-      joinedAt: DateTime.now(),
-      createdAt: DateTime.now(),
-      isConnected: true,
-      connectionQuality:
-          _connectionQualities[_random.nextInt(_connectionQualities.length)],
-      isMuted: _random.nextBool(),
-      displayName: displayName,
-    );
-
-    _participants = [..._participants, newParticipant];
-    notifyListeners();
-    return true;
-  }
-
   // Broadcast stream for other providers
   final _eventController = StreamController<WSMessage>.broadcast();
   Stream<WSMessage> get events => _eventController.stream;
@@ -252,15 +284,16 @@ class CallProvider with ChangeNotifier {
       case WSMessageType.transcript:
         if (_participants.isNotEmpty) {
           final text = message.data?['text'] as String? ?? '';
-          final speakerId = message.data?['speaker_id'] as String? ??
-              _participants[_random.nextInt(_participants.length)].id;
-          _liveTranscription = text;
-          _setActiveSpeaker(speakerId);
-          _addCaptionBubble(speakerId, text);
+          final speakerId = message.data?['speaker_id'] as String?;
+          if (speakerId != null) {
+            _liveTranscription = text;
+            _setActiveSpeaker(speakerId);
+            _addCaptionBubble(speakerId, text);
+          }
         }
         break;
       case WSMessageType.participantJoined:
-        // Handle participant joined
+        _handleParticipantJoined(message);
         break;
       case WSMessageType.participantLeft:
         // Handle participant left
@@ -295,16 +328,13 @@ class CallProvider with ChangeNotifier {
     _participants = _participants
         .map((participant) => participant.copyWith(
               isSpeaking: participant.id == participantId,
-              speakingEnergy: participant.id == participantId
-                  ? 0.5 + _random.nextDouble() * 0.5
-                  : 0.1,
             ))
         .toList(growable: false);
   }
 
   void _addCaptionBubble(String participantId, String text) {
     final bubble = LiveCaptionData(
-      id: '${DateTime.now().millisecondsSinceEpoch}-${_random.nextInt(1000)}',
+      id: '${DateTime.now().millisecondsSinceEpoch}',
       participantId: participantId,
       text: text,
     );
@@ -381,8 +411,8 @@ class CallProvider with ChangeNotifier {
         }
 
         // Connect to WS and listen
-        _wsService.connect(sessionId);
-        _wsSub?.cancel();
+        await _wsSub?.cancel(); // Cancel lobby subscription first
+        await _wsService.connect(sessionId);
         _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
       } else {
         throw Exception('No session_id in accept call response');
@@ -455,6 +485,44 @@ class CallProvider with ChangeNotifier {
     if (message.data != null) {
       _lastContactRequest = message.data;
       notifyListeners();
+    }
+  }
+
+  void _handleParticipantJoined(WSMessage message) {
+    if (message.data == null) return;
+
+    final userId = message.data!['user_id'] as String?;
+    if (userId == null) return;
+
+    // Find participant and mark as connected
+    try {
+      final index = _participants.indexWhere((p) => p.userId == userId);
+      if (index != -1) {
+        var p = _participants[index];
+        // p = p.copyWith(isConnected: true, joinedAt: DateTime.now()); // Need to ensure copyWith exists or create new
+        // Since CallParticipant is likely immutable, we create a new list
+        final updatedParticipant = CallParticipant(
+            id: p.id,
+            callId: p.callId,
+            userId: p.userId,
+            targetLanguage: p.targetLanguage,
+            speakingLanguage: p.speakingLanguage,
+            joinedAt: DateTime.now(),
+            createdAt: p.createdAt,
+            isConnected: true,
+            connectionQuality: p.connectionQuality,
+            isMuted: p.isMuted,
+            displayName: p.displayName);
+
+        // Create new list to trigger change
+        final newList = List<CallParticipant>.from(_participants);
+        newList[index] = updatedParticipant;
+        _participants = newList;
+        notifyListeners();
+        debugPrint('[CallProvider] Participant $userId marked as connected');
+      }
+    } catch (e) {
+      debugPrint('[CallProvider] Error handling participant join: $e');
     }
   }
 
