@@ -277,6 +277,7 @@ class WebSocketService {
 
   /// Handle incoming WebSocket message
   void _handleMessage(dynamic message) {
+    debugPrint('[WebSocketService] Msg Type: ${message.runtimeType}');
     if (message is String) {
       // JSON message
       try {
@@ -291,6 +292,8 @@ class WebSocketService {
       }
     } else if (message is List<int>) {
       // Binary audio data
+      debugPrint(
+          '[WebSocketService] Received audio chunk: ${message.length} bytes');
       final audioData = Uint8List.fromList(message);
       _audioController?.add(audioData);
     }

@@ -380,33 +380,27 @@ async def ws_endpoint(
                 audio_data = message["bytes"]
                 logger.debug(f"[WebSocket] Received {len(audio_data)} bytes from {user_id}")
                 if len(audio_data) > 0:
-                     pass # just to ensure we have the block, relying on broadcast_audio logs
+                    # Calculate timestamp from call start
+                    timestamp_ms = 0
+                    if call_start_time:
+                        elapsed = datetime.utcnow() - call_start_time
+                        timestamp_ms = int(elapsed.total_seconds() * 1000)
+                    
+                    # Broadcast audio to other participants
+                    result = await connection_manager.broadcast_audio(
+                        session_id=session_id,
+                        speaker_id=user_id,
+                        audio_data=audio_data,
+                        timestamp_ms=timestamp_ms
+                    )
+                    
+                    # Log routing result (debug level)
+                    logger.debug(f"[WebSocket] Audio routed: {result}")
             
             else:
+                # Unexpected message structure (e.g., disconnect frame with type/code)
+                # Just log and continue - don't try to process as audio
                 logger.warning(f"[WebSocket] Unexpected message structure from {user_id}: {message.keys()}")
-
-                
-                # Calculate timestamp from call start
-                timestamp_ms = 0
-                if call_start_time:
-                    elapsed = datetime.utcnow() - call_start_time
-                    timestamp_ms = int(elapsed.total_seconds() * 1000)
-                
-                # Broadcast audio to other participants
-                result = await connection_manager.broadcast_audio(
-                    session_id=session_id,
-                    speaker_id=user_id,
-                    audio_data=audio_data,
-                    timestamp_ms=timestamp_ms
-                )
-                
-                # Also publish to Redis for any workers (e.g., recording)
-                # Note: broadcast_audio now handles translation publishing
-                # We might still want to publish raw audio for recording if not already done
-                # But let's assume broadcast_audio covers what we need for now
-                
-                # Log routing result (debug level)
-                logger.debug(f"[WebSocket] Audio routed: {result}")
     
     except WebSocketDisconnect:
         logger.info(f"[WebSocket] User {user_id} disconnected from session {session_id}")

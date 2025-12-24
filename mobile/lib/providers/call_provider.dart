@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
-import 'package:flutter_sound/flutter_sound.dart';
+// import 'package:flutter_sound/flutter_sound.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -11,6 +11,8 @@ import '../data/api/api_service.dart';
 import '../models/call.dart';
 import '../models/live_caption.dart';
 import '../models/participant.dart';
+import '../utils/pcm_stream_source.dart';
+import 'package:just_audio/just_audio.dart' as ja;
 
 class CallProvider with ChangeNotifier {
   CallStatus _status = CallStatus.pending;
@@ -27,10 +29,12 @@ class CallProvider with ChangeNotifier {
   bool _disposed = false;
 
   AudioRecorder? _audioRecorder;
-  FlutterSoundPlayer? _player;
+  ja.AudioPlayer? _audioPlayer; // Just Audio player
   AudioSession? _audioSession;
   StreamSubscription<Uint8List>? _micStreamSub;
   StreamSubscription<Uint8List>? _incomingAudioSub;
+  StreamController<List<int>>?
+      _audioStreamController; // Controller for incoming audio
   bool _isMuted = false;
   bool _isSpeakerOn = false;
 
@@ -99,34 +103,57 @@ class CallProvider with ChangeNotifier {
         return;
       }
 
-      // Configure Audio Session
+      // Configure Audio Session for Voice Call
       _audioSession = await AudioSession.instance;
-      await _audioSession?.configure(const AudioSessionConfiguration.speech());
+      await _audioSession?.configure(AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.defaultToSpeaker |
+                AVAudioSessionCategoryOptions.allowBluetooth |
+                AVAudioSessionCategoryOptions.allowBluetoothA2dp,
+        avAudioSessionMode: AVAudioSessionMode.voiceChat,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          flags: AndroidAudioFlags.none,
+          usage: AndroidAudioUsage.voiceCommunication,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: true,
+      ));
 
-      // Initialize Player
-      if (_player == null) {
-        _player = FlutterSoundPlayer();
-        await _player!.openPlayer();
+      _isSpeakerOn = true; // Default to speaker for now for testing
+
+      // Initialize Player (just_audio)
+      if (_audioPlayer == null) {
+        _audioPlayer = ja.AudioPlayer();
       }
 
-      await _player!.startPlayerFromStream(
-        codec: Codec.pcm16,
-        numChannels: 1,
-        sampleRate: 16000,
-        bufferSize: 8192,
-        interleaved: false,
-      );
+      // Create stream controller for incoming audio
+      _audioStreamController?.close();
+      _audioStreamController = StreamController<List<int>>();
+
+      // Set audio source
+      final source =
+          PCMStreamSource(audioStream: _audioStreamController!.stream);
+      await _audioPlayer!.setAudioSource(source);
+
+      // Start playing immediately (buffer will fill from stream)
+      _audioPlayer!.play();
 
       // Listen to incoming audio from WebSocket and feed to player
       _incomingAudioSub?.cancel();
       int _chunksReceived = 0;
       _incomingAudioSub = _wsService.audioStream.listen((data) {
-        if (_player != null && !_player!.isStopped) {
-          (_player as dynamic).foodSink?.add(FoodData(data));
-          _chunksReceived++;
-          if (_chunksReceived % 50 == 0) {
-            debugPrint(
-                '[CallProvider] Received 50 chunks of audio (${data.length} bytes each)');
+        if (_audioPlayer != null &&
+            _audioStreamController != null &&
+            !_audioStreamController!.isClosed) {
+          if (data.isNotEmpty) {
+            _audioStreamController!.add(data);
+            _chunksReceived++;
+            if (_chunksReceived % 20 == 0) {
+              debugPrint(
+                  '[CallProvider] Playing chunk #$_chunksReceived (${data.length} bytes)');
+            }
           }
         }
       });
@@ -163,32 +190,28 @@ class CallProvider with ChangeNotifier {
   }
 
   Future<void> _disposeAudio() async {
+    _micStreamSub?.cancel();
+    _incomingAudioSub?.cancel();
+
+    // Close stream controller
+    _audioStreamController?.close();
+    _audioStreamController = null;
+
     try {
-      _micStreamSub?.cancel();
-      if (_audioRecorder != null) {
-        try {
-          // Check if recording before stopping to avoid "Recorder not created" error
-          if (await _audioRecorder!.isRecording()) {
-            await _audioRecorder!.stop();
-          }
-        } catch (e) {
-          debugPrint('[CallProvider] Ignored error stopping recorder: $e');
-        }
-        await _audioRecorder!.dispose();
-        _audioRecorder = null;
-      }
-
-      _incomingAudioSub?.cancel();
-      if (_player != null) {
-        await _player!.stopPlayer();
-        await _player!.closePlayer();
-        _player = null;
-      }
-
-      _audioSession = null;
+      _audioRecorder?.stop();
     } catch (e) {
-      debugPrint('[CallProvider] Error disposing audio: $e');
+      debugPrint('[CallProvider] Error stopping recorder: $e');
     }
+
+    try {
+      _audioPlayer?.stop();
+    } catch (e) {
+      debugPrint('[CallProvider] Error stopping player: $e');
+    }
+
+    _audioRecorder = null;
+    _audioPlayer = null;
+    _audioSession = null;
   }
 
   void endCall() {
@@ -414,6 +437,9 @@ class CallProvider with ChangeNotifier {
         await _wsSub?.cancel(); // Cancel lobby subscription first
         await _wsService.connect(sessionId);
         _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
+
+        // Initialize Audio (recorder + player) - same as startCall()
+        await _initAudio();
       } else {
         throw Exception('No session_id in accept call response');
       }
