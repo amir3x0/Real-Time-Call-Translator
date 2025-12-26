@@ -77,7 +77,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF12122A), Color(0xFF1A1A3A), Color(0xFF2B2B5C)],
+                  colors: [
+                    Color(0xFF12122A),
+                    Color(0xFF1A1A3A),
+                    Color(0xFF2B2B5C)
+                  ],
                 ),
               ),
             ),
@@ -113,7 +117,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                   duration: const Duration(milliseconds: 200),
                   opacity: _subtitleOpacity,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.white.withAlpha(20),
                       border: Border.all(color: Colors.white10),
@@ -141,7 +146,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
             right: 0,
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -163,7 +169,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
             bottom: 0,
             child: SafeArea(
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                 decoration: const BoxDecoration(
                   color: Color(0xFF121226),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

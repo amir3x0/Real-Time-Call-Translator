@@ -147,6 +147,13 @@ class AppTheme {
     color: lightText,
   );
 
+  static const TextStyle titleSmall = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.1,
+    color: lightText,
+  );
+
   static const TextStyle bodyLarge = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w400,
@@ -158,6 +165,13 @@ class AppTheme {
     fontSize: 14,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.25,
+    color: secondaryText,
+  );
+
+  static const TextStyle bodySmall = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.4,
     color: secondaryText,
   );
 
@@ -293,8 +307,10 @@ class AppTheme {
       headlineMedium: headlineMedium,
       titleLarge: titleLarge,
       titleMedium: titleMedium,
+      titleSmall: titleSmall,
       bodyLarge: bodyLarge,
       bodyMedium: bodyMedium,
+      bodySmall: bodySmall,
       labelLarge: labelLarge,
     ),
   );

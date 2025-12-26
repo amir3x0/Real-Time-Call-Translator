@@ -5,6 +5,8 @@ import '../contacts/contacts_screen.dart';
 import '../settings/settings_screen.dart';
 import '../../config/app_theme.dart';
 
+import '../../data/api/api_service.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -34,13 +36,13 @@ class _HomeScreenState extends State<HomeScreen>
   void _handleScroll() {
     final currentOffset = _scrollController.offset;
     final delta = currentOffset - _lastScrollOffset;
-    
+
     if (delta > 10 && _isNavVisible) {
       setState(() => _isNavVisible = false);
     } else if (delta < -10 && !_isNavVisible) {
       setState(() => _isNavVisible = true);
     }
-    
+
     _lastScrollOffset = currentOffset;
   }
 
@@ -125,17 +127,24 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 // Custom App Bar
                 _buildAppBar()
-                  .animate()
-                  .fadeIn(duration: 400.ms)
-                  .slideY(begin: -0.2, end: 0),
+                    .animate()
+                    .fadeIn(duration: 400.ms)
+                    .slideY(begin: -0.2, end: 0),
 
                 // Start Call Hero Button (only on Contacts tab)
                 if (_currentIndex == 0) ...[
                   const SizedBox(height: 16),
                   _buildStartCallButton()
-                    .animate()
-                    .fadeIn(delay: 200.ms, duration: 400.ms)
-                    .scale(begin: const Offset(0.95, 0.95), end: const Offset(1, 1)),
+                      .animate()
+                      .fadeIn(delay: 200.ms, duration: 400.ms)
+                      .scale(
+                          begin: const Offset(0.95, 0.95),
+                          end: const Offset(1, 1)),
+                  const SizedBox(height: 12),
+                  _buildQuickCallButton()
+                      .animate()
+                      .fadeIn(delay: 300.ms, duration: 400.ms)
+                      .slideX(begin: 0.1, end: 0),
                 ],
 
                 // Body Content
@@ -154,9 +163,9 @@ class _HomeScreenState extends State<HomeScreen>
             left: 40,
             right: 40,
             child: _buildFloatingNavBar()
-              .animate()
-              .fadeIn(delay: 500.ms, duration: 400.ms)
-              .slideY(begin: 0.5, end: 0),
+                .animate()
+                .fadeIn(delay: 500.ms, duration: 400.ms)
+                .slideY(begin: 0.5, end: 0),
           ),
         ],
       ),
@@ -175,7 +184,8 @@ class _HomeScreenState extends State<HomeScreen>
             decoration: BoxDecoration(
               gradient: AppTheme.primaryGradient,
               borderRadius: AppTheme.borderRadiusSmall,
-              boxShadow: AppTheme.glowShadow(AppTheme.primaryElectricBlue.withValues(alpha: 0.3)),
+              boxShadow: AppTheme.glowShadow(
+                  AppTheme.primaryElectricBlue.withValues(alpha: 0.3)),
             ),
             child: const Icon(
               Icons.translate,
@@ -190,7 +200,8 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 Text(
                   'Voice Translator',
-                  style: AppTheme.titleMedium.copyWith(fontWeight: FontWeight.w600),
+                  style: AppTheme.titleMedium
+                      .copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   _getSubtitle(),
@@ -282,7 +293,8 @@ class _HomeScreenState extends State<HomeScreen>
                         decoration: BoxDecoration(
                           gradient: AppTheme.primaryGradient,
                           shape: BoxShape.circle,
-                          boxShadow: AppTheme.glowShadow(AppTheme.primaryElectricBlue),
+                          boxShadow:
+                              AppTheme.glowShadow(AppTheme.primaryElectricBlue),
                         ),
                         child: const Icon(
                           Icons.call,
@@ -326,6 +338,121 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildQuickCallButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: ClipRRect(
+        borderRadius: AppTheme.borderRadiusLarge,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppTheme.darkCard.withValues(alpha: 0.6),
+              borderRadius: AppTheme.borderRadiusLarge,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
+                width: 1,
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: AppTheme.borderRadiusLarge,
+                onTap: _handleQuickCall,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color:
+                              AppTheme.secondaryPurple.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.record_voice_over,
+                          color: AppTheme.secondaryPurple,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const SizedBox(width: 16),
+                      Flexible(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Start Quick Call',
+                              style: AppTheme.titleSmall.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Test translation with yourself',
+                              style: AppTheme.bodySmall.copyWith(
+                                color: AppTheme.secondaryText,
+                                fontSize: 10,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white.withValues(alpha: 0.5),
+                        size: 14,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleQuickCall() async {
+    try {
+      final apiService = ApiService(); // Simple instantiation
+      final result = await apiService.initiateQuickCall();
+
+      if (!mounted) return;
+
+      // Navigate to call screen using the returned call/session ID
+      // Assuming result contains session_id
+      final sessionId = result['session_id'];
+      if (sessionId != null) {
+        Navigator.pushNamed(context, '/call/active', arguments: sessionId);
+      }
+    } catch (e) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Connection Error'),
+            content: Text(
+                'Failed to start call.\n\nError: $e\n\nEnsure backend is running on localhost:8000.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              )
+            ],
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildBody() {
@@ -406,9 +533,12 @@ class _HomeScreenState extends State<HomeScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildNavItem(0, Icons.contacts_outlined, Icons.contacts, 'Contacts'),
-              _buildNavItem(1, Icons.history_outlined, Icons.history, 'Recents'),
-              _buildNavItem(2, Icons.settings_outlined, Icons.settings, 'Settings'),
+              _buildNavItem(
+                  0, Icons.contacts_outlined, Icons.contacts, 'Contacts'),
+              _buildNavItem(
+                  1, Icons.history_outlined, Icons.history, 'Recents'),
+              _buildNavItem(
+                  2, Icons.settings_outlined, Icons.settings, 'Settings'),
             ],
           ),
         ),
@@ -416,7 +546,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label) {
+  Widget _buildNavItem(
+      int index, IconData icon, IconData activeIcon, String label) {
     final isActive = _currentIndex == index;
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
@@ -435,14 +566,18 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             Icon(
               isActive ? activeIcon : icon,
-              color: isActive ? AppTheme.primaryElectricBlue : AppTheme.secondaryText,
+              color: isActive
+                  ? AppTheme.primaryElectricBlue
+                  : AppTheme.secondaryText,
               size: 24,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isActive ? AppTheme.primaryElectricBlue : AppTheme.secondaryText,
+                color: isActive
+                    ? AppTheme.primaryElectricBlue
+                    : AppTheme.secondaryText,
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
               ),

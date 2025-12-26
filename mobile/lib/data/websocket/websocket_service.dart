@@ -65,6 +65,7 @@ class WSMessage {
       case 'call_ended':
         return WSMessageType.callEnded;
       case 'transcript':
+      case 'translation': // Handle translation messages as transcripts
         return WSMessageType.transcript;
       case 'error':
         return WSMessageType.error;
@@ -75,7 +76,7 @@ class WSMessage {
 }
 
 /// WebSocket service for real-time call communication
-/// 
+///
 /// Handles:
 /// - Connection to call session
 /// - Sending/receiving audio data
@@ -109,7 +110,7 @@ class WebSocketService {
   String? get callId => _callId;
 
   /// Connect to a call session
-  /// 
+  ///
   /// Parameters:
   /// - sessionId: Call session ID from startCall response
   /// - callId: Call ID (optional, for database reference)
@@ -122,7 +123,7 @@ class WebSocketService {
       // Get user ID and token from storage
       final prefs = await SharedPreferences.getInstance();
       _userId = prefs.getString(AppConfig.userIdKey);
-      
+
       if (_userId == null) {
         debugPrint('[WebSocketService] No user ID found');
         return false;
@@ -285,7 +286,7 @@ class WebSocketService {
     debugPrint('[WebSocketService] Connection closed');
     _isConnected = false;
     _stopHeartbeat();
-    
+
     _messageController?.add(WSMessage(
       type: WSMessageType.callEnded,
       data: {'reason': 'connection_closed'},
@@ -308,7 +309,7 @@ class MockWebSocketService extends WebSocketService {
   @override
   Future<bool> connect(String sessionId, {String? callId}) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     _messageController = StreamController<WSMessage>.broadcast();
     _audioController = StreamController<Uint8List>.broadcast();
     _isConnected = true;

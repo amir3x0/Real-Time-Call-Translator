@@ -53,7 +53,7 @@ class CallService:
     """Service for managing calls and call participants"""
     
     # Participant limits
-    MIN_PARTICIPANTS = 2
+    MIN_PARTICIPANTS = 1
     MAX_PARTICIPANTS = 4
     
     @staticmethod
@@ -285,8 +285,6 @@ class CallService:
             call_id=call.id,
             user_id=user.id,
             participant_language=user.primary_language,
-            target_language=user.primary_language,
-            speaking_language=user.primary_language,
             joined_at=datetime.utcnow() if is_caller else None,
             is_connected=is_caller,
         )

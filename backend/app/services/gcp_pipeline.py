@@ -88,7 +88,7 @@ class GCPSpeechPipeline:
             sample_rate_hertz=16000,
             language_code=language_code,
             enable_automatic_punctuation=True,
-            model="phone_call",
+            # model="phone_call", # Removed to support more languages
         )
         audio = speech.RecognitionAudio(content=chunk)
         response = self._speech_client.recognize(config=config, audio=audio)
@@ -133,7 +133,8 @@ class GCPSpeechPipeline:
             name=voice_name or f"{language_code}-Standard-A",
         )
         audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3,
+            audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+            sample_rate_hertz=16000,
             speaking_rate=1.0,
             pitch=0.0,
         )
@@ -166,7 +167,7 @@ class GCPSpeechPipeline:
             sample_rate_hertz=16000,
             language_code=language_code,
             enable_automatic_punctuation=True,
-            model="phone_call",
+            # model="phone_call", # Removed to support more languages
         )
         
         streaming_config = speech.StreamingRecognitionConfig(
