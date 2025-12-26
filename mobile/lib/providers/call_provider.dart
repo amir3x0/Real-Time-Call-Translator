@@ -12,7 +12,12 @@ import '../models/participant.dart';
 
 class CallProvider with ChangeNotifier {
   static const List<String> _languagePool = ['he', 'en', 'ru'];
-  static const List<String> _connectionQualities = ['excellent', 'good', 'fair', 'poor'];
+  static const List<String> _connectionQualities = [
+    'excellent',
+    'good',
+    'fair',
+    'poor'
+  ];
   static const List<String> _mockNames = [
     'Daniel',
     'Emma',
@@ -41,7 +46,8 @@ class CallProvider with ChangeNotifier {
   CallStatus get status => _status;
   List<CallParticipant> get participants => List.unmodifiable(_participants);
   String get liveTranscription => _liveTranscription;
-  List<LiveCaptionData> get captionBubbles => List.unmodifiable(_captionBubbles);
+  List<LiveCaptionData> get captionBubbles =>
+      List.unmodifiable(_captionBubbles);
   String? get activeSpeakerId => _activeSpeakerId;
 
   @visibleForTesting
@@ -54,7 +60,7 @@ class CallProvider with ChangeNotifier {
   void startMockCall() {
     _status = CallStatus.active;
     _activeSessionId = "session_123";
-    
+
     // Create Mock Participants
     _participants = [
       CallParticipant(
@@ -110,7 +116,7 @@ class CallProvider with ChangeNotifier {
         displayName: 'Igor',
       ),
     ];
-    
+
     // start mock ws
     _wsService.connect(_activeSessionId ?? 'mock_session');
     _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
@@ -126,7 +132,9 @@ class CallProvider with ChangeNotifier {
     final parts = resp['participants'] as List<dynamic>;
 
     // Map participants
-    _participants = parts.map((p) => CallParticipant.fromJson(Map<String, dynamic>.from(p))).toList();
+    _participants = parts
+        .map((p) => CallParticipant.fromJson(Map<String, dynamic>.from(p)))
+        .toList();
     _status = CallStatus.active;
     _activeSessionId = sessionId;
 
@@ -160,7 +168,8 @@ class CallProvider with ChangeNotifier {
     if (_status != CallStatus.active) return false;
     if (_participants.length >= 6) return false; // keep grid readable
 
-    final speakingLanguage = _languagePool[_random.nextInt(_languagePool.length)];
+    final speakingLanguage =
+        _languagePool[_random.nextInt(_languagePool.length)];
     String targetLanguage = speakingLanguage;
     while (targetLanguage == speakingLanguage) {
       targetLanguage = _languagePool[_random.nextInt(_languagePool.length)];
@@ -176,7 +185,8 @@ class CallProvider with ChangeNotifier {
       joinedAt: DateTime.now(),
       createdAt: DateTime.now(),
       isConnected: true,
-      connectionQuality: _connectionQualities[_random.nextInt(_connectionQualities.length)],
+      connectionQuality:
+          _connectionQualities[_random.nextInt(_connectionQualities.length)],
       isMuted: _random.nextBool(),
       displayName: displayName,
     );
@@ -188,16 +198,22 @@ class CallProvider with ChangeNotifier {
 
   void _handleWebSocketMessage(WSMessage message) {
     if (_participants.isEmpty) return;
-    
+
     // Handle different message types
     switch (message.type) {
       case WSMessageType.transcript:
-        final text = message.data?['text'] as String? ?? '';
-        final speakerId = message.data?['speaker_id'] as String? ?? 
+        final text = message.data?['transcript'] as String? ?? '';
+        final translation = message.data?['translation'] as String? ?? '';
+        final speakerId = message.data?['speaker_id'] as String? ??
             _participants[_random.nextInt(_participants.length)].id;
+
         _liveTranscription = text;
+        if (translation.isNotEmpty) {
+          _liveTranscription = "$text\n($translation)";
+        }
+
         _setActiveSpeaker(speakerId);
-        _addCaptionBubble(speakerId, text);
+        _addCaptionBubble(speakerId, _liveTranscription);
         break;
       case WSMessageType.participantJoined:
         // Handle participant joined

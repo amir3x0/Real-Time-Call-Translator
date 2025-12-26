@@ -223,11 +223,15 @@ class ConnectionManager:
         target_lang = translation_data.get("target_lang")
         connections = list(self._sessions[session_id].values())
         
+        # Check for self-test (single participant)
+        is_self_test = len(connections) == 1
+        
         for conn in connections:
             # Send if participant language matches target language
             # OR if it's the speaker (maybe for confirmation?) - usually no
             # We only send to those who need this language
-            if conn.participant_language == target_lang:
+            # SPECIAL CASE: If self-test, always send the result so they can hear the translation
+            if is_self_test or conn.participant_language == target_lang:
                 if await conn.send_json(translation_data):
                     sent_count += 1
                     
@@ -278,17 +282,32 @@ class ConnectionManager:
             if conn.user_id != speaker_id and not conn.is_muted
         ]
         
+        # Check for self-test (single participant)
+        is_self_test = len(self._sessions[session_id]) == 1
+        
         # Group by target language
         translation_requests = set()
         
-        for conn in connections:
-            if conn.dubbing_required:
-                # Add to set of needed translations (source -> target)
-                translation_requests.add((speaker_conn.participant_language, conn.participant_language))
-            else:
-                # Same language - passthrough
-                await conn.send_bytes(audio_data)
-                result["passthrough_count"] += 1
+        if is_self_test:
+            # SELF TEST MODE: Force translation to opposite language
+            # defaults: he -> en, en -> he, others -> en
+            source_lang = speaker_conn.participant_language
+            target_lang = "en-US"
+            if "en" in source_lang.lower():
+                target_lang = "he-IL" # Default to Hebrew for English speakers
+            elif "he" in source_lang.lower():
+                target_lang = "en-US"
+                
+            translation_requests.add((source_lang, target_lang))
+        else:
+            for conn in connections:
+                if conn.dubbing_required:
+                    # Add to set of needed translations (source -> target)
+                    translation_requests.add((speaker_conn.participant_language, conn.participant_language))
+                else:
+                    # Same language - passthrough
+                    await conn.send_bytes(audio_data)
+                    result["passthrough_count"] += 1
         
         # Publish for translation
         from app.services.rtc_service import publish_audio_chunk

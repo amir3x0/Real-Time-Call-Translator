@@ -8,8 +8,8 @@ class AppConfig {
   // TODO: Change this based on your device:
   // - Emulator: 'http://10.0.2.2:8000'
   // - Physical phone: 'http://192.168.1.184:8000' (your computer's IP)
-  static const String baseUrl = 'http://127.0.0.1:8000';
-  static const String wsUrl = 'ws://127.0.0.1:8000';
+  static const String baseUrl = 'http://localhost:8000';
+  static const String wsUrl = 'ws://localhost:8000';
 
   // API Endpoints
   static const String healthEndpoint = '/health';
