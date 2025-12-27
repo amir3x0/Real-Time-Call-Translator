@@ -235,6 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirmed == true) {
+      if (!mounted) return;
       // Update locally
       setState(() => _selectedLang = newLangCode);
       final settingsProv =

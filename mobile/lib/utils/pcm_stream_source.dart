@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -40,7 +40,7 @@ class PCMStreamSource extends StreamAudioSource {
         sourceLength: null,
         contentLength: null,
         offset: 0,
-        stream: Stream.empty(),
+        stream: const Stream.empty(),
         contentType: 'audio/wav',
       );
     }

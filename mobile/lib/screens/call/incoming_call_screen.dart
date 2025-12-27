@@ -138,7 +138,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.blue.withOpacity(0.3),
+                                color: Colors.blue.withValues(alpha: 0.3),
                                 blurRadius: 20,
                                 spreadRadius: 5,
                               ),
@@ -168,7 +168,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
+                            color: Colors.white.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -207,10 +207,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                           _countdownTimer?.cancel();
                           await callProvider.acceptIncomingCall();
                           // Navigation to active call
-                          if (mounted) {
-                            Navigator.of(context)
-                                .pushReplacementNamed('/call/active');
-                          }
+                          if (!context.mounted) return;
+                          Navigator.of(context)
+                              .pushReplacementNamed('/call/active');
                         },
                       ),
                     ],
@@ -248,7 +247,7 @@ class _ActionButton extends StatelessWidget {
           color: color,
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.4),
+              color: color.withValues(alpha: 0.4),
               blurRadius: 15,
               spreadRadius: 2,
             ),
