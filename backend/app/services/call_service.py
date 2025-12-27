@@ -56,7 +56,7 @@ class CallService:
     """Service for managing calls and call participants"""
     
     # Participant limits
-    MIN_PARTICIPANTS = 2
+    MIN_PARTICIPANTS = 1
     MAX_PARTICIPANTS = 4
     
     @staticmethod

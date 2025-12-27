@@ -304,6 +304,15 @@ class ApiService {
     throw Exception('Failed to start call: ${resp.body}');
   }
 
+  Future<Map<String, dynamic>> initiateQuickCall() async {
+    final user = await getCurrentUser();
+    if (user == null) throw Exception('Not authenticated');
+
+    // Quick call = Call with just myself
+    // Backend handles single-participant logic as a self-test loopback
+    return startCall([user.id]);
+  }
+
   Future<void> endCall(String callId) async {
     final token = await _getToken();
 

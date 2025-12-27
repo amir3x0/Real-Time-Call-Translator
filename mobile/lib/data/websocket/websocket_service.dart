@@ -68,6 +68,7 @@ class WSMessage {
       case 'call_ended':
         return WSMessageType.callEnded;
       case 'transcript':
+      case 'translation': // Handle translation messages as transcripts
         return WSMessageType.transcript;
       case 'incoming_call':
         return WSMessageType.incomingCall;

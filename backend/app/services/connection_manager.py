@@ -332,11 +332,15 @@ class ConnectionManager:
         target_lang = translation_data.get("target_lang")
         connections = list(self._sessions[session_id].values())
         
+        # Check for self-test (single participant)
+        is_self_test = len(connections) == 1
+        
         for conn in connections:
             # Send if participant language matches target language
             # OR if it's the speaker (maybe for confirmation?) - usually no
             # We only send to those who need this language
-            if conn.participant_language == target_lang:
+            # SPECIAL CASE: If self-test, always send the result so they can hear the translation
+            if is_self_test or conn.participant_language == target_lang:
                 if await conn.send_json(translation_data):
                     sent_count += 1
                     
