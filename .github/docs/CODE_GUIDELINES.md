@@ -8,6 +8,7 @@
 5. [Testing](#testing)
 6. [Error Handling](#error-handling)
 7. [Security](#security)
+8. [Dart/Flutter](#dartflutter-client-guidelines)
 
 ---
 
@@ -43,14 +44,14 @@ Follow **PEP 8** with these specifics:
 # Blank lines: 2 before top-level definitions, 1 before method definitions
 
 # ✅ Good
-async def get_user_by_email(
-    email: str,
+async def get_user_by_phone(
+    phone: str,
     include_deleted: bool = False
 ) -> User | None:
     """Get user by email address.
     
     Args:
-        email: User's email address
+        phone: User's phone number
         include_deleted: Whether to include soft-deleted users
         
     Returns:
@@ -209,11 +210,11 @@ class User(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     
     # Required fields first
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    name = Column(String(255), nullable=False)
+    phone = Column(String(20), unique=True, nullable=False, index=True)
+    full_name = Column(String(255), nullable=False)
     
     # Optional fields
-    phone = Column(String(20), unique=True, nullable=True)
+    email = Column(String(255), unique=True, nullable=True)
     
     # Boolean flags
     is_active = Column(Boolean, default=True)
@@ -226,13 +227,13 @@ class User(Base):
         """Convert model to dictionary."""
         return {
             "id": self.id,
-            "email": self.email,
-            "name": self.name,
+            "phone": self.phone,
+            "full_name": self.full_name,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
     
     def __repr__(self) -> str:
-        return f"<User {self.email}>"
+        return f"<User {self.phone}>"
 ```
 
 ### Indexes
@@ -481,6 +482,38 @@ raise HTTPException(
 
 ### Never Commit
 ```
+## Dart/Flutter (Client Guidelines)
+
+### Project Structure & Files
+- Maintain the `mobile/lib/` structure with the following folders:
+    - `api/` - Central REST API client (`api_service.dart`)
+    - `websocket/` - WebSocket adapter and message serialization
+    - `services/` - App services: `audio_service.dart`, audio conversion, playback
+    - `providers/` - State providers (auth, call state, settings)
+    - `models/` - DTOs and data models that match the backend schema
+    - `screens/` - UI screens (login, home, call, settings)
+    - `widgets/` - Reusable UI widgets and components
+
+### Style & Patterns
+- Follow the official [Dart Style Guide](https://dart.dev/guides/language/effective-dart/style).
+- Use `provider` for state management; prefer small focused providers per domain (AuthProvider, CallProvider, SettingsProvider).
+- Keep services small and single-responsibility: `AudioService` for capture and playback, `ApiService` for API calls, `WebSocketService` for real-time messages.
+- Use the `web_socket_channel` package and implement automatic reconnect / exponential backoff strategies in the WebSocket adapters.
+- For audio processing, use 16kHz mono 16-bit PCM and chunk sizes around 100-300ms (200ms recommended). Use `flutter_sound` or platform-specific native audio capture if needed.
+
+### Message Contracts & Serialization
+- Use consistent JSON message shapes for WebSocket messages (audio, control, translation). Reuse backend message types when possible.
+- Implement typed DTOs in `models/` with `fromJson()` and `toJson()` methods. Keep these DTOs aligned with backend pydantic models.
+
+### Testing & Lint
+- Run `flutter analyze` frequently during development.
+- Write `widget` tests for UI screens and provider integration tests using `flutter_test` with `mocktail` or `mockito` for mocking services.
+- Unit test core logic in `services/` and `providers/` using small and focused test cases.
+
+### Security
+- Never include API credentials in source code. Use backend-based token exchange and `shared_preferences` only for non-sensitive data.
+- Always request and verify microphone and storage permissions before reading/writing files.
+
 .env files
 google-credentials.json
 Any API keys
@@ -493,15 +526,17 @@ Private keys
 from pydantic import BaseModel, validator
 
 class UserCreate(BaseModel):
-    email: str
-    name: str
+    phone: str
+    full_name: str
     primary_language: str
     
-    @validator('email')
-    def email_must_be_valid(cls, v):
-        if '@' not in v:
-            raise ValueError('Invalid email format')
-        return v.lower()
+    @validator('phone')
+    def phone_must_be_valid(cls, v):
+        import re
+        digits = re.sub(r"\D", "", v)
+        if len(digits) < 6:
+            raise ValueError('Invalid phone number')
+        return v
     
     @validator('primary_language')
     def language_must_be_supported(cls, v):
@@ -559,7 +594,7 @@ def save_voice_sample(user_id: str, file_data: bytes):
 ```python
 # ✅ Good - Use specific columns
 result = await db.execute(
-    select(User.id, User.email, User.name)
+    select(User.id, User.phone, User.full_name)
     .where(User.is_active == True)
 )
 

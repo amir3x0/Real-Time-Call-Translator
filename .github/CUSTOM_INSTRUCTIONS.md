@@ -46,6 +46,27 @@ This is a real-time multilingual call translation system with voice cloning capa
 - **Language**: Dart
 - **Platforms**: iOS and Android
 
+## Mobile Architecture (Client-side details)
+The Flutter client uses `provider` for state management and is organized into `api`, `services`, `providers`, `models`, `screens`, and `widgets` directories under `mobile/lib`.
+
+- `mobile/lib/api/api_service.dart`: Central REST client with typed DTOs, token injection, and error handling.
+- `mobile/lib/websocket/`: WebSocket adapters and utilities for real-time audio and control messages (connect/reconnect, ping/pong, message serialization).
+- `mobile/lib/services/audio_service.dart`: Records and plays audio using `flutter_sound` and `just_audio`, with recommended 16kHz mono sample rate and 200ms chunking. Implements audio format conversion and chunk queueing for WebSocket upload.
+- `mobile/lib/providers/*`: State providers:
+    - `auth_provider.dart` - Manages sign-in, sign-out, and token storage in `shared_preferences`.
+    - `call_provider.dart` - Tracks call session state, participants, language mapping, mute/unmute states.
+    - `settings_provider.dart` - Stores application preferences and language selection.
+- UI structure includes screens: Login (`auth/login_screen.dart`), Home (`home/home_screen.dart`), Active Call (`call/active_call_screen.dart`), Settings (`settings/`), and Widget components such as `participant_card` and `custom_button`.
+
+Testing & Quality:
+- Use `flutter_test` for Widget tests and `mocktail` or `mockito` for unit testing providers and services.
+- Run `flutter analyze` and `flutter test` as part of the CI pipeline for Flutter changes.
+
+Security and Best Practices (Client):
+- Do not embed API credentials or service keys in client code; store them in the backend and use token-based auth.
+- Always request and check microphone permissions (via `permission_handler`) before recording.
+- Use `shared_preferences` for non-sensitive settings; tokens must be stored securely using platform-specific secure storage if necessary.
+
 ## Architecture Principles
 
 ### 1. Async-First Approach

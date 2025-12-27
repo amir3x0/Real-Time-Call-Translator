@@ -9,13 +9,12 @@ services:
       POSTGRES_DB: call_translator
     volumes:
       - translator_postgres_data:/var/lib/postgresql/data
-      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5433:5432"
     networks:
       - translator_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U translator_admin -d call_translator"]
+      test: [ "CMD-SHELL", "pg_isready -U translator_admin -d call_translator" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,7 +32,7 @@ services:
     networks:
       - translator_network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -41,6 +40,9 @@ services:
 
   # Backend API
   backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: translator-backend
     container_name: translator_api
     environment:
@@ -57,6 +59,8 @@ services:
       - ./app:/app/app
       - ./tests:/app/tests
       - ./data:/app/data
+    # Hot reload for development - auto-restart on code changes
+    command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
     ports:
       - "8000:8000"
     depends_on:
@@ -68,20 +72,37 @@ services:
       - translator_network
     restart: unless-stopped
 
-  # pgAdmin for database management
-  pgadmin:
-    image: dpage/pgadmin4:latest
+  # Adminer for database management
+  adminer:
+    image: adminer:latest
     container_name: translator_dbadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@translator.com
-      PGADMIN_DEFAULT_PASSWORD: PgAdmin2024
     ports:
-      - "5050:80"
+      - "8080:8080"
+    networks:
+      - translator_network
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+
+  # Verification Script Runner
+  verifier:
+    image: python:3.10-slim
+    container_name: translator_verifier
+    working_dir: /app
+    volumes:
+      - ../scripts:/app/scripts
+    environment:
+      - BASE_URL=http://backend:8000
+      - WS_URL=ws://backend:8000
+    command: >
+      sh -c "pip install httpx websockets && python scripts/verify_flow.py"
     networks:
       - translator_network
     depends_on:
-      - postgres
-    restart: unless-stopped
+      backend:
+        condition: service_started
+    profiles:
+      - test
 
 volumes:
   translator_postgres_data:

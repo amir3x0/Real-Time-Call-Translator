@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import asyncio
 import functools
 from dataclasses import dataclass
@@ -25,6 +26,27 @@ class GCPSpeechPipeline:
     """Thin wrapper around Google Cloud Speech/Translate/TTS services."""
 
     def __init__(self, project_id: Optional[str] = None, location: str = "global"):
+        # Ensure GOOGLE_APPLICATION_CREDENTIALS is set for client libraries
+        # Ensure GOOGLE_APPLICATION_CREDENTIALS is set for client libraries
+        if settings.GOOGLE_APPLICATION_CREDENTIALS and "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
+            creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
+            # Handle Docker path when running locally
+            if creds_path.startswith("/app/") and not os.path.exists(creds_path):
+                # Common local paths to check
+                possible_paths = [
+                    creds_path.replace("/app/", ""),  # Strip /app/ prefix safely
+                    creds_path.replace("/app/", "app/"), # Map /app/ to app/
+                    os.path.join("app", "config", os.path.basename(creds_path)), # Hardcoded common location
+                    os.path.join(os.getcwd(), "app", "config", os.path.basename(creds_path))
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        creds_path = path
+                        break
+            
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+
         self.project_id = project_id or settings.GOOGLE_PROJECT_ID
         if not self.project_id:
             raise RuntimeError(
@@ -122,6 +144,58 @@ class GCPSpeechPipeline:
             audio_config=audio_config,
         )
         return response.audio_content
+
+
+    def streaming_transcribe(
+        self,
+        audio_generator,
+        language_code: str = "he-IL",
+    ):
+        """
+        Transcribe audio stream using Google Cloud Speech-to-Text Streaming API.
+        
+        Args:
+            audio_generator: Iterator that yields bytes chunks.
+            language_code: Language code for recognition.
+            
+        Yields:
+            str: Final transcriptions.
+        """
+        config = speech.RecognitionConfig(
+            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+            sample_rate_hertz=16000,
+            language_code=language_code,
+            enable_automatic_punctuation=True,
+            model="phone_call",
+        )
+        
+        streaming_config = speech.StreamingRecognitionConfig(
+            config=config,
+            interim_results=True
+        )
+
+        # Generator to yield StreamingRecognizeRequest
+        def request_generator():
+            for chunk in audio_generator:
+                yield speech.StreamingRecognizeRequest(audio_content=chunk)
+
+        responses = self._speech_client.streaming_recognize(
+            config=streaming_config,
+            requests=request_generator(),
+        )
+
+        for response in responses:
+            if not response.results:
+                continue
+
+            result = response.results[0]
+            if not result.alternatives:
+                continue
+
+            if result.is_final:
+                transcript = result.alternatives[0].transcript.strip()
+                if transcript:
+                    yield transcript
 
 
 @functools.lru_cache(maxsize=1)
