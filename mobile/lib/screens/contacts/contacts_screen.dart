@@ -535,7 +535,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     try {
       await callProvider.startCall([contact.contactUserId]);
 
-      if (!mounted) return;
+      if (!context.mounted) return;
       // Close loader
       Navigator.of(context).pop();
 
@@ -549,7 +549,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         },
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       Navigator.of(context).pop(); // Close loader
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
