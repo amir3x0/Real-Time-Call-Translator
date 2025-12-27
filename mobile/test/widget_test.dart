@@ -11,20 +11,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/main.dart';
 
 void main() {
-  testWidgets('App loads and displays welcome screen', (WidgetTester tester) async {
+  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const CallTranslatorApp());
+    await tester.pumpWidget(const MyApp());
 
-    // Verify that our welcome text is displayed.
-    expect(find.text('Welcome to Call Translator'), findsOneWidget);
-    expect(find.text('Break language barriers with AI'), findsOneWidget);
-    expect(find.byIcon(Icons.translate), findsOneWidget);
+    // Verify that our counter starts at 0.
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
 
-    // Tap the test button and trigger a frame.
-    await tester.tap(find.text('Test App'));
+    // Tap the '+' icon and trigger a frame.
+    await tester.tap(find.byIcon(Icons.add));
     await tester.pump();
 
-    // Verify that the snackbar appears.
-    expect(find.text('Flutter app is running! ✅'), findsOneWidget);
+    // Verify that our counter has incremented.
+    expect(find.text('0'), findsNothing);
+    expect(find.text('1'), findsOneWidget);
   });
 }

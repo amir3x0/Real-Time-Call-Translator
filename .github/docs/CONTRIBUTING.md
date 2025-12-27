@@ -198,22 +198,40 @@ We welcome code contributions! Here are areas where you can help:
    docker exec -it translator_api pytest
    ```
 
-### Mobile Setup (Coming Soon)
-
+### Mobile Setup (Flutter, updated)
 1. **Navigate to mobile directory:**
-   ```bash
-   cd mobile
-   ```
+    ```powershell
+    cd mobile
+    ```
 
 2. **Install dependencies:**
-   ```bash
-   flutter pub get
-   ```
+    ```powershell
+    flutter pub get
+    ```
 
-3. **Run on device:**
-   ```bash
-   flutter run
-   ```
+3. **Run on device or emulator:**
+    ```powershell
+    flutter run
+    ```
+
+4. **Recommended commands for development & testing:**
+    ```powershell
+    # Run static analysis
+    flutter analyze
+
+    # Run widget tests
+    flutter test
+
+    # Build APK for testing
+    flutter build apk --debug
+    ```
+
+5. **Notes and best practices:**
+    - Request and check microphone permissions (via `permission_handler`) before recording.
+    - Use `flutter_sound` and `just_audio` for audio capture & replay. Process audio at 16kHz, mono with 200ms chunk sizes when sending over WebSocket.
+    - The main API service can be found at `mobile/lib/api/api_service.dart`.
+    - WebSocket adapters and message serialization live under `mobile/lib/websocket/` and are used by `call_provider`.
+    - Register providers in `main.dart` using `MultiProvider` for `auth_provider`, `call_provider`, and `settings_provider`.
 
 ---
 

@@ -1,41 +1,80 @@
+import 'package:flutter/foundation.dart';
+
 /// Application configuration constants
 class AppConfig {
+  // ============================================
   // Backend API Configuration
-  static const String baseUrl = 'http://localhost:8000';
-  static const String wsUrl = 'ws://localhost:8000';
-  
+  // ============================================
+
+  /// Backend server port
+  static const int _backendPort = 8000;
+
+  /// Development server hosts for different testing scenarios
+  static const String _devHostPhysical = '10.223.167.22';
+  // Uncomment and use these when testing on emulator/simulator:
+  // static const String _devHostEmulator = '10.0.2.2'; // Android emulator
+  // static const String _devHostSimulator = 'localhost'; // iOS simulator
+
+  /// Production server host (update when deploying)
+  static const String _prodHost = 'your-production-server.com';
+
+  /// Get backend host based on build mode
+  /// **For Debug Mode:**
+  /// - Change `_devHostPhysical` to your computer's WiFi IP for physical device testing
+  /// **For Release Mode:**
+  /// - Update `_prodHost` with your production server URL
+  static String _getBackendHost() {
+    if (kDebugMode) {
+      // Switch between these based on your testing scenario:
+      return _devHostPhysical; // Physical device
+      // For Android emulator, uncomment and use:
+      // return '10.0.2.2';
+      // For iOS simulator, uncomment and use:
+      // return 'localhost';
+    }
+
+    // Production server
+    return _prodHost;
+  }
+
+  /// Base URL for REST API
+  static String get baseUrl => 'http://${_getBackendHost()}:$_backendPort';
+
+  /// WebSocket URL for real-time communication
+  static String get wsUrl => 'ws://${_getBackendHost()}:$_backendPort';
+
   // API Endpoints
   static const String healthEndpoint = '/health';
   static const String wsEndpoint = '/ws';
-  
+
   // Supported Languages
   static const List<String> supportedLanguages = ['he', 'en', 'ru'];
-  
+
   static const Map<String, String> languageNames = {
     'he': 'עברית',
     'en': 'English',
     'ru': 'Русский',
   };
-  
+
   // Audio Configuration
   static const int audioSampleRate = 16000;
   static const int audioChannels = 1; // Mono
   static const int audioBitRate = 16;
   static const int audioChunkDurationMs = 200; // 200ms chunks
-  
+
   // Call Configuration
   static const int maxParticipants = 4;
   static const Duration callTimeout = Duration(hours: 2);
-  
+
   // Connection Configuration
   static const Duration connectionTimeout = Duration(seconds: 30);
   static const Duration reconnectDelay = Duration(seconds: 5);
   static const int maxReconnectAttempts = 3;
-  
+
   // UI Configuration
   static const Duration animationDuration = Duration(milliseconds: 300);
   static const double borderRadius = 12.0;
-  
+
   // Storage Keys
   static const String userIdKey = 'user_id';
   static const String userTokenKey = 'user_token';

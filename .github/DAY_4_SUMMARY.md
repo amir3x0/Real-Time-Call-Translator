@@ -80,6 +80,18 @@ Created `config/app_config.dart`:
 - Audio settings: 16kHz mono, 200ms chunks
 - Connection timeouts configured
 
+### ✅ 7. Client-side Services & UI
+Implemented core client utilities and UI components:
+- `mobile/lib/api/api_service.dart` - REST client with typed response handling and helpers for authentication
+- `mobile/lib/websocket/` - WebSocket adapters for real-time audio and control messages (connect/reconnect, ping/pong)
+- `mobile/lib/services/audio_service.dart` - Audio recording and playback using `flutter_sound` and `just_audio` with 16kHz/mono processing
+- `mobile/lib/providers/` (state management using `provider`):
+   - `auth_provider.dart` - Authentication management and token lifecycle
+   - `call_provider.dart` - Call session state (participants, call status, target language mapping)
+   - `settings_provider.dart` - App settings and language preferences
+- `mobile/lib/widgets/` - Reusable UI widgets: `participant_card.dart`, `custom_button.dart`, `common` widgets
+- Screens added: `mobile/lib/screens/auth/login_screen.dart`, `mobile/lib/screens/home/home_screen.dart`, `mobile/lib/screens/call/active_call_screen.dart`, `mobile/lib/screens/settings/`
+
 ### ✅ 7. Main Application Structure
 Updated `main.dart`:
 - Replaced default counter app
@@ -120,7 +132,7 @@ Updated `mobile/README.md` with:
 
 | Metric | Value |
 |--------|-------|
-| **Files Created** | 74 (Flutter generated) + 5 (custom) |
+| **Files Created** | 74 (Flutter generated) + 13 (custom) |
 | **Dependencies** | 9 production + 48 total resolved |
 | **Models** | 3 (User, Call, CallParticipant) |
 | **Lines of Code** | ~500 (models + config + main) |
@@ -153,6 +165,14 @@ Updated `mobile/README.md` with:
 6. `mobile/lib/models/participant.dart` - Participant model (138 lines)
 7. `mobile/test/widget_test.dart` - Widget tests (29 lines)
 8. `mobile/README.md` - Documentation (194 lines)
+9. `mobile/lib/api/api_service.dart` - REST API client
+10. `mobile/lib/websocket/` - WebSocket utilities (connect, reconnect, message adapter)
+11. `mobile/lib/services/audio_service.dart` - Audio recording & playback service
+12. `mobile/lib/providers/auth_provider.dart` - Authentication provider
+13. `mobile/lib/providers/call_provider.dart` - Call session provider
+14. `mobile/lib/providers/settings_provider.dart` - App settings provider
+15. `mobile/lib/widgets/participant_card.dart` - Participant list UI widget
+16. `mobile/lib/widgets/common/custom_button.dart` - Reusable button widget
 
 ---
 

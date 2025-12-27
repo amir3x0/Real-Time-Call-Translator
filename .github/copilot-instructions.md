@@ -28,6 +28,8 @@ This file provides instructions to GitHub Copilot for better code suggestions in
 - ✅ main.dart with Material 3 theme
 - ✅ Widget tests passing
 - ✅ Flutter analyze: No issues found
+ - ✅ Mobile providers & services created (auth_provider, call_provider, settings_provider)
+ - ✅ Client-side services: `api_service.dart`, `websocket/` adapters, `audio_service.dart` for recording/playback
 
 **Next Steps:**
 - 📋 Day 5 (22.11): Google Cloud Setup
@@ -99,6 +101,14 @@ For detailed guidelines, see:
 - Use pytest with `@pytest.mark.asyncio`
 - Test database operations with in-memory SQLite
 - Mock external API calls (Google Cloud)
+
+## Dart/Flutter (Client)
+- Use `provider` for state management (auth, call state, settings)
+- Use `http` with typed DTOs for REST endpoints and a central `api_service.dart` under `mobile/lib/api/`
+- Use `web_socket_channel` for real-time audio, with a `websocket/` adapter handling reconnects and message parsing
+- Use `flutter_sound` and `just_audio` for audio capture and playback, processing at 16kHz mono and 200ms chunk size
+- Write `widget` and `provider` unit tests using `flutter_test` and `mockito`/`mocktail` for client code
+*** End Patch
 
 ---
 

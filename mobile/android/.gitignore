@@ -1,14 +1,23 @@
+# ===========================================
+# Android .gitignore
+# ===========================================
+
+# --- Gradle ---
+.gradle/
 gradle-wrapper.jar
-/.gradle
-/captures/
-/gradlew
-/gradlew.bat
-/local.properties
-GeneratedPluginRegistrant.java
+
+# --- Local Config ---
+local.properties
+
+# --- Build Outputs ---
+app/build/
 .cxx/
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
+# --- Credentials & Keys ---
 key.properties
-**/*.keystore
-**/*.jks
+*.jks
+*.keystore
+google-services.json
+
+# --- Generated ---
+GeneratedPluginRegistrant.java
