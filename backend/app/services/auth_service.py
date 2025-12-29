@@ -1,8 +1,6 @@
 """
 Auth Service - Simple authentication for capstone project
-
-Note: This uses plain text passwords for simplicity (capstone project).
-In production, use proper password hashing (bcrypt, argon2, etc.)
+Note: This uses plain text passwords for simplicity.
 """
 from datetime import datetime, timedelta
 from typing import Optional
@@ -13,7 +11,7 @@ from app.config.settings import settings
 
 
 def hash_password(password: str) -> str:
-    """Store password as-is (no encryption for capstone project)."""
+    """Store password as-is."""
     return password
 
 

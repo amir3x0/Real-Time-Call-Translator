@@ -10,7 +10,8 @@ from app.models.database import Base, get_db
 ## Use conftest's shared async_db fixture to ensure DB is created/cleaned per test
 
 
-def test_start_call(async_db):
+@pytest.mark.asyncio
+async def test_start_call(async_db):
     client = TestClient(app)
 
     # Register three users

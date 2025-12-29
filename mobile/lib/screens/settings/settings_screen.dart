@@ -246,6 +246,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       try {
         await _api.updateUserLanguage(newLangCode);
 
+        if (!mounted) return;
+
         // Refresh current user to reflect the change
         final authProv = Provider.of<AuthProvider>(context, listen: false);
         await authProv.refreshCurrentUser();

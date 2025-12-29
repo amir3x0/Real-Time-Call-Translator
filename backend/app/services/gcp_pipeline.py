@@ -26,17 +26,13 @@ class GCPSpeechPipeline:
     """Thin wrapper around Google Cloud Speech/Translate/TTS services."""
 
     def __init__(self, project_id: Optional[str] = None, location: str = "global"):
-        # Ensure GOOGLE_APPLICATION_CREDENTIALS is set for client libraries
-        # Ensure GOOGLE_APPLICATION_CREDENTIALS is set for client libraries
         if settings.GOOGLE_APPLICATION_CREDENTIALS and "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
             creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
-            # Handle Docker path when running locally
             if creds_path.startswith("/app/") and not os.path.exists(creds_path):
-                # Common local paths to check
                 possible_paths = [
-                    creds_path.replace("/app/", ""),  # Strip /app/ prefix safely
-                    creds_path.replace("/app/", "app/"), # Map /app/ to app/
-                    os.path.join("app", "config", os.path.basename(creds_path)), # Hardcoded common location
+                    creds_path.replace("/app/", ""),
+                    creds_path.replace("/app/", "app/"),
+                    os.path.join("app", "config", os.path.basename(creds_path)),
                     os.path.join(os.getcwd(), "app", "config", os.path.basename(creds_path))
                 ]
                 

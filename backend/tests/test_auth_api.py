@@ -12,7 +12,8 @@ from app.models.user import User
 ## Use the shared async_db fixture from conftest.py for a single in-memory DB per test
 
 
-def test_register_and_login(async_db):
+@pytest.mark.asyncio
+async def test_register_and_login(async_db):
     client = TestClient(app)
 
     # Register

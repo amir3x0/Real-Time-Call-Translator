@@ -1,7 +1,5 @@
 """
 Auth API - User registration and login
-
-Simplified authentication for capstone project.
 """
 from datetime import datetime
 from typing import Optional
