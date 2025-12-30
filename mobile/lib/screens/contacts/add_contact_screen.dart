@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/contacts_provider.dart';
-import '../../data/api/api_service.dart';
+import '../../data/services/contact_service.dart';
 import '../../utils/language_utils.dart';
 
 import '../../models/user.dart';
@@ -26,7 +26,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
   bool _isSearching = false;
   String? _errorMessage;
   bool _hasSearched = false;
-  final ApiService _apiService = ApiService();
+  final ContactService _contactService = ContactService();
 
   @override
   void initState() {
@@ -65,7 +65,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
     try {
       debugPrint('[AddContact] Searching for: $query');
-      final backendResults = await _apiService.searchUsers(query);
+      final backendResults = await _contactService.searchUsers(query);
       debugPrint(
           '[AddContact] Backend returned ${backendResults.length} results');
 

@@ -59,6 +59,7 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
     if (success) {
       if (mounted) {
         final token = await authProvider.checkAuthStatus();
+        if (!mounted) return;
         if (token != null) {
           Provider.of<LobbyProvider>(context, listen: false).connect(token);
         }

@@ -3,21 +3,22 @@ import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../data/api/api_service.dart';
+import '../data/services/voice_service.dart';
 import '../config/app_config.dart';
 
 /// Service for recording and managing voice samples
 class VoiceRecordingService {
-  static final VoiceRecordingService _instance = VoiceRecordingService._internal();
+  static final VoiceRecordingService _instance =
+      VoiceRecordingService._internal();
   factory VoiceRecordingService() => _instance;
   VoiceRecordingService._internal();
 
   final AudioRecorder _recorder = AudioRecorder();
-  final ApiService _api = ApiService();
-  
+  final VoiceService _voiceService = VoiceService();
+
   String? _currentRecordingPath;
   bool _isRecording = false;
-  
+
   bool get isRecording => _isRecording;
   String? get currentRecordingPath => _currentRecordingPath;
 
@@ -57,7 +58,7 @@ class VoiceRecordingService {
   Future<String?> stopRecording() async {
     try {
       if (!_isRecording) return null;
-      
+
       final path = await _recorder.stop();
       _isRecording = false;
       debugPrint('[VoiceRecording] Recording stopped: $path');
@@ -76,7 +77,7 @@ class VoiceRecordingService {
         await _recorder.stop();
         _isRecording = false;
       }
-      
+
       if (_currentRecordingPath != null) {
         final file = File(_currentRecordingPath!);
         if (await file.exists()) {
@@ -104,13 +105,13 @@ class VoiceRecordingService {
       }
 
       debugPrint('[VoiceRecording] Uploading: $filePath');
-      
-      await _api.uploadVoiceSample(
+
+      await _voiceService.uploadVoiceSample(
         filePath,
         language,
         textContent ?? 'Voice sample for voice cloning',
       );
-      
+
       debugPrint('[VoiceRecording] Upload successful');
       return true;
     } catch (e) {
@@ -143,4 +144,3 @@ class VoiceRecordingService {
     _recorder.dispose();
   }
 }
-

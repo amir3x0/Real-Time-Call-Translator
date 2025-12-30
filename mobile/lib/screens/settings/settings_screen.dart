@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../data/api/api_service.dart';
+import '../../data/services/auth_service.dart';
+import '../../data/services/voice_service.dart';
+import '../../data/services/call_api_service.dart';
 import '../../widgets/voice_recorder_widget.dart';
 import '../../config/app_theme.dart';
 
@@ -21,7 +23,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _hasVoiceSample = false;
   bool _isLoadingVoiceStatus = true;
 
-  final ApiService _api = ApiService();
+  final AuthService _authService = AuthService();
+  final VoiceService _voiceService = VoiceService();
+  final CallApiService _callApiService = CallApiService();
 
   static const List<Map<String, String>> _languages = [
     {'code': 'he', 'flag': '🇮🇱', 'name': 'עברית'},
@@ -50,7 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Check voice sample status
     try {
-      final voiceRecordings = await _api.getVoiceRecordings();
+      final voiceRecordings = await _voiceService.getVoiceRecordings();
       setState(() {
         _hasVoiceSample = voiceRecordings.isNotEmpty;
         _isLoadingVoiceStatus = false;
@@ -244,9 +248,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // Update in database
       try {
-        await _api.updateUserLanguage(newLangCode);
+        await _authService.updateUserLanguage(newLangCode);
 
         // Refresh current user to reflect the change
+        if (!mounted) return;
         final authProv = Provider.of<AuthProvider>(context, listen: false);
         await authProv.refreshCurrentUser();
 
@@ -638,7 +643,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () async {
                 final messenger = ScaffoldMessenger.of(context);
                 try {
-                  await _api.resetCallState();
+                  await _callApiService.resetCallState();
                   messenger.showSnackBar(
                     const SnackBar(
                       content: Text('Call state reset successfully'),
