@@ -20,7 +20,7 @@ from app.api import router as api_router
 from app.api.websocket import router as ws_router
 from app.config.redis import get_redis, close_redis
 from app.services.status_service import status_service
-from app.services.connection_manager import connection_manager
+from app.services.connection import connection_manager
 from app.services.voice_training_service import voice_training_service
 from app.models.database import Base, engine
 

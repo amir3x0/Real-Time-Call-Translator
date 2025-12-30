@@ -253,6 +253,98 @@ class VoiceTrainingService:
         
         # Queue for retraining
         return await self.queue_training_for_user(user_id)
+        
+    async def save_recording(
+        self,
+        user_id: str,
+        file_path: str,
+        language: str,
+        text_content: str,
+        file_size: int,
+        audio_format: str,
+        db: AsyncSession
+    ) -> VoiceRecording:
+        """
+        Create a new voice recording record and queue for processing.
+        """
+        recording = VoiceRecording(
+            user_id=user_id,
+            language=language,
+            text_content=text_content,
+            file_path=file_path,
+            file_size_bytes=file_size,
+            audio_format=audio_format,
+            is_processed=False,
+            used_for_training=False,
+        )
+        
+        db.add(recording)
+        
+        # Update user's has_voice_sample flag
+        from app.services.user_service import user_service
+        user = await user_service.get_by_id(db, user_id)
+        if user:
+            user.has_voice_sample = True
+        
+        await db.commit()
+        await db.refresh(recording)
+        
+        # Queue recording for processing
+        await self.queue_recording_for_processing(recording.id)
+        
+        return recording
+
+    async def get_user_recordings(self, user_id: str, db: AsyncSession) -> List[VoiceRecording]:
+        """
+        List all voice recordings for a user.
+        """
+        result = await db.execute(
+            select(VoiceRecording)
+            .where(VoiceRecording.user_id == user_id)
+            .order_by(VoiceRecording.created_at.desc())
+        )
+        return result.scalars().all()
+
+    async def delete_recording(self, recording_id: str, user_id: str, db: AsyncSession) -> bool:
+        """
+        Delete a voice recording and its file.
+        """
+        result = await db.execute(
+            select(VoiceRecording).where(
+                VoiceRecording.id == recording_id,
+                VoiceRecording.user_id == user_id
+            )
+        )
+        recording = result.scalar_one_or_none()
+        
+        if not recording:
+            return False
+        
+        # Delete file
+        if os.path.exists(recording.file_path):
+            try:
+                os.remove(recording.file_path)
+            except Exception:
+                pass
+        
+        # Delete record
+        await db.delete(recording)
+        await db.commit()
+        
+        # Update user's has_voice_sample if no more recordings
+        result = await db.execute(
+            select(VoiceRecording).where(VoiceRecording.user_id == user_id)
+        )
+        remaining = result.scalars().all()
+        
+        if len(remaining) == 0:
+            from app.services.user_service import user_service
+            user = await user_service.get_by_id(db, user_id)
+            if user:
+                user.has_voice_sample = False
+                await db.commit()
+        
+        return True
 
 
     async def start_worker(self) -> None:

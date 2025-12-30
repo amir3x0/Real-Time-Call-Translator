@@ -236,7 +236,7 @@ async def _add_contact_request(
     await db.refresh(contact)
     
     # Notify target user
-    from app.services.connection_manager import connection_manager
+    from app.services.connection import connection_manager
     await connection_manager.notify_contact_request(
         target_user_id=contact_user_id,
         requester_id=current_user.id,
