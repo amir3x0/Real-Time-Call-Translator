@@ -136,8 +136,8 @@ class CallService:
             )
         
         # Get caller info
-        result = await db.execute(select(User).where(User.id == caller_id))
-        caller = result.scalar_one_or_none()
+        from app.services.user_service import user_service
+        caller = await user_service.get_by_id(db, caller_id)
         if not caller:
             raise UserOfflineError(f"Caller {caller_id} not found")
         
@@ -150,8 +150,7 @@ class CallService:
             if not skip_contact_validation:
                 await cls.validate_contact_exists(db, caller_id, target_id)
             
-            result = await db.execute(select(User).where(User.id == target_id))
-            target_user = result.scalar_one_or_none()
+            target_user = await user_service.get_by_id(db, target_id)
             if not target_user:
                 raise UserOfflineError(f"Target user {target_id} not found")
             target_users.append(target_user)

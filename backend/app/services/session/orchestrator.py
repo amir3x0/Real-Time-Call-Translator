@@ -111,8 +111,8 @@ class CallOrchestrator:
         try:
             async with AsyncSessionLocal() as db:
                 # Get user info
-                result = await db.execute(select(User).where(User.id == self.user_id))
-                user = result.scalar_one_or_none()
+                from app.services.user_service import user_service
+                user = await user_service.get_by_id(db, self.user_id)
                 
                 if not user:
                     await self.websocket.close(code=1008, reason="User not found")

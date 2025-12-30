@@ -69,8 +69,8 @@ class StatusService:
         # Update database and notify contacts
         contact_user_ids = []
         if db:
-            result = await db.execute(select(User).where(User.id == user_id))
-            user = result.scalar_one_or_none()
+            from app.services.user_service import user_service
+            user = await user_service.get_by_id(db, user_id)
             if user:
                 user.is_online = True
                 user.last_seen = datetime.now(UTC)
@@ -109,8 +109,8 @@ class StatusService:
         # Update database and notify contacts
         contact_user_ids = []
         if db:
-            result = await db.execute(select(User).where(User.id == user_id))
-            user = result.scalar_one_or_none()
+            from app.services.user_service import user_service
+            user = await user_service.get_by_id(db, user_id)
             if user:
                 user.is_online = False
                 user.last_seen = datetime.now(UTC)
@@ -145,8 +145,8 @@ class StatusService:
         
         # Update last_seen in database
         async with AsyncSessionLocal() as db:
-            result = await db.execute(select(User).where(User.id == user_id))
-            user = result.scalar_one_or_none()
+            from app.services.user_service import user_service
+            user = await user_service.get_by_id(db, user_id)
             if user:
                 user.last_seen = datetime.now(UTC)
                 await db.commit()
@@ -188,6 +188,7 @@ class StatusService:
                 redis = await get_redis()
                 async with AsyncSessionLocal() as db:
                     # Get all users marked as online in DB
+                    # Keeping this raw query as it's a specific bulk fetch for cleanup service
                     result = await db.execute(select(User).where(User.is_online == True))
                     online_users = result.scalars().all()
                     

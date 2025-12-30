@@ -15,6 +15,7 @@ from app.models.database import get_db
 from app.models.user import User
 from app.models.contact import Contact
 from app.api.auth import get_current_user
+from app.services.user_service import user_service
 from app.schemas.contact import (
     UserSearchResult,
     UserSearchResponse,
@@ -35,12 +36,7 @@ async def search_users(
     current_user: User = Depends(get_current_user)
 ):
     """Search for users by name or phone."""
-    result = await db.execute(
-        select(User).where(
-            (User.full_name.ilike(f"%{q}%")) | (User.phone.ilike(f"%{q}%"))
-        ).limit(20)
-    )
-    users = result.scalars().all()
+    users = await user_service.search(db, q, limit=20)
     
     # Exclude current user
     filtered = [u for u in users if u.id != current_user.id]
@@ -76,8 +72,7 @@ async def list_contacts(
     
     contact_list = []
     for c in contacts:
-        user_result = await db.execute(select(User).where(User.id == c.contact_user_id))
-        user = user_result.scalar_one_or_none()
+        user = await user_service.get_by_id(db, c.contact_user_id)
         if not user: continue
         
         contact_list.append(ContactResponse(
@@ -106,8 +101,7 @@ async def list_contacts(
     
     incoming_list = []
     for c in incoming_requests:
-        user_result = await db.execute(select(User).where(User.id == c.user_id)) # c.user_id is the requester
-        user = user_result.scalar_one_or_none()
+        user = await user_service.get_by_id(db, c.user_id) # c.user_id is the requester
         if not user: continue
         
         incoming_list.append(ContactRequestResponse(
@@ -133,8 +127,7 @@ async def list_contacts(
     
     outgoing_list = []
     for c in outgoing_requests:
-        user_result = await db.execute(select(User).where(User.id == c.contact_user_id))
-        user = user_result.scalar_one_or_none()
+        user = await user_service.get_by_id(db, c.contact_user_id)
         if not user: continue
         
         outgoing_list.append(ContactResponse(
@@ -188,8 +181,7 @@ async def _add_contact_request(
 ) -> AddContactResponse:
     """Internal helper to create a friend request."""
     # Check target exists
-    result = await db.execute(select(User).where(User.id == contact_user_id))
-    contact_user = result.scalar_one_or_none()
+    contact_user = await user_service.get_by_id(db, contact_user_id)
     if not contact_user:
         raise HTTPException(status_code=404, detail="User not found")
     

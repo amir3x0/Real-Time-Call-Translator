@@ -28,6 +28,7 @@ from app.services.call_service import (
     InvalidParticipantCountError,
 )
 from app.services.connection_manager import connection_manager
+from app.services.user_service import user_service
 from app.schemas.call import (
     StartCallRequest,
     StartCallResponse,
@@ -84,8 +85,7 @@ async def start_call(
     participants_info = []
     for p in participants:
         # Get user info
-        result = await db.execute(select(User).where(User.id == p.user_id))
-        user = result.scalar_one_or_none()
+        user = await user_service.get_by_id(db, p.user_id)
         
         if user:
             participants_info.append(ParticipantInfo(
@@ -105,8 +105,7 @@ async def start_call(
     await call_service.mark_call_ringing(db, call.id)
     
     # Get caller info for notifications
-    caller_result = await db.execute(select(User).where(User.id == current_user.id))
-    caller = caller_result.scalar_one_or_none()
+    caller = await user_service.get_by_id(db, current_user.id)
     
     # Send WebSocket notifications to all participants except caller
     for participant in participants:
@@ -226,8 +225,7 @@ async def get_call(
     # Build participant info
     participants_info = []
     for p in participants:
-        result = await db.execute(select(User).where(User.id == p.user_id))
-        user = result.scalar_one_or_none()
+        user = await user_service.get_by_id(db, p.user_id)
         
         if user:
             participants_info.append(ParticipantInfo(
@@ -341,8 +339,7 @@ async def get_pending_calls(
             # Build participant info
             participants_info = []
             for p in participants:
-                user_result = await db.execute(select(User).where(User.id == p.user_id))
-                user = user_result.scalar_one_or_none()
+                user = await user_service.get_by_id(db, p.user_id)
                 
                 if user:
                     participants_info.append(ParticipantInfo(
@@ -393,8 +390,7 @@ async def accept_call(
         
         participants_info = []
         for p in participants:
-            user_result = await db.execute(select(User).where(User.id == p.user_id))
-            user = user_result.scalar_one_or_none()
+            user = await user_service.get_by_id(db, p.user_id)
             
             if user:
                 participants_info.append(ParticipantInfo(
