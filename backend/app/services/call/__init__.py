@@ -1,16 +1,10 @@
 """
-Call Management Service
+Call Service Module
 
-DEPRECATED: This file is kept for backwards compatibility.
-Import from app.services.call instead.
-
-Example:
-    from app.services.call import call_service, CallServiceError
+Re-exports CallService and exceptions for backwards compatibility.
 """
-# Re-export everything from the new module structure
-from app.services.call import (
-    CallService,
-    call_service,
+from .service import CallService
+from .exceptions import (
     CallServiceError,
     ContactNotAuthorizedError,
     UserOfflineError,
@@ -18,6 +12,9 @@ from app.services.call import (
     CallNotFoundError,
     InvalidParticipantCountError,
 )
+
+# Singleton instance
+call_service = CallService()
 
 __all__ = [
     "CallService",
