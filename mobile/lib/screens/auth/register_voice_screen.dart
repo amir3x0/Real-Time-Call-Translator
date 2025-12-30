@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/call_provider.dart';
+import '../../providers/lobby_provider.dart';
 import '../../widgets/voice_recorder_widget.dart';
 import '../../config/app_theme.dart';
 
@@ -58,7 +58,10 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
 
     if (success) {
       if (mounted) {
-        Provider.of<CallProvider>(context, listen: false).connectToLobby();
+        final token = await authProvider.checkAuthStatus();
+        if (token != null) {
+          Provider.of<LobbyProvider>(context, listen: false).connect(token);
+        }
       }
       navigator.pushReplacementNamed('/home');
     } else {

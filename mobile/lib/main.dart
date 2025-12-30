@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/call_provider.dart';
+import 'providers/lobby_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/contacts_provider.dart';
 import 'screens/auth/login_screen.dart';
@@ -18,18 +19,35 @@ import 'screens/call/incoming_call_screen.dart';
 import 'screens/contacts/contacts_screen.dart';
 import 'screens/contacts/add_contact_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'data/api/api_service.dart';
+import 'data/websocket/websocket_service.dart';
 
 void main() {
+  final apiService = ApiService();
+  final lobbyWsService = WebSocketService();
+  final callWsService = WebSocketService();
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => CallProvider()),
+        ChangeNotifierProvider(
+          create: (_) => CallProvider(
+            wsService: callWsService,
+            apiService: apiService,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => LobbyProvider(
+            wsService: lobbyWsService,
+            apiService: apiService,
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
-        ChangeNotifierProxyProvider<CallProvider, ContactsProvider>(
+        ChangeNotifierProxyProvider<LobbyProvider, ContactsProvider>(
           create: (_) => ContactsProvider(),
-          update: (_, callProvider, contactsProvider) =>
-              contactsProvider!..updateCallProvider(callProvider),
+          update: (_, lobbyProvider, contactsProvider) =>
+              contactsProvider!..updateLobbyProvider(lobbyProvider),
         ),
       ],
       child: const MyApp(),
@@ -61,7 +79,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// Check authentication status on startup
   Future<void> _initAuth() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    final lobbyProvider = Provider.of<LobbyProvider>(context, listen: false);
 
     final token = await authProvider.checkAuthStatus();
 
@@ -69,7 +87,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       if (token != null) {
         debugPrint('[MyApp] User is authenticated, connecting to lobby...');
         // Connect to lobby with the valid token
-        callProvider.connectToLobby(token: token);
+        lobbyProvider.connect(token);
       } else {
         debugPrint('[MyApp] User is NOT authenticated, waiting for login...');
       }
@@ -83,10 +101,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   /// Setup callback to disconnect from Lobby when user logs out
   void _setupLogoutCallback() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    final lobbyProvider = Provider.of<LobbyProvider>(context, listen: false);
 
     authProvider.setOnLogoutCallback(() {
-      callProvider.disconnectFromLobby();
+      lobbyProvider.disconnect();
     });
   }
 
@@ -105,13 +123,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // App is in foreground - reconnect to lobby if authenticated
         debugPrint('[App] Resumed - checking connection...');
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final lobbyProvider =
+            Provider.of<LobbyProvider>(context, listen: false);
         final callProvider = Provider.of<CallProvider>(context, listen: false);
 
         if (authProvider.isAuthenticated) {
           // FIX: Check if we are in an active call to avoid disrupting it
           if (callProvider.status == CallStatus.active ||
               callProvider.status == CallStatus.ringing ||
-              callProvider.incomingCall != null) {
+              lobbyProvider.incomingCall != null) {
             debugPrint(
                 '[App] In active/ringing call - skipping Lobby reconnection');
             return;
@@ -123,7 +143,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           SharedPreferences.getInstance().then((prefs) {
             final token = prefs.getString('user_token');
             if (token != null) {
-              callProvider.connectToLobby(token: token);
+              lobbyProvider.connect(token);
             }
           });
         }

@@ -1,15 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:typed_data';
 import 'package:provider/provider.dart';
 import 'package:mobile/providers/call_provider.dart';
 import 'package:mobile/screens/call/active_call_screen.dart';
 import 'package:mobile/models/participant.dart';
 import 'package:mobile/models/call.dart';
 
+import 'package:mobile/data/websocket/websocket_service.dart';
+import 'package:mobile/data/api/api_service.dart';
+
+// Manual Mocks
+class MockWebSocketService extends WebSocketService {
+  @override
+  Stream<WSMessage> get messages => const Stream.empty();
+  @override
+  Stream<Uint8List> get audioStream => const Stream.empty();
+  @override
+  Future<void> disconnect() async {}
+}
+
+class MockApiService extends ApiService {}
+
 void main() {
   testWidgets('ActiveCallScreen shows participants and live transcription',
       (WidgetTester tester) async {
-    final callProv = CallProvider();
+    final mockWsService = MockWebSocketService();
+    final mockApiService = MockApiService();
+    final callProv =
+        CallProvider(wsService: mockWsService, apiService: mockApiService);
 
     // Setup initial state
     final participant = CallParticipant(
