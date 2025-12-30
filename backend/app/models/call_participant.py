@@ -87,15 +87,4 @@ class CallParticipant(Base):
             "voice_clone_quality": self.voice_clone_quality,
         }
 
-    def determine_dubbing_required(self, call_language: str):
-        """
-        Determine if dubbing is required based on call language.
-        Set dubbing_required flag.
-        """
-        # Dubbing is required if participant language differs from call language
-        # (and they are not just dialects of same language, overly simple check for now)
-        self.dubbing_required = self.participant_language != call_language
-    
-    def set_voice_clone_quality(self, user_quality_score: str):
-        """Set voice clone quality based on user preference/score"""
-        self.voice_clone_quality = user_quality_score or "good"
+
