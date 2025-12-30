@@ -154,10 +154,8 @@ class VoiceTrainingService:
                 recording.used_for_training = True
             
             # Get user and update status
-            user_result = await db.execute(
-                select(User).where(User.id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
+            from app.services.user_service import user_service
+            user = await user_service.get_by_id(db, user_id)
             
             if user:
                 # Calculate average quality score from training samples
@@ -185,10 +183,8 @@ class VoiceTrainingService:
         """
         async with AsyncSessionLocal() as db:
             # Get user
-            user_result = await db.execute(
-                select(User).where(User.id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
+            from app.services.user_service import user_service
+            user = await user_service.get_by_id(db, user_id)
             
             if not user:
                 return {"error": "User not found"}
@@ -234,10 +230,8 @@ class VoiceTrainingService:
         """
         async with AsyncSessionLocal() as db:
             # Get user
-            user_result = await db.execute(
-                select(User).where(User.id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
+            from app.services.user_service import user_service
+            user = await user_service.get_by_id(db, user_id)
             
             if not user:
                 return {"error": "User not found"}

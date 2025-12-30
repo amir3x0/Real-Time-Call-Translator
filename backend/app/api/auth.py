@@ -15,6 +15,7 @@ from app.models.database import get_db
 from app.models.user import User
 from app.services.auth_service import create_access_token, decode_token
 from app.config.settings import settings
+from app.services.user_service import user_service
 
 router = APIRouter()
 
@@ -94,8 +95,7 @@ async def get_current_user(
             detail="Invalid token payload"
         )
     
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    user = await user_service.get_by_id(db, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
@@ -109,8 +109,8 @@ async def get_current_user(
 async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Register a new user."""
     # Check phone uniqueness
-    result = await db.execute(select(User).where(User.phone == request.phone))
-    if result.scalar_one_or_none():
+    existing_user = await user_service.get_by_phone(db, request.phone)
+    if existing_user:
         raise HTTPException(status_code=409, detail="Phone number already registered")
 
     # Create user (password stored as plain text for capstone)
@@ -135,8 +135,7 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
 @router.post("/auth/login", response_model=LoginResponse)
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Login with phone and password."""
-    result = await db.execute(select(User).where(User.phone == request.phone))
-    user = result.scalar_one_or_none()
+    user = await user_service.get_by_phone(db, request.phone)
     
     if not user:
         raise HTTPException(status_code=401, detail="Invalid phone or password")

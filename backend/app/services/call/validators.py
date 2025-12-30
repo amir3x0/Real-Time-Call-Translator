@@ -71,10 +71,8 @@ async def validate_user_online(
     Raises:
         UserOfflineError if user is offline
     """
-    result = await db.execute(
-        select(User).where(User.id == user_id)
-    )
-    user = result.scalar_one_or_none()
+    from app.services.user_service import user_service
+    user = await user_service.get_by_id(db, user_id)
     
     if not user:
         raise UserOfflineError(f"User {user_id} not found")
