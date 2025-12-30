@@ -30,6 +30,10 @@ def test_start_call(async_db):
 
     headers = {"Authorization": f"Bearer {token1}"}
 
+    # Add user2 and user3 as contacts first (required for calling)
+    client.post("/api/contacts/add", json={"contact_user_id": user2_id}, headers=headers)
+    client.post("/api/contacts/add", json={"contact_user_id": user3_id}, headers=headers)
+    
     # Start call with user2 and user3
     rcall = client.post("/api/calls/start", json={"participant_user_ids": [user2_id, user3_id]}, headers=headers)
     assert rcall.status_code == 200

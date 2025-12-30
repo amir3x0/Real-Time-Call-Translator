@@ -51,23 +51,53 @@ asyncio.run(_init_test_db())
 database_module.engine = test_engine
 database_module.AsyncSessionLocal = test_async_session
 
-@pytest.fixture
-async def async_db():
-    """Override the app's database engine to use an in-memory SQLite engine for tests.
-    This avoids connecting to the dev Postgres instance and makes tests deterministic
-    and faster.
-    """
-    async_session = test_async_session
-    # Reset DB before each test to ensure isolation
+
+async def _reset_db():
+    """Reset the database by dropping and recreating all tables."""
     async with test_engine.begin() as conn:
         await conn.run_sync(DBBase.metadata.drop_all)
         await conn.run_sync(DBBase.metadata.create_all)
-    # Provide a dependency override for FastAPI to use the test session
+
+
+@pytest.fixture
+def async_db():
+    """
+    Fixture for sync tests that use TestClient.
+    
+    Resets the database before each test and sets up FastAPI dependency overrides.
+    This is a SYNC fixture that internally runs async cleanup.
+    """
+    # Reset DB before test
+    asyncio.run(_reset_db())
+    
+    # Set up dependency override
     async def _get_test_db():
-        async with async_session() as session:
+        async with test_async_session() as session:
             yield session
 
     from app.main import app as _app
     _app.dependency_overrides[database_module.get_db] = _get_test_db
-    yield
+    
+    yield  # Test runs here
+    
+    # Cleanup
     _app.dependency_overrides.clear()
+
+
+import pytest_asyncio
+
+@pytest_asyncio.fixture
+async def async_db_session():
+    """
+    Async fixture for tests that need direct async database access.
+    
+    Returns an actual async session for async test functions.
+    """
+    # Reset DB
+    async with test_engine.begin() as conn:
+        await conn.run_sync(DBBase.metadata.drop_all)
+        await conn.run_sync(DBBase.metadata.create_all)
+    
+    # Create and return session
+    async with test_async_session() as session:
+        yield session

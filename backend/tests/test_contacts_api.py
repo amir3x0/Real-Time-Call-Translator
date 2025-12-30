@@ -25,9 +25,9 @@ def test_contact_flow(async_db):
 
     # User A searches for User B
     headers = {"Authorization": f"Bearer {token1}"}
-    rsearch = client.get(f"/api/users/search?query=User", headers=headers)
+    rsearch = client.get(f"/api/contacts/search?q=User", headers=headers)
     assert rsearch.status_code == 200
-    assert len(rsearch.json()['results']) >= 1
+    assert len(rsearch.json()['users']) >= 1
 
     # User A adds User B as contact
     radd = client.post("/api/contacts/add", json={"contact_user_id": user_b_id}, headers=headers)
