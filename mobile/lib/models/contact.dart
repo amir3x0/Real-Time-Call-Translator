@@ -1,7 +1,7 @@
 import 'user.dart';
 
 /// Contact model matching backend schema
-/// 
+///
 /// Purpose: Control who each user can call (authorization layer)
 /// Business Logic:
 /// - Before initiating a call: Verify Contact exists
