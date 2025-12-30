@@ -396,6 +396,7 @@ class _LoginScreenState extends State<LoginScreen>
       // Connect to lobby after successful login to mark user as online
       if (mounted) {
         final token = await authProvider.checkAuthStatus();
+        if (!mounted) return;
         if (token != null) {
           Provider.of<LobbyProvider>(context, listen: false).connect(token);
         }
