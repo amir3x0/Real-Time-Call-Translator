@@ -207,7 +207,7 @@ async def train_voice_model(
     """
     # Check if user has enough processed recordings
     # Using service to get status which includes readiness check logic
-    status = await voice_training_service.get_user_training_status(current_user.id)
+    status = await voice_training_service.get_user_training_status(current_user.id, db)
     
     if status.get("ready_for_training", False) is False:
          raise HTTPException(
@@ -247,12 +247,13 @@ class TrainingStatusResponse(BaseModel):
 
 @router.get("/voice/training-status", response_model=TrainingStatusResponse)
 async def get_training_status(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Get detailed voice model training status for current user.
     """
-    status = await voice_training_service.get_user_training_status(current_user.id)
+    status = await voice_training_service.get_user_training_status(current_user.id, db)
     
     if "error" in status:
         raise HTTPException(status_code=404, detail=status["error"])
@@ -262,6 +263,7 @@ async def get_training_status(
 
 @router.post("/voice/retrain")
 async def retrain_voice_model(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -269,7 +271,7 @@ async def retrain_voice_model(
     
     This resets the training status and queues for retraining.
     """
-    result = await voice_training_service.retrain_voice_model(current_user.id)
+    result = await voice_training_service.retrain_voice_model(current_user.id, db)
     
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
