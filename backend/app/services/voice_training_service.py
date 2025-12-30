@@ -10,7 +10,7 @@ This service handles:
 import os
 import asyncio
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, UTC
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -84,7 +84,7 @@ class VoiceTrainingService:
             
             recording.quality_score = quality_score
             recording.is_processed = True
-            recording.processed_at = datetime.utcnow()
+            recording.processed_at = datetime.now(UTC)
             
             await db.commit()
             

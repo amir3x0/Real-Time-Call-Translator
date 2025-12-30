@@ -3,7 +3,7 @@ Call History
 
 Functions for retrieving call history and pending calls.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import List, Dict, Tuple, Optional
 
 from sqlalchemy import select, and_
@@ -133,7 +133,7 @@ async def get_pending_calls(
     Returns:
         List of pending Call objects
     """
-    cutoff_time = datetime.utcnow() - timedelta(seconds=30)
+    cutoff_time = datetime.now(UTC) - timedelta(seconds=30)
     
     result = await db.execute(
         select(Call)

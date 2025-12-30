@@ -4,7 +4,7 @@ Contact Model - Contact List Management
 Controls who each user can call (authorization layer).
 """
 from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, UniqueConstraint
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 
 from .database import Base
@@ -33,7 +33,7 @@ class Contact(Base):
     status = Column(String(20), default='accepted', nullable=False) # default='accepted' for backward compatibility
     
     # Timestamp
-    added_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    added_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     
     # Constraints
     __table_args__ = (

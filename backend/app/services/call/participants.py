@@ -6,7 +6,7 @@ Handles participant-related operations:
 - Joining/leaving calls
 - Force-leaving active calls
 """
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import List, Tuple, Optional
 import logging
 
@@ -43,7 +43,7 @@ async def create_participant(
         call_id=call.id,
         user_id=user.id,
         participant_language=user.primary_language,
-        joined_at=datetime.utcnow() if is_caller else None,
+        joined_at=datetime.now(UTC) if is_caller else None,
         is_connected=is_caller,
     )
     
@@ -94,7 +94,7 @@ async def handle_participant_joined(
         raise CallNotFoundError(f"Participant {user_id} not found in call {call_id}")
     
     # Update participant status
-    participant.joined_at = datetime.utcnow()
+    participant.joined_at = datetime.now(UTC)
     participant.is_connected = True
     participant.left_at = None
     

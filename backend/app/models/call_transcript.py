@@ -4,7 +4,7 @@ CallTranscript Model - Call History & Transcription
 Stores complete word-by-word record of all calls for history.
 """
 from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 
 from .database import Base
@@ -29,7 +29,7 @@ class CallTranscript(Base):
     timestamp_ms = Column(Integer, nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     
     def to_dict(self):
         return {

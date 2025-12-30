@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Integer, Boolean
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 
 from .database import Base
@@ -29,14 +29,14 @@ class Message(Base):
     audio_duration_ms = Column(Integer, nullable=True)
     
     # Timestamps
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False, index=True)
     
     # Translation metadata
     translation_confidence = Column(Integer, nullable=True)  # 0-100
     was_voice_cloned = Column(Boolean, default=False)
     
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     
     def to_dict(self):
         """Convert to dictionary for JSON response"""

@@ -4,7 +4,7 @@ CallParticipant Model - Per-Participant Call Metadata
 Tracks each participant in a call with language, dubbing requirements, and mute status.
 """
 from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, UniqueConstraint
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Optional
 import uuid
 
@@ -25,7 +25,7 @@ class CallParticipant(Base):
     participant_language = Column(String(10), nullable=False)
     
     # Timing
-    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    joined_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     left_at = Column(DateTime, nullable=True, index=True)  # NULL = still in call
     
     # Status
@@ -38,7 +38,7 @@ class CallParticipant(Base):
     voice_clone_quality = Column(String(20), nullable=True)  # excellent, good, fair, fallback
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     
     # Constraints
     __table_args__ = (
@@ -47,7 +47,7 @@ class CallParticipant(Base):
     
     def leave_call(self):
         """Mark participant as left."""
-        self.left_at = datetime.utcnow()
+        self.left_at = datetime.now(UTC)
         self.is_connected = False
     
     def determine_dubbing_required(self, call_language: str) -> None:

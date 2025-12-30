@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 import json
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -128,7 +128,7 @@ async def health():
     """Health check endpoint."""
     return {
         "status": "ok",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "active_sessions": connection_manager.get_active_session_count(),
         "total_connections": connection_manager.get_total_connections()
     }

@@ -9,7 +9,7 @@ Manages the lifecycle of a WebSocket connection for real-time calls:
 """
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Optional, Dict, Any, Tuple
 
 from fastapi import WebSocket
@@ -188,7 +188,7 @@ class CallOrchestrator:
         
         # Update participant as connected
         participant.is_connected = True
-        participant.joined_at = datetime.utcnow()
+        participant.joined_at = datetime.now(UTC)
         await db.commit()
         
         # Mark user as online and notify contacts
@@ -330,7 +330,7 @@ class CallOrchestrator:
             # Calculate timestamp from call start
             timestamp_ms = 0
             if self.call_start_time:
-                elapsed = datetime.utcnow() - self.call_start_time
+                elapsed = datetime.now(UTC) - self.call_start_time
                 timestamp_ms = int(elapsed.total_seconds() * 1000)
             
             # Broadcast audio to other participants
@@ -362,7 +362,7 @@ class CallOrchestrator:
                 participant = result.scalar_one_or_none()
                 if participant:
                     participant.is_connected = False
-                    participant.left_at = datetime.utcnow()
+                    participant.left_at = datetime.now(UTC)
                     await db.commit()
                 
                 # Check if call should end (fewer than 2 participants)

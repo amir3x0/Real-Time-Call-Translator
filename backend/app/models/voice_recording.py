@@ -4,7 +4,7 @@ VoiceRecording Model - Voice Sample Storage
 Stores raw voice samples for future Chatterbox voice cloning.
 """
 from sqlalchemy import Column, String, DateTime, Boolean, Integer, Text, ForeignKey
-from datetime import datetime
+from datetime import datetime, UTC
 import uuid
 
 from .database import Base
@@ -39,7 +39,7 @@ class VoiceRecording(Base):
     used_for_training = Column(Boolean, default=False, index=True)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     
     def to_dict(self):
         return {

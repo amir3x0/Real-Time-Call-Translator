@@ -6,7 +6,7 @@ Functions for sending real-time notifications to connected users:
 - Contact requests
 - Incoming calls
 """
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, List, Any, TYPE_CHECKING
 import logging
 
@@ -41,7 +41,7 @@ async def broadcast_user_status(
         "type": "user_status_changed",
         "user_id": user_id,
         "is_online": is_online,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(UTC).isoformat()
     }
     
     notified_count = 0
@@ -87,7 +87,7 @@ async def notify_contact_request(
         "request_id": request_id,
         "requester_id": requester_id,
         "requester_name": requester_name,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(UTC).isoformat()
     }
     
     session_id = user_sessions.get(target_user_id)
@@ -133,7 +133,7 @@ async def notify_incoming_call(
                     "caller_id": caller_id,
                     "caller_name": caller_name,
                     "call_language": caller_language,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(UTC).isoformat()
                 }
                 try:
                     await conn.send_json(notification)
