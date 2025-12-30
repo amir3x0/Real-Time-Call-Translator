@@ -69,15 +69,25 @@ async def broadcast_audio(
     translation_requests = set()
     
     for conn in connections:
+        # Determine if translation is needed
+        source_lang = speaker_conn.participant_language
+        target_lang = conn.participant_language
+        
         # Debug logging
         if conn.dubbing_required:
-            logger.debug(f"User {conn.user_id} requires dubbing from {speaker_conn.participant_language} to {conn.participant_language}")
+            logger.debug(f"User {conn.user_id} requires dubbing from {source_lang} to {target_lang}")
         
-        # FORCE PASSTHROUGH FOR DEBUGGING
-        await conn.send_bytes(audio_data)
-        result["passthrough_count"] += 1
+        if source_lang == target_lang:
+            # Same language - direct passthrough
+            await conn.send_bytes(audio_data)
+            result["passthrough_count"] += 1
+        else:
+            # Different language - queue for translation
+            # We add to set to avoid duplicate publishing for same language pair
+            translation_requests.add((source_lang, target_lang))
+            logger.debug(f"Queueing translation: {source_lang} -> {target_lang} for user {conn.user_id}")
     
-    # Publish for translation (currently disabled for debugging)
+    # Publish for translation
     from app.services.rtc_service import publish_audio_chunk
     for source_lang, target_lang in translation_requests:
         await publish_audio_chunk(
