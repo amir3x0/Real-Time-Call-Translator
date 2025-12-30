@@ -8,7 +8,6 @@ Endpoints for:
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -16,52 +15,18 @@ from app.models.database import get_db
 from app.models.user import User
 from app.models.contact import Contact
 from app.api.auth import get_current_user
+from app.schemas.contact import (
+    UserSearchResult,
+    UserSearchResponse,
+    ContactResponse,
+    ContactsListResponse,
+    AddContactRequest,
+    AddContactResponse,
+    ContactRequestResponse,
+)
 
 router = APIRouter()
 
-
-# Response Models
-class UserSearchResult(BaseModel):
-    id: str
-    full_name: str
-    phone: Optional[str]
-    primary_language: str
-    is_online: bool
-
-
-class UserSearchResponse(BaseModel):
-    users: List[UserSearchResult]
-
-
-class ContactResponse(BaseModel):
-    id: str
-    user_id: str
-    contact_user_id: str
-    contact_name: Optional[str] = None  # Nickname
-    full_name: str
-    phone: Optional[str] = None
-    primary_language: str
-    is_online: bool = False
-    is_favorite: bool = False
-    is_blocked: bool = False
-    added_at: Optional[str] = None
-
-
-class ContactsListResponse(BaseModel):
-    contacts: List[ContactResponse]
-
-
-class AddContactRequest(BaseModel):
-    contact_user_id: str
-    contact_name: Optional[str] = None
-
-
-class AddContactResponse(BaseModel):
-    contact_id: str
-    message: str
-
-
-# Endpoints
 
 @router.get("/contacts/search", response_model=UserSearchResponse)
 async def search_users(
@@ -92,18 +57,6 @@ async def search_users(
             for u in filtered
         ]
     )
-
-
-class ContactRequestResponse(BaseModel):
-    contact_id: str
-    requester: UserSearchResult
-    added_at: str
-
-
-class ContactsListResponse(BaseModel):
-    contacts: List[ContactResponse]
-    pending_incoming: List[ContactRequestResponse] = []
-    pending_outgoing: List[ContactResponse] = []
 
 
 @router.get("/contacts", response_model=ContactsListResponse)
