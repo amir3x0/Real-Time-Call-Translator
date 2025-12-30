@@ -23,8 +23,8 @@ from app.models.call_participant import CallParticipant
 from app.models.contact import Contact
 from app.services.auth_service import decode_token
 from app.services.status_service import status_service
-from app.services.connection_manager import connection_manager
-from app.services.call_service import call_service
+from app.services.connection import connection_manager
+from app.services.call import call_service
 
 logger = logging.getLogger(__name__)
 

@@ -113,27 +113,15 @@ async def upload_voice_sample(
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     
     # Create database record
-    recording = VoiceRecording(
+    recording = await voice_training_service.save_recording(
         user_id=current_user.id,
+        file_path=file_path,
         language=language,
         text_content=text_content,
-        file_path=file_path,
-        file_size_bytes=file_size,
+        file_size=file_size,
         audio_format=file_ext,
-        is_processed=False,
-        used_for_training=False,
+        db=db
     )
-    
-    db.add(recording)
-    
-    # Update user's has_voice_sample flag
-    current_user.has_voice_sample = True
-    
-    await db.commit()
-    await db.refresh(recording)
-    
-    # Queue recording for processing
-    await voice_training_service.queue_recording_for_processing(recording.id)
     
     return VoiceRecordingResponse(
         id=recording.id,
@@ -156,12 +144,7 @@ async def list_voice_recordings(
     """
     List all voice recordings for current user.
     """
-    result = await db.execute(
-        select(VoiceRecording)
-        .where(VoiceRecording.user_id == current_user.id)
-        .order_by(VoiceRecording.created_at.desc())
-    )
-    recordings = result.scalars().all()
+    recordings = await voice_training_service.get_user_recordings(current_user.id, db)
     
     items = [
         VoiceRecordingResponse(
@@ -190,13 +173,10 @@ async def get_voice_status(
     Get voice cloning status for current user.
     """
     # Count recordings
-    result = await db.execute(
-        select(VoiceRecording).where(VoiceRecording.user_id == current_user.id)
-    )
-    all_recordings = result.scalars().all()
+    recordings = await voice_training_service.get_user_recordings(current_user.id, db)
     
-    total_count = len(all_recordings)
-    processed_count = len([r for r in all_recordings if r.is_processed])
+    total_count = len(recordings)
+    processed_count = len([r for r in recordings if r.is_processed])
     
     # Training is ready if we have at least 2 processed samples
     training_ready = processed_count >= 2 and not current_user.voice_model_trained
@@ -225,28 +205,29 @@ async def train_voice_model(
     the voice training background worker.
     """
     # Check if user has enough processed recordings
-    result = await db.execute(
-        select(VoiceRecording).where(
-            VoiceRecording.user_id == current_user.id,
-            VoiceRecording.is_processed == True,
-            VoiceRecording.quality_score >= 40  # MIN_QUALITY_SCORE
-        )
-    )
-    recordings = result.scalars().all()
+    # Using service to get status which includes readiness check logic
+    status = await voice_training_service.get_user_training_status(current_user.id)
     
-    if len(recordings) < 2:
-        raise HTTPException(
+    if status.get("ready_for_training", False) is False:
+         raise HTTPException(
             status_code=400,
             detail="Need at least 2 processed voice samples with quality score >= 40 for training"
         )
     
     # Queue for training via background worker
-    await voice_training_service.queue_training_for_user(current_user.id)
+    result = await voice_training_service.queue_training_for_user(current_user.id)
     
+    if result.get("status") == "already_queued":
+         return TrainVoiceModelResponse(
+            message="Voice model training already in queue",
+            status="pending",
+            recordings_used=status.get("quality_recordings", 0),
+        )
+
     return TrainVoiceModelResponse(
         message="Voice model training queued",
         status="pending",
-        recordings_used=len(recordings),
+        recordings_used=status.get("quality_recordings", 0),
     )
 
 
@@ -304,37 +285,10 @@ async def delete_voice_recording(
     """
     Delete a voice recording.
     """
-    result = await db.execute(
-        select(VoiceRecording).where(
-            VoiceRecording.id == recording_id,
-            VoiceRecording.user_id == current_user.id
-        )
-    )
-    recording = result.scalar_one_or_none()
+    success = await voice_training_service.delete_recording(recording_id, current_user.id, db)
     
-    if not recording:
+    if not success:
         raise HTTPException(status_code=404, detail="Recording not found")
-    
-    # Delete file
-    if os.path.exists(recording.file_path):
-        try:
-            os.remove(recording.file_path)
-        except Exception:
-            pass
-    
-    # Delete record
-    await db.delete(recording)
-    await db.commit()
-    
-    # Update user's has_voice_sample if no more recordings
-    result = await db.execute(
-        select(VoiceRecording).where(VoiceRecording.user_id == current_user.id)
-    )
-    remaining = result.scalars().all()
-    
-    if len(remaining) == 0:
-        current_user.has_voice_sample = False
-        await db.commit()
     
     return {"message": "Recording deleted"}
 

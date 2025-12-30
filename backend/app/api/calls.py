@@ -18,7 +18,7 @@ from app.models.call import Call
 from app.models.call_participant import CallParticipant
 from app.api.auth import get_current_user
 from app.config.settings import settings
-from app.services.call_service import (
+from app.services.call import (
     call_service,
     CallServiceError,
     ContactNotAuthorizedError,
@@ -27,7 +27,7 @@ from app.services.call_service import (
     CallNotFoundError,
     InvalidParticipantCountError,
 )
-from app.services.connection_manager import connection_manager
+from app.services.connection import connection_manager
 from app.services.user_service import user_service
 from app.schemas.call import (
     StartCallRequest,
