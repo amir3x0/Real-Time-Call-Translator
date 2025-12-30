@@ -2,12 +2,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/providers/call_provider.dart';
 import 'package:mobile/models/call.dart';
 
+import 'package:mobile/data/websocket/websocket_service.dart';
+import 'package:mobile/data/api/api_service.dart';
+
+// Manual Mocks
+class MockWebSocketService extends WebSocketService {
+  @override
+  Stream<WSMessage> get messages => const Stream.empty();
+
+  @override
+  Future<void> disconnect() async {}
+}
+
+class MockApiService extends ApiService {}
+
 void main() {
   group('CallProvider Tests', () {
     late CallProvider callProvider;
+    late MockWebSocketService mockWsService;
+    late MockApiService mockApiService;
 
     setUp(() {
-      callProvider = CallProvider();
+      mockWsService = MockWebSocketService();
+      mockApiService = MockApiService();
+      callProvider =
+          CallProvider(wsService: mockWsService, apiService: mockApiService);
     });
 
     test('Initial status should be pending', () {

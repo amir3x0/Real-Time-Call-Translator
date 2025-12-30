@@ -7,10 +7,11 @@ class AppConfig {
   // ============================================
 
   /// Backend server port
-  static const int _backendPort = 8000;
+  static const int _backendPort =
+      int.fromEnvironment('BACKEND_PORT', defaultValue: 8000);
 
   /// Development server hosts for different testing scenarios
-  static const String _devHostPhysical = '10.223.167.22';
+  // static const String _devHostPhysical = '10.223.167.22'; // Use --dart-define=BACKEND_HOST=... instead
   // Uncomment and use these when testing on emulator/simulator:
   // static const String _devHostEmulator = '10.0.2.2'; // Android emulator
   // static const String _devHostSimulator = 'localhost'; // iOS simulator
@@ -18,22 +19,24 @@ class AppConfig {
   /// Production server host (update when deploying)
   static const String _prodHost = 'your-production-server.com';
 
-  /// Get backend host based on build mode
-  /// **For Debug Mode:**
-  /// - Change `_devHostPhysical` to your computer's WiFi IP for physical device testing
-  /// **For Release Mode:**
-  /// - Update `_prodHost` with your production server URL
+  /// Get backend host from environment variables or default to emulator
+  ///
+  /// Usage:
+  /// flutter run --dart-define=BACKEND_HOST=192.168.1.50
   static String _getBackendHost() {
-    if (kDebugMode) {
-      // Switch between these based on your testing scenario:
-      return _devHostPhysical; // Physical device
-      // For Android emulator, uncomment and use:
-      // return '10.0.2.2';
-      // For iOS simulator, uncomment and use:
-      // return 'localhost';
+    // 1. Check for command-line override
+    const envHost = String.fromEnvironment('BACKEND_HOST');
+    if (envHost.isNotEmpty) {
+      return envHost;
     }
 
-    // Production server
+    // 2. Default behavior based on build mode
+    if (kDebugMode) {
+      // Default to Android Emulator loopback if not specified
+      return '10.0.2.2';
+    }
+
+    // 3. Production fallback
     return _prodHost;
   }
 

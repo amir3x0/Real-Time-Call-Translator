@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/call_provider.dart';
+import '../../providers/lobby_provider.dart';
 import '../../config/app_theme.dart';
 import '../../widgets/flash_bar.dart';
 
@@ -395,7 +395,10 @@ class _LoginScreenState extends State<LoginScreen>
     if (success) {
       // Connect to lobby after successful login to mark user as online
       if (mounted) {
-        Provider.of<CallProvider>(context, listen: false).connectToLobby();
+        final token = await authProvider.checkAuthStatus();
+        if (token != null) {
+          Provider.of<LobbyProvider>(context, listen: false).connect(token);
+        }
       }
       navigator.pushReplacementNamed('/home');
     } else {

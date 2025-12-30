@@ -542,30 +542,45 @@ class CallConfirmationScreen extends StatelessWidget {
   }
 
   /// Start the call with selected participants
-  void _startCall(BuildContext context) {
+  Future<void> _startCall(BuildContext context) async {
     final contactsProvider = context.read<ContactsProvider>();
     final callProvider = context.read<CallProvider>();
     final selectedContacts = contactsProvider.selectedContacts;
 
     if (selectedContacts.isEmpty) return;
 
-    // Extract user IDs from selected contacts for the API call
-    final participantUserIds =
-        selectedContacts.map((contact) => contact.contactUserId).toList();
+    // Show loading state could be added here if we had a loading state in UI
 
-    // Start the call using CallProvider
-    callProvider.startCall(participantUserIds);
+    try {
+      // Extract user IDs from selected contacts for the API call
+      final participantUserIds =
+          selectedContacts.map((contact) => contact.contactUserId).toList();
 
-    // Clear selection after starting call
-    contactsProvider.clearSelection();
+      // Start the call using CallProvider and WAIT for it
+      await callProvider.startCall(participantUserIds);
 
-    // Navigate to active call screen
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      '/call/active',
-      (route) => route.isFirst,
-      arguments: {
-        'contacts': selectedContacts,
-      },
-    );
+      // Clear selection after starting call
+      contactsProvider.clearSelection();
+
+      if (context.mounted) {
+        // Navigate to active call screen only on success
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/call/active',
+          (route) => route.isFirst,
+          arguments: {
+            'contacts': selectedContacts,
+          },
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start call: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

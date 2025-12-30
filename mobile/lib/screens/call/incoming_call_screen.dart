@@ -1,8 +1,12 @@
+import 'dart:ui';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/call_provider.dart';
+import '../../providers/lobby_provider.dart';
 import '../../models/call.dart';
+import '../../models/participant.dart';
 
 class IncomingCallScreen extends StatefulWidget {
   const IncomingCallScreen({super.key});
@@ -13,7 +17,7 @@ class IncomingCallScreen extends StatefulWidget {
 
 class _IncomingCallScreenState extends State<IncomingCallScreen> {
   Timer? _countdownTimer;
-  int _remainingSeconds = 30;
+  int _remainingSeconds = 45;
 
   @override
   void initState() {
@@ -29,35 +33,51 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
 
   void _startCountdown() {
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {
-          _remainingSeconds--;
-        });
-        if (_remainingSeconds <= 0) {
-          timer.cancel();
-          // Auto-reject will be handled by CallProvider timeout
-        }
+      if (_remainingSeconds > 0) {
+        setState(() => _remainingSeconds--);
+      } else {
+        timer.cancel();
+        // Timeout handling - reject via lobby provider
+        final lobbyProvider =
+            Provider.of<LobbyProvider>(context, listen: false);
+        lobbyProvider.rejectIncomingCall();
+        if (mounted) Navigator.of(context).pop();
       }
     });
   }
 
   String _getLanguageName(String code) {
     switch (code.toLowerCase()) {
-      case 'he':
-        return 'עברית';
       case 'en':
         return 'English';
+      case 'es':
+        return 'Spanish';
+      case 'fr':
+        return 'French';
+      case 'de':
+        return 'German';
+      case 'it':
+        return 'Italian';
+      case 'pt':
+        return 'Portuguese';
       case 'ru':
-        return 'Русский';
+        return 'Russian';
+      case 'zh':
+        return 'Chinese';
+      case 'ja':
+        return 'Japanese';
+      case 'ko':
+        return 'Korean';
       default:
-        return code;
+        return code.toUpperCase();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final callProvider = Provider.of<CallProvider>(context);
-    final incomingCall = callProvider.incomingCall;
+    final lobbyProvider = Provider.of<LobbyProvider>(context);
+    final callProvider = Provider.of<CallProvider>(context, listen: false);
+    final incomingCall = lobbyProvider.incomingCall;
 
     // Only pop if incoming call is null AND we are not in active state (accepted)
     if (incomingCall == null && callProvider.status != CallStatus.active) {
@@ -79,6 +99,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
+
+    // Safety check if we somehow got here with null incomingCall but not active
+    if (incomingCall == null) return const SizedBox();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E16),
@@ -153,7 +176,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                         const SizedBox(height: 32),
                         // Caller name
                         Text(
-                          callProvider.incomingCallerName ?? 'Incoming Call',
+                          lobbyProvider.incomingCallerName ?? 'Incoming Call',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
@@ -172,7 +195,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            _getLanguageName(incomingCall!.callLanguage),
+                            _getLanguageName(incomingCall.callLanguage),
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 16,
@@ -195,7 +218,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                         color: Colors.red,
                         onPressed: () {
                           _countdownTimer?.cancel();
-                          callProvider.rejectIncomingCall();
+                          lobbyProvider.rejectIncomingCall();
                           Navigator.of(context).pop();
                         },
                       ),
@@ -205,11 +228,33 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                         color: Colors.green,
                         onPressed: () async {
                           _countdownTimer?.cancel();
-                          await callProvider.acceptIncomingCall();
-                          // Navigation to active call
-                          if (!context.mounted) return;
-                          Navigator.of(context)
-                              .pushReplacementNamed('/call/active');
+                          // 1. Accept in Lobby -> Get Session Data
+                          final callData =
+                              await lobbyProvider.acceptIncomingCall();
+
+                          if (callData != null &&
+                              callData['session_id'] != null) {
+                            final sessionId = callData['session_id'];
+                            final participantsData =
+                                callData['participants'] as List<dynamic>? ??
+                                    [];
+
+                            final participants = participantsData
+                                .map((p) => CallParticipant.fromJson(
+                                    Map<String, dynamic>.from(p)))
+                                .toList();
+
+                            // 2. Join Session in CallProvider
+                            await callProvider.joinCall(
+                                sessionId, participants);
+
+                            if (context.mounted) {
+                              Navigator.of(context)
+                                  .pushReplacementNamed('/call/active');
+                            }
+                          } else {
+                            if (context.mounted) Navigator.pop(context);
+                          }
                         },
                       ),
                     ],
@@ -237,28 +282,35 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 70,
-        height: 70,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.4),
-              blurRadius: 15,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: 32,
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.4),
+            blurRadius: 15,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Icon(
+            icon,
+            size: 40,
+            color: Colors.white,
+          ),
         ),
       ),
-    );
+    ).animate(onPlay: (controller) => controller.repeat(reverse: true)).scale(
+        duration: 1000.ms,
+        begin: const Offset(1, 1),
+        end: const Offset(1.1, 1.1));
   }
 }
