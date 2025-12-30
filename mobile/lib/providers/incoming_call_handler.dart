@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
-import '../data/api/api_service.dart';
+import '../data/services/call_api_service.dart';
 import '../models/call.dart';
 
 /// Handles incoming call state and lifecycle.
@@ -11,7 +11,7 @@ import '../models/call.dart';
 /// - Accept/reject actions
 /// - Call timeout
 class IncomingCallHandler {
-  final ApiService _apiService;
+  final CallApiService _apiService;
   final VoidCallback _notifyListeners;
 
   // State

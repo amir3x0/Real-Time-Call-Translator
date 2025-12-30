@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../data/websocket/websocket_service.dart';
 import '../models/call.dart';
 import 'incoming_call_handler.dart';
-import '../data/api/api_service.dart';
+import '../data/services/call_api_service.dart';
 
 /// Manages the "Global" WebSocket connection (Lobby).
 ///
@@ -14,7 +14,7 @@ import '../data/api/api_service.dart';
 /// - Listens for User Status Updates (Online/Offline)
 class LobbyProvider with ChangeNotifier {
   final WebSocketService _wsService;
-  final ApiService _apiService;
+  final CallApiService _apiService;
 
   StreamSubscription<WSMessage>? _wsSub;
   bool _isConnected = false;
@@ -27,7 +27,7 @@ class LobbyProvider with ChangeNotifier {
 
   LobbyProvider({
     required WebSocketService wsService,
-    required ApiService apiService,
+    required CallApiService apiService,
   })  : _wsService = wsService,
         _apiService = apiService {
     _incomingCallHandler = IncomingCallHandler(_apiService, notifyListeners);

@@ -19,33 +19,37 @@ import 'screens/call/incoming_call_screen.dart';
 import 'screens/contacts/contacts_screen.dart';
 import 'screens/contacts/add_contact_screen.dart';
 import 'screens/settings/settings_screen.dart';
-import 'data/api/api_service.dart';
+import 'data/services/auth_service.dart';
+import 'data/services/contact_service.dart';
+import 'data/services/call_api_service.dart';
 import 'data/websocket/websocket_service.dart';
 
 void main() {
-  final apiService = ApiService();
+  final authService = AuthService();
+  final contactService = ContactService();
+  final callApiService = CallApiService();
   final lobbyWsService = WebSocketService();
   final callWsService = WebSocketService();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider(authService)),
         ChangeNotifierProvider(
           create: (_) => CallProvider(
             wsService: callWsService,
-            apiService: apiService,
+            apiService: callApiService,
           ),
         ),
         ChangeNotifierProvider(
           create: (_) => LobbyProvider(
             wsService: lobbyWsService,
-            apiService: apiService,
+            apiService: callApiService,
           ),
         ),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProxyProvider<LobbyProvider, ContactsProvider>(
-          create: (_) => ContactsProvider(),
+          create: (_) => ContactsProvider(contactService),
           update: (_, lobbyProvider, contactsProvider) =>
               contactsProvider!..updateLobbyProvider(lobbyProvider),
         ),

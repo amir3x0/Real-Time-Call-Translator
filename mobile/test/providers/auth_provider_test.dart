@@ -1,15 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile/providers/auth_provider.dart';
+import '../test_helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   SharedPreferences.setMockInitialValues({});
   group('AuthProvider Tests', () {
     late AuthProvider authProvider;
+    late FakeAuthService fakeAuthService;
 
     setUp(() {
-      authProvider = AuthProvider();
+      fakeAuthService = FakeAuthService();
+      authProvider = AuthProvider(fakeAuthService);
     });
 
     test('Initial state should be logged out', () {

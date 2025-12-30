@@ -8,7 +8,7 @@ import 'package:mobile/models/participant.dart';
 import 'package:mobile/models/call.dart';
 
 import 'package:mobile/data/websocket/websocket_service.dart';
-import 'package:mobile/data/api/api_service.dart';
+import 'package:mobile/data/services/call_api_service.dart';
 
 // Manual Mocks
 class MockWebSocketService extends WebSocketService {
@@ -20,13 +20,13 @@ class MockWebSocketService extends WebSocketService {
   Future<void> disconnect() async {}
 }
 
-class MockApiService extends ApiService {}
+class MockCallApiService extends CallApiService {}
 
 void main() {
   testWidgets('ActiveCallScreen shows participants and live transcription',
       (WidgetTester tester) async {
     final mockWsService = MockWebSocketService();
-    final mockApiService = MockApiService();
+    final mockApiService = MockCallApiService();
     final callProv =
         CallProvider(wsService: mockWsService, apiService: mockApiService);
 
@@ -70,6 +70,6 @@ void main() {
 
     // We can end the call
     callProv.endCall();
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
   });
 }
