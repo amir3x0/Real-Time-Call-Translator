@@ -3,12 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile/providers/auth_provider.dart';
 import 'package:mobile/screens/auth/login_screen.dart';
+import '../test_helpers.dart';
 
 void main() {
-  testWidgets('Login screen has Create Account button', (WidgetTester tester) async {
+  testWidgets('Login screen has Create Account button',
+      (WidgetTester tester) async {
     await tester.pumpWidget(
       ChangeNotifierProvider(
-        create: (_) => AuthProvider(),
+        create: (_) => AuthProvider(FakeAuthService()),
         child: const MaterialApp(home: LoginScreen()),
       ),
     );

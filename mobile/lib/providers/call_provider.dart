@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/websocket/websocket_service.dart';
-import '../data/api/api_service.dart';
+import '../data/services/call_api_service.dart';
 import '../models/call.dart';
 import '../models/live_caption.dart';
 import '../models/participant.dart';
@@ -27,7 +27,7 @@ class CallProvider with ChangeNotifier {
 
   // Services
   final WebSocketService _wsService;
-  final ApiService _apiService;
+  final CallApiService _apiService;
   StreamSubscription<WSMessage>? _wsSub;
 
   // Helpers
@@ -36,7 +36,7 @@ class CallProvider with ChangeNotifier {
 
   CallProvider({
     required WebSocketService wsService,
-    required ApiService apiService,
+    required CallApiService apiService,
   })  : _wsService = wsService,
         _apiService = apiService {
     _audioController = AudioController(_wsService, notifyListeners);

@@ -1,25 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../data/api/api_service.dart';
+import '../data/services/auth_service.dart';
 import '../models/user.dart';
 
-/// Holds registration data temporarily until the flow is complete
-class PendingRegistration {
-  final String phone;
-  final String fullName;
-  final String password;
-  final String primaryLanguage;
-
-  PendingRegistration({
-    required this.phone,
-    required this.fullName,
-    required this.password,
-    required this.primaryLanguage,
-  });
-}
-
 class AuthProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final AuthService _authService;
+
+  AuthProvider(this._authService);
   User? _currentUser;
   bool _isLoading = false;
 
@@ -37,9 +24,9 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _currentUser = await _apiService.login(phone, password);
+      _currentUser = await _authService.login(phone, password);
       // Hydrate with /auth/me when possible
-      final me = await _apiService.me();
+      final me = await _authService.me();
       if (me != null) {
         _currentUser = me;
       }
@@ -105,7 +92,7 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _currentUser = await _apiService.register(
+      _currentUser = await _authService.register(
         _pendingRegistration!.phone,
         _pendingRegistration!.fullName,
         _pendingRegistration!.password,
@@ -113,7 +100,7 @@ class AuthProvider with ChangeNotifier {
       );
 
       // Hydrate with /auth/me when possible
-      final me = await _apiService.me();
+      final me = await _authService.me();
       if (me != null) {
         _currentUser = me;
       }
@@ -140,10 +127,10 @@ class AuthProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      _currentUser = await _apiService.register(
+      _currentUser = await _authService.register(
           phone, fullName, password, primaryLanguage);
       // Hydrate with /auth/me when possible
-      final me = await _apiService.me();
+      final me = await _authService.me();
       if (me != null) {
         _currentUser = me;
       }
@@ -160,7 +147,7 @@ class AuthProvider with ChangeNotifier {
   /// Refresh current user data from the server
   Future<void> refreshCurrentUser() async {
     try {
-      final me = await _apiService.me();
+      final me = await _authService.me();
       if (me != null) {
         _currentUser = me;
         notifyListeners();
@@ -181,7 +168,7 @@ class AuthProvider with ChangeNotifier {
       // Validate session with server if needed, for now just check existence
       // We could call /auth/me here to verify validity
       try {
-        final me = await _apiService.me();
+        final me = await _authService.me();
         if (me != null) {
           _currentUser = me;
           notifyListeners();
@@ -196,4 +183,18 @@ class AuthProvider with ChangeNotifier {
     }
     return null;
   }
+}
+
+class PendingRegistration {
+  final String phone;
+  final String fullName;
+  final String password;
+  final String primaryLanguage;
+
+  PendingRegistration({
+    required this.phone,
+    required this.fullName,
+    required this.password,
+    required this.primaryLanguage,
+  });
 }

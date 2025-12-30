@@ -3,7 +3,7 @@ import 'package:mobile/providers/call_provider.dart';
 import 'package:mobile/models/call.dart';
 
 import 'package:mobile/data/websocket/websocket_service.dart';
-import 'package:mobile/data/api/api_service.dart';
+import 'package:mobile/data/services/call_api_service.dart';
 
 // Manual Mocks
 class MockWebSocketService extends WebSocketService {
@@ -14,17 +14,19 @@ class MockWebSocketService extends WebSocketService {
   Future<void> disconnect() async {}
 }
 
-class MockApiService extends ApiService {}
+class MockCallApiService extends CallApiService {
+  // Add methods if needed for testing, or just use as is
+}
 
 void main() {
   group('CallProvider Tests', () {
     late CallProvider callProvider;
     late MockWebSocketService mockWsService;
-    late MockApiService mockApiService;
+    late MockCallApiService mockApiService;
 
     setUp(() {
       mockWsService = MockWebSocketService();
-      mockApiService = MockApiService();
+      mockApiService = MockCallApiService();
       callProvider =
           CallProvider(wsService: mockWsService, apiService: mockApiService);
     });

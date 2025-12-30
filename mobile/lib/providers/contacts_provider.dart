@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/contact.dart';
 import '../models/user.dart';
-import '../data/api/api_service.dart';
+import '../data/services/contact_service.dart';
 import '../data/websocket/websocket_service.dart';
 import 'lobby_provider.dart';
 
@@ -17,7 +17,7 @@ enum AddContactResult {
 
 /// Provider for managing contacts with multi-selection support.
 class ContactsProvider with ChangeNotifier {
-  final ApiService _api = ApiService();
+  final ContactService _contactService;
   LobbyProvider? _lobbyProvider;
   StreamSubscription? _lobbyEventsSub;
 
@@ -28,7 +28,7 @@ class ContactsProvider with ChangeNotifier {
     _listenToLobbyEvents();
   }
 
-  ContactsProvider();
+  ContactsProvider(this._contactService);
 
   void _listenToLobbyEvents() {
     _lobbyEventsSub = _lobbyProvider?.events.listen((event) {
@@ -115,7 +115,7 @@ class ContactsProvider with ChangeNotifier {
     _error = null;
 
     try {
-      final contactsData = await _api.getContacts();
+      final contactsData = await _contactService.getContacts();
 
       // Parse main contacts
       final contactsConfig = contactsData['contacts'] as List? ?? [];
@@ -277,7 +277,7 @@ class ContactsProvider with ChangeNotifier {
     if (query.isEmpty) return [];
 
     try {
-      final results = await _api.searchUsers(query);
+      final results = await _contactService.searchUsers(query);
       return results.map((json) => User.fromJson(json)).toList();
     } catch (e) {
       debugPrint('Search users error: $e');
@@ -296,7 +296,7 @@ class ContactsProvider with ChangeNotifier {
         return AddContactResult.alreadyExists;
       }
 
-      await _api.addContact(userId);
+      await _contactService.addContact(userId);
       await refreshContacts();
       return AddContactResult.success;
     } catch (e) {
@@ -318,7 +318,7 @@ class ContactsProvider with ChangeNotifier {
   Future<bool> removeContact(String contactId) async {
     _setLoading(true);
     try {
-      await _api.deleteContact(contactId);
+      await _contactService.deleteContact(contactId);
       _allContacts.removeWhere((c) => c.id == contactId);
       _selectedContactIds.remove(contactId);
       _applyFilter();
@@ -336,7 +336,7 @@ class ContactsProvider with ChangeNotifier {
   Future<bool> acceptContactRequest(String requestId) async {
     _setLoading(true);
     try {
-      await _api.acceptContactRequest(requestId);
+      await _contactService.acceptContactRequest(requestId);
       await refreshContacts();
       return true;
     } catch (e) {
@@ -352,7 +352,7 @@ class ContactsProvider with ChangeNotifier {
   Future<bool> rejectContactRequest(String requestId) async {
     _setLoading(true);
     try {
-      await _api.rejectContactRequest(requestId);
+      await _contactService.rejectContactRequest(requestId);
       _pendingIncoming.removeWhere((c) => c.id == requestId);
       notifyListeners();
       return true;
