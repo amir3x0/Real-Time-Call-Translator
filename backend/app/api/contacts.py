@@ -45,10 +45,7 @@ async def search_users(
     current_user: User = Depends(get_current_user)
 ):
     """Search for users by name or phone."""
-    users = await user_service.search(db, q, limit=20)
-    
-    # Exclude current user
-    filtered = [u for u in users if u.id != current_user.id]
+    users = await user_service.search(db, q, limit=20, exclude_ids=[current_user.id])
     
     return UserSearchResponse(
         users=[
@@ -59,7 +56,7 @@ async def search_users(
                 primary_language=u.primary_language,
                 is_online=u.is_online,
             )
-            for u in filtered
+            for u in users
         ]
     )
 
@@ -73,9 +70,8 @@ async def list_contacts(
     categorized = await contact_service.get_user_contacts(db, current_user.id)
     
     # Helper to format contact response
-    async def format_contact(contact: Contact) -> Optional[ContactResponse]:
-        user = await user_service.get_by_id(db, contact.contact_user_id)
-        if not user: return None
+    # Now takes (Contact, User) tuple, no DB query needed!
+    def format_contact_tuple(contact: Contact, user: User) -> ContactResponse:
         return ContactResponse(
             id=contact.id,
             user_id=contact.user_id,
@@ -90,10 +86,9 @@ async def list_contacts(
             added_at=contact.added_at.isoformat() if contact.added_at else None,
         )
 
-    # Helper to format request response
-    async def format_request_incoming(contact: Contact) -> Optional[ContactRequestResponse]:
-        user = await user_service.get_by_id(db, contact.user_id) # Requester
-        if not user: return None
+    # Helper to format request response (Incoming)
+    def format_request_incoming_tuple(contact: Contact, user: User) -> ContactRequestResponse:
+        # User is the Requester
         return ContactRequestResponse(
             contact_id=contact.id,
             requester=UserSearchResult(
@@ -105,33 +100,16 @@ async def list_contacts(
             ),
             added_at=contact.added_at.isoformat()
         )
-        
-    async def format_request_outgoing(contact: Contact) -> Optional[ContactResponse]:
-        user = await user_service.get_by_id(db, contact.contact_user_id) # Target
-        if not user: return None
-        return ContactResponse(
-            id=contact.id,
-            user_id=contact.user_id,
-            contact_user_id=contact.contact_user_id,
-            contact_name=contact.contact_name,
-            full_name=user.full_name,
-            phone=user.phone,
-            primary_language=user.primary_language,
-            is_online=user.is_online or False,
-            is_favorite=contact.is_favorite or False,
-            is_blocked=contact.is_blocked or False,
-            added_at=contact.added_at.isoformat() if contact.added_at else None,
-        )
 
-    # Build lists
-    contacts_list = [await format_contact(c) for c in categorized["contacts"]]
-    incoming_list = [await format_request_incoming(c) for c in categorized["pending_incoming"]]
-    outgoing_list = [await format_request_outgoing(c) for c in categorized["pending_outgoing"]]
+    # Build lists using the tuples directly
+    contacts_list = [format_contact_tuple(c, u) for c, u in categorized["contacts"]]
+    incoming_list = [format_request_incoming_tuple(c, u) for c, u in categorized["pending_incoming"]]
+    outgoing_list = [format_contact_tuple(c, u) for c, u in categorized["pending_outgoing"]]
     
     return ContactsListResponse(
-        contacts=[c for c in contacts_list if c],
-        pending_incoming=[c for c in incoming_list if c],
-        pending_outgoing=[c for c in outgoing_list if c]
+        contacts=contacts_list,
+        pending_incoming=incoming_list,
+        pending_outgoing=outgoing_list
     )
 
 
@@ -142,7 +120,9 @@ async def add_contact_by_body(
     current_user: User = Depends(get_current_user)
 ):
     """Send a Friend Request (Add contact as pending)."""
-    return await _handle_add_contact(db, current_user, req.contact_user_id, req.contact_name)
+    response = await _handle_add_contact(db, current_user, req.contact_user_id, req.contact_name)
+    await db.commit()
+    return response
 
 
 @router.post("/contacts/add/{contact_user_id}", response_model=AddContactResponse, status_code=201)
@@ -152,7 +132,9 @@ async def add_contact_by_path(
     current_user: User = Depends(get_current_user)
 ):
     """Send a Friend Request (path parameter)."""
-    return await _handle_add_contact(db, current_user, contact_user_id, None)
+    response = await _handle_add_contact(db, current_user, contact_user_id, None)
+    await db.commit()
+    return response
 
 
 async def _handle_add_contact(
@@ -183,6 +165,7 @@ async def accept_contact_request(
     """Accept a friend request. Creates mutual contact link."""
     try:
         await contact_service.accept_request(db, request_id, current_user.id)
+        await db.commit()
         return {"message": "Friend request accepted"}
     except RequestNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -197,6 +180,7 @@ async def reject_contact_request(
     """Reject (delete) a friend request."""
     try:
         await contact_service.reject_request(db, request_id, current_user.id)
+        await db.commit()
         return {"message": "Friend request rejected"}
     except RequestNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -211,6 +195,7 @@ async def delete_contact(
     """Delete a contact (Unfriend). Removes mutual link."""
     try:
         await contact_service.remove_contact(db, contact_id, current_user.id)
+        await db.commit()
         return None
     except ContactNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -225,6 +210,7 @@ async def toggle_favorite(
     """Toggle favorite status for a contact."""
     try:
         is_favorite = await contact_service.toggle_favorite(db, contact_id, current_user.id)
+        await db.commit()
         return {"is_favorite": is_favorite}
     except ContactNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -239,6 +225,7 @@ async def toggle_block(
     """Toggle block status for a contact."""
     try:
         is_blocked = await contact_service.toggle_block(db, contact_id, current_user.id)
+        await db.commit()
         return {"is_blocked": is_blocked}
     except ContactNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

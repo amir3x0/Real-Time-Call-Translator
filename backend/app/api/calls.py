@@ -50,9 +50,17 @@ async def _build_participant_info_list(db: AsyncSession, participants: List[Call
     """Helper to build ParticipantInfo list from CallParticipant records."""
     participants_info = []
     
-    # Batch fetch users could be optimized, but for now we loop
+    if not participants:
+        return []
+
+    # Batch fetch all users
+    user_ids = [p.user_id for p in participants]
+    stmt = select(User).where(User.id.in_(user_ids))
+    result = await db.execute(stmt)
+    users_map = {u.id: u for u in result.scalars().all()}
+    
     for p in participants:
-         user = await user_service.get_by_id(db, p.user_id)
+         user = users_map.get(p.user_id)
          
          if user:
              participants_info.append(ParticipantInfo(
@@ -93,7 +101,7 @@ async def start_call(
     try:
         call, participants = await call_service.initiate_call(
             db=db,
-            caller_id=current_user.id,
+            caller=current_user,
             target_ids=req.participant_user_ids,
             skip_contact_validation=req.skip_contact_validation,
         )

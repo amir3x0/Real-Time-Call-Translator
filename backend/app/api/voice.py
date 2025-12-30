@@ -104,11 +104,12 @@ async def upload_voice_sample(
     
     # Save file
     try:
-        contents = await file.read()
-        file_size = len(contents)
+        import aiofiles
+        async with aiofiles.open(file_path, 'wb') as f:
+            while content := await file.read(1024 * 1024):  # Read in 1MB chunks
+                await f.write(content)
         
-        with open(file_path, 'wb') as f:
-            f.write(contents)
+        file_size = os.path.getsize(file_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     

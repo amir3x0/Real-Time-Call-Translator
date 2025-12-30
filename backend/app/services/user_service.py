@@ -44,15 +44,19 @@ class UserService:
         return user
 
     @staticmethod
-    async def search(db: AsyncSession, query: str, limit: int = 20) -> list[User]:
+    async def search(db: AsyncSession, query: str, limit: int = 20, exclude_ids: list[str] = None) -> list[User]:
         """
         Search users by name or phone.
+        Optional: exclude_ids list to filter out users (e.g. self).
         """
-        result = await db.execute(
-            select(User).where(
-                (User.full_name.ilike(f"%{query}%")) | (User.phone.ilike(f"%{query}%"))
-            ).limit(limit)
+        stmt = select(User).where(
+            (User.full_name.ilike(f"%{query}%")) | (User.phone.ilike(f"%{query}%"))
         )
+        
+        if exclude_ids:
+            stmt = stmt.where(User.id.not_in(exclude_ids))
+            
+        result = await db.execute(stmt.limit(limit))
         return result.scalars().all()
 
 

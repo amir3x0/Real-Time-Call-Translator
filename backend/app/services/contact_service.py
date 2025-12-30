@@ -48,37 +48,40 @@ class ContactService:
         """
         Get all contacts for a user, categorized.
         Returns: {
-            "contacts": [Contact objects...],
-            "pending_incoming": [Contact objects...],
-            "pending_outgoing": [Contact objects...]
+            "contacts": [(Contact, User)...],
+            "pending_incoming": [(Contact, User)...],
+            "pending_outgoing": [(Contact, User)...]
         }
         """
-        # 1. Accepted Contacts (My friends)
-        result = await db.execute(
-            select(Contact).where(
-                Contact.user_id == user_id,
-                Contact.status == 'accepted'
-            )
+        # 1. Accepted Contacts (My friends) - Join to get friend's details
+        stmt = select(Contact, User).join(
+            User, Contact.contact_user_id == User.id
+        ).where(
+            Contact.user_id == user_id,
+            Contact.status == 'accepted'
         )
-        contacts = result.scalars().all()
+        result = await db.execute(stmt)
+        contacts = result.all() # List of (Contact, User)
         
-        # 2. Incoming Pending Requests (People who added me)
-        inc_result = await db.execute(
-            select(Contact).where(
-                Contact.contact_user_id == user_id,
-                Contact.status == 'pending'
-            )
+        # 2. Incoming Pending Requests (People who added me) - Join to get requester's details
+        stmt_inc = select(Contact, User).join(
+            User, Contact.user_id == User.id
+        ).where(
+            Contact.contact_user_id == user_id,
+            Contact.status == 'pending'
         )
-        incoming_requests = inc_result.scalars().all()
+        inc_result = await db.execute(stmt_inc)
+        incoming_requests = inc_result.all() # List of (Contact, User)
         
-        # 3. Outgoing Pending Requests (I added them)
-        out_result = await db.execute(
-            select(Contact).where(
-                Contact.user_id == user_id,
-                Contact.status == 'pending'
-            )
+        # 3. Outgoing Pending Requests (I added them) - Join to get target's details
+        stmt_out = select(Contact, User).join(
+            User, Contact.contact_user_id == User.id
+        ).where(
+            Contact.user_id == user_id,
+            Contact.status == 'pending'
         )
-        outgoing_requests = out_result.scalars().all()
+        out_result = await db.execute(stmt_out)
+        outgoing_requests = out_result.all() # List of (Contact, User)
         
         return {
             "contacts": contacts,
@@ -145,8 +148,8 @@ class ContactService:
             status='pending'
         )
         db.add(contact)
-        await db.commit()
-        await db.refresh(contact)
+        db.add(contact)
+        await db.flush()
         
         # Notify target user via WebSocket
         await connection_manager.notify_contact_request(
@@ -198,8 +201,6 @@ class ContactService:
             db.add(reverse_contact)
         else:
             existing_reverse.status = 'accepted'
-            
-        await db.commit()
 
     async def reject_request(self, db: AsyncSession, request_id: str, current_user_id: str) -> None:
         """
@@ -217,7 +218,6 @@ class ContactService:
             raise RequestNotFoundError("Request not found")
             
         await db.delete(request)
-        await db.commit()
 
     async def remove_contact(self, db: AsyncSession, contact_id: str, current_user_id: str) -> None:
         """
@@ -249,8 +249,6 @@ class ContactService:
         reverse_contact = reverse_result.scalar_one_or_none()
         if reverse_contact:
             await db.delete(reverse_contact)
-            
-        await db.commit()
 
     async def toggle_favorite(self, db: AsyncSession, contact_id: str, current_user_id: str) -> bool:
         """Toggle favorite status. Returns new status."""
@@ -265,7 +263,6 @@ class ContactService:
             raise ContactNotFoundError("Contact not found")
         
         contact.is_favorite = not contact.is_favorite
-        await db.commit()
         return contact.is_favorite
 
     async def toggle_block(self, db: AsyncSession, contact_id: str, current_user_id: str) -> bool:
@@ -281,7 +278,6 @@ class ContactService:
             raise ContactNotFoundError("Contact not found")
         
         contact.is_blocked = not contact.is_blocked
-        await db.commit()
         return contact.is_blocked
 
 

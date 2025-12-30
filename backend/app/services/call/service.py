@@ -98,29 +98,21 @@ class CallService:
     async def initiate_call(
         cls,
         db: AsyncSession,
-        caller_id: str,
+        caller: User,
         target_ids: List[str],
         skip_contact_validation: bool = False
     ) -> Tuple[Call, List[CallParticipant]]:
         """
         Initiate a call between users.
         
-        This implements the full call initiation workflow:
-        1. Validate contact relationships
-        2. Validate users are online
-        3. Validate no active calls
-        4. Create call with caller's language
-        5. Create participants with dubbing requirements
-        
         Args:
             db: Database session
-            caller_id: ID of the user initiating the call
+            caller: The user initiating the call (User object)
             target_ids: List of target user IDs
             skip_contact_validation: Skip contact check (for testing)
-            
-        Returns:
-            Tuple of (Call, List[CallParticipant])
         """
+        caller_id = caller.id
+        
         # Deduplicate and remove caller from target_ids
         target_ids = list(set(tid for tid in target_ids if tid != caller_id))
         total_participants = 1 + len(target_ids)
@@ -135,11 +127,21 @@ class CallService:
                 f"Call cannot have more than {cls.MAX_PARTICIPANTS} participants"
             )
         
-        # Get caller info
-        from app.services.user_service import user_service
-        caller = await user_service.get_by_id(db, caller_id)
-        if not caller:
-            raise UserOfflineError(f"Caller {caller_id} not found")
+        # Get target users logic needs user_service, so we still might need it for TARGETS
+        # BUT the circular dependency was usually caused by UserService needing CallService (or vice versa)
+        # We can keep the import for target lookup if it's not the cause, OR we can inject user_service.
+        
+        # Wait - let's see if we can just import user_service at top level now? 
+        # If not, we should probably pass target_users as objects too or keep the inner import for targets only.
+        # But the instruction was to remove the inner import.
+        # Let's try to import it at module level. If that fails, we'll keep inner import for targets ONLY.
+        
+        # Actually, the best practice is to importing it inside the method is a code smell.
+        # Let's check imports.
+        
+        from app.services.user_service import user_service # Moving this here for now for Targets
+        
+        # Validate all targets
         
         # Validate all targets
         target_users = []
