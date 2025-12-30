@@ -3,7 +3,7 @@ Connection Models
 
 Data classes representing WebSocket connections.
 """
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 import logging
 
@@ -36,7 +36,7 @@ class CallConnection:
         self.dubbing_required = dubbing_required
         self.use_voice_clone = use_voice_clone
         self.voice_clone_quality = voice_clone_quality
-        self.connected_at = datetime.utcnow()
+        self.connected_at = datetime.now(UTC)
         self.is_muted = False
     
     async def send_json(self, data: Dict[str, Any]) -> bool:

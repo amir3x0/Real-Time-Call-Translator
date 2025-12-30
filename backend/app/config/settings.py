@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
 
@@ -23,21 +23,21 @@ class Settings(BaseSettings):
     API_HOST: str = Field("0.0.0.0")
     API_PORT: int = Field(8000)
     DEBUG: bool = Field(True)
-    JWT_SECRET_KEY: str = Field("supersecret", env="JWT_SECRET_KEY")
-    JWT_ALGORITHM: str = Field("HS256", env="JWT_ALGORITHM")
-    JWT_EXP_DAYS: int = Field(7, env="JWT_EXP_DAYS")
+    JWT_SECRET_KEY: str = Field("supersecret")
+    JWT_ALGORITHM: str = Field("HS256")
+    JWT_EXP_DAYS: int = Field(7)
     
     # File Storage Paths
-    DATA_DIR: str = Field("/app/data", env="DATA_DIR")
-    VOICE_SAMPLES_DIR: str = Field("/app/data/voice_samples", env="VOICE_SAMPLES_DIR")
-    UPLOADS_DIR: str = Field("/app/data/uploads", env="UPLOADS_DIR")
-    MODELS_DIR: str = Field("/app/data/models", env="MODELS_DIR")
+    DATA_DIR: str = Field("/app/data")
+    VOICE_SAMPLES_DIR: str = Field("/app/data/voice_samples")
+    UPLOADS_DIR: str = Field("/app/data/uploads")
+    MODELS_DIR: str = Field("/app/data/models")
 
-    class Config:
-        # .env file location - look in parent directories
-        env_file = ".env"
-        extra = "ignore"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        env_file_encoding="utf-8"
+    )
 
 
 settings = Settings()

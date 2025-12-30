@@ -22,27 +22,42 @@ def test_contact_flow(async_db):
     r2 = create_user(client, full_name="User B", password="pass123", primary_language="ru")
     assert r2.status_code == 201
     user_b_id = r2.json()['user_id']
+    token2 = r2.json()['token']
 
     # User A searches for User B
-    headers = {"Authorization": f"Bearer {token1}"}
-    rsearch = client.get(f"/api/contacts/search?q=User", headers=headers)
+    headers_a = {"Authorization": f"Bearer {token1}"}
+    rsearch = client.get(f"/api/contacts/search?q=User", headers=headers_a)
     assert rsearch.status_code == 200
     assert len(rsearch.json()['users']) >= 1
 
-    # User A adds User B as contact
-    radd = client.post("/api/contacts/add", json={"contact_user_id": user_b_id}, headers=headers)
+    # User A adds User B as contact (sends request)
+    radd = client.post("/api/contacts/add", json={"contact_user_id": user_b_id}, headers=headers_a)
     assert radd.status_code == 200 or radd.status_code == 201
 
-    # List contacts
-    rlist = client.get("/api/contacts", headers=headers)
-    assert rlist.status_code == 200
-    assert len(rlist.json()['contacts']) == 1
+    # User B checks pending requests
+    headers_b = {"Authorization": f"Bearer {token2}"}
+    rlist_b = client.get("/api/contacts", headers=headers_b)
+    assert rlist_b.status_code == 200
+    incoming = rlist_b.json()['pending_incoming']
+    assert len(incoming) == 1
+    request_id = incoming[0]['contact_id']
+
+    # User B accepts the request
+    raccept = client.post(f"/api/contacts/{request_id}/accept", headers=headers_b)
+    assert raccept.status_code == 200
+
+    # User A lists contacts (should now be friends)
+    rlist_a = client.get("/api/contacts", headers=headers_a)
+    assert rlist_a.status_code == 200
+    contacts = rlist_a.json()['contacts']
+    assert len(contacts) == 1
+    assert contacts[0]['contact_user_id'] == user_b_id
 
     # Delete contact
-    contact_id = rlist.json()['contacts'][0]['id']
-    rdel = client.delete(f"/api/contacts/{contact_id}", headers=headers)
+    contact_id = contacts[0]['id']
+    rdel = client.delete(f"/api/contacts/{contact_id}", headers=headers_a)
     assert rdel.status_code == 204
 
     # Confirm deleted
-    rlist2 = client.get("/api/contacts", headers=headers)
-    assert len(rlist2.json()['contacts']) == 0
+    rlist_a2 = client.get("/api/contacts", headers=headers_a)
+    assert len(rlist_a2.json()['contacts']) == 0

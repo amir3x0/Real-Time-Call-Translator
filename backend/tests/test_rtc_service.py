@@ -30,5 +30,5 @@ async def test_publish_audio_chunk(monkeypatch):
     await publish_audio_chunk("testsess", b"hello world")
 
     # Use the underlying fakeredis to read
-    results = await fake.xread({"stream:audio:testsess": "0-0"}, count=10, block=1)
+    results = await fake.xread({"stream:audio:global": "0-0"}, count=10, block=100)
     assert results

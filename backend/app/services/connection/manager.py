@@ -7,7 +7,7 @@ Core WebSocket connection management:
 - Message broadcasting
 """
 import asyncio
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, List, Optional, Any
 import logging
 
@@ -86,7 +86,7 @@ class ConnectionManager:
             "type": "participant_joined",
             "user_id": user_id,
             "language": participant_language,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }, exclude_user=user_id)
         
         return conn
@@ -108,7 +108,7 @@ class ConnectionManager:
             await self.broadcast_to_session(session_id, {
                 "type": "participant_left",
                 "user_id": user_id,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             })
         
         return session_id
@@ -185,7 +185,7 @@ class ConnectionManager:
             "type": "mute_status_changed",
             "user_id": user_id,
             "is_muted": is_muted,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         })
         
         return True
