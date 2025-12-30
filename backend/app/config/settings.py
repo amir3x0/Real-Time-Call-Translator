@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field("HS256")
     JWT_EXP_DAYS: int = Field(7)
     
+    # CORS
+    BACKEND_CORS_ORIGINS: list[str] = Field(default=["http://localhost", "http://localhost:3000", "http://127.0.0.1", "http://127.0.0.1:3000"])
+
     # File Storage Paths
     DATA_DIR: str = Field("/app/data")
     VOICE_SAMPLES_DIR: str = Field("/app/data/voice_samples")
