@@ -6,7 +6,7 @@ Endpoints for:
 - Adding/removing contacts
 - Listing contacts
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -16,6 +16,15 @@ from app.models.user import User
 from app.models.contact import Contact
 from app.api.auth import get_current_user
 from app.services.user_service import user_service
+from app.services.contact_service import (
+    contact_service,
+    ContactNotFoundError,
+    UserNotFoundError,
+    SelfAddError,
+    ContactAlreadyExistsError,
+    RequestAlreadySentError,
+    RequestNotFoundError
+)
 from app.schemas.contact import (
     UserSearchResult,
     UserSearchResponse,
@@ -61,51 +70,32 @@ async def list_contacts(
     current_user: User = Depends(get_current_user)
 ):
     """List all contacts and valid pending requests."""
-    # 1. Accepted Contacts (My friends)
-    result = await db.execute(
-        select(Contact).where(
-            Contact.user_id == current_user.id,
-            Contact.status == 'accepted'
-        )
-    )
-    contacts = result.scalars().all()
+    categorized = await contact_service.get_user_contacts(db, current_user.id)
     
-    contact_list = []
-    for c in contacts:
-        user = await user_service.get_by_id(db, c.contact_user_id)
-        if not user: continue
-        
-        contact_list.append(ContactResponse(
-            id=c.id,
-            user_id=c.user_id,
-            contact_user_id=c.contact_user_id,
-            contact_name=c.contact_name,
+    # Helper to format contact response
+    async def format_contact(contact: Contact) -> Optional[ContactResponse]:
+        user = await user_service.get_by_id(db, contact.contact_user_id)
+        if not user: return None
+        return ContactResponse(
+            id=contact.id,
+            user_id=contact.user_id,
+            contact_user_id=contact.contact_user_id,
+            contact_name=contact.contact_name,
             full_name=user.full_name,
             phone=user.phone,
             primary_language=user.primary_language,
             is_online=user.is_online or False,
-            is_favorite=c.is_favorite or False,
-            is_blocked=c.is_blocked or False,
-            added_at=c.added_at.isoformat() if c.added_at else None,
-        ))
-
-    # 2. Incoming Pending Requests (People who added me, but I haven't accepted)
-    # They have a record: UserID=THEM, ContactUserID=ME, Status=Pending
-    inc_result = await db.execute(
-        select(Contact).where(
-            Contact.contact_user_id == current_user.id,
-            Contact.status == 'pending'
+            is_favorite=contact.is_favorite or False,
+            is_blocked=contact.is_blocked or False,
+            added_at=contact.added_at.isoformat() if contact.added_at else None,
         )
-    )
-    incoming_requests = inc_result.scalars().all()
-    
-    incoming_list = []
-    for c in incoming_requests:
-        user = await user_service.get_by_id(db, c.user_id) # c.user_id is the requester
-        if not user: continue
-        
-        incoming_list.append(ContactRequestResponse(
-            contact_id=c.id,
+
+    # Helper to format request response
+    async def format_request_incoming(contact: Contact) -> Optional[ContactRequestResponse]:
+        user = await user_service.get_by_id(db, contact.user_id) # Requester
+        if not user: return None
+        return ContactRequestResponse(
+            contact_id=contact.id,
             requester=UserSearchResult(
                 id=user.id,
                 full_name=user.full_name,
@@ -113,41 +103,35 @@ async def list_contacts(
                 primary_language=user.primary_language,
                 is_online=user.is_online
             ),
-            added_at=c.added_at.isoformat()
-        ))
-
-    # 3. Outgoing Pending Requests (I added them, they haven't accepted)
-    out_result = await db.execute(
-        select(Contact).where(
-            Contact.user_id == current_user.id,
-            Contact.status == 'pending'
+            added_at=contact.added_at.isoformat()
         )
-    )
-    outgoing_requests = out_result.scalars().all()
-    
-    outgoing_list = []
-    for c in outgoing_requests:
-        user = await user_service.get_by_id(db, c.contact_user_id)
-        if not user: continue
         
-        outgoing_list.append(ContactResponse(
-            id=c.id,
-            user_id=c.user_id,
-            contact_user_id=c.contact_user_id,
-            contact_name=c.contact_name,
+    async def format_request_outgoing(contact: Contact) -> Optional[ContactResponse]:
+        user = await user_service.get_by_id(db, contact.contact_user_id) # Target
+        if not user: return None
+        return ContactResponse(
+            id=contact.id,
+            user_id=contact.user_id,
+            contact_user_id=contact.contact_user_id,
+            contact_name=contact.contact_name,
             full_name=user.full_name,
             phone=user.phone,
             primary_language=user.primary_language,
             is_online=user.is_online or False,
-            is_favorite=c.is_favorite or False,
-            is_blocked=c.is_blocked or False,
-            added_at=c.added_at.isoformat() if c.added_at else None,
-        ))
+            is_favorite=contact.is_favorite or False,
+            is_blocked=contact.is_blocked or False,
+            added_at=contact.added_at.isoformat() if contact.added_at else None,
+        )
+
+    # Build lists
+    contacts_list = [await format_contact(c) for c in categorized["contacts"]]
+    incoming_list = [await format_request_incoming(c) for c in categorized["pending_incoming"]]
+    outgoing_list = [await format_request_outgoing(c) for c in categorized["pending_outgoing"]]
     
     return ContactsListResponse(
-        contacts=contact_list,
-        pending_incoming=incoming_list,
-        pending_outgoing=outgoing_list
+        contacts=[c for c in contacts_list if c],
+        pending_incoming=[c for c in incoming_list if c],
+        pending_outgoing=[c for c in outgoing_list if c]
     )
 
 
@@ -158,9 +142,7 @@ async def add_contact_by_body(
     current_user: User = Depends(get_current_user)
 ):
     """Send a Friend Request (Add contact as pending)."""
-    return await _add_contact_request(
-        db, current_user, req.contact_user_id, req.contact_name
-    )
+    return await _handle_add_contact(db, current_user, req.contact_user_id, req.contact_name)
 
 
 @router.post("/contacts/add/{contact_user_id}", response_model=AddContactResponse, status_code=201)
@@ -170,81 +152,26 @@ async def add_contact_by_path(
     current_user: User = Depends(get_current_user)
 ):
     """Send a Friend Request (path parameter)."""
-    return await _add_contact_request(db, current_user, contact_user_id, None)
+    return await _handle_add_contact(db, current_user, contact_user_id, None)
 
 
-async def _add_contact_request(
+async def _handle_add_contact(
     db: AsyncSession,
     current_user: User,
     contact_user_id: str,
     contact_name: Optional[str]
 ) -> AddContactResponse:
-    """Internal helper to create a friend request."""
-    # Check target exists
-    contact_user = await user_service.get_by_id(db, contact_user_id)
-    if not contact_user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    if contact_user.id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot add yourself")
-    
-    # Check if ANY relationship exists (pending or accepted) in EITHER direction
-    # 1. Did I already add them?
-    forward_check = await db.execute(
-        select(Contact).where(
-            Contact.user_id == current_user.id,
-            Contact.contact_user_id == contact_user_id
+    try:
+        contact = await contact_service.send_friend_request(
+            db, current_user, contact_user_id, contact_name
         )
-    )
-    existing_forward = forward_check.scalar_one_or_none()
-    
-    # 2. Did they already add me?
-    reverse_check = await db.execute(
-        select(Contact).where(
-            Contact.user_id == contact_user_id,
-            Contact.contact_user_id == current_user.id
-        )
-    )
-    existing_reverse = reverse_check.scalar_one_or_none()
-
-    if existing_forward:
-        if existing_forward.status == 'accepted':
-            raise HTTPException(status_code=409, detail="Already in contacts")
-        else:
-            raise HTTPException(status_code=409, detail="Request already sent")
-            
-    if existing_reverse:
-        if existing_reverse.status == 'accepted':
-            # Create the missing forward link automatically if they are already my contact?
-            # For now, just say "They are your contact"
-            raise HTTPException(status_code=409, detail="User is already your contact (Friendship exists)")
-        else:
-            # They sent ME a request, so I should ACCEPT it instead of adding new
-            # We can auto-accept here, or tell user to accept.
-            # Let's guide them to accept.
-            raise HTTPException(status_code=409, detail="They sent you a request! Please accept it.")
-
-    # Create Pending Request
-    contact = Contact(
-        user_id=current_user.id,
-        contact_user_id=contact_user_id,
-        contact_name=contact_name,
-        status='pending'
-    )
-    db.add(contact)
-    await db.commit()
-    await db.refresh(contact)
-    
-    # Notify target user
-    from app.services.connection import connection_manager
-    await connection_manager.notify_contact_request(
-        target_user_id=contact_user_id,
-        requester_id=current_user.id,
-        requester_name=current_user.full_name,
-        request_id=contact.id
-    )
-    
-    return AddContactResponse(contact_id=contact.id, message="Friend request sent")
+        return AddContactResponse(contact_id=contact.id, message="Friend request sent")
+    except UserNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except SelfAddError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except (ContactAlreadyExistsError, RequestAlreadySentError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.post("/contacts/{request_id}/accept", status_code=200)
@@ -254,46 +181,11 @@ async def accept_contact_request(
     current_user: User = Depends(get_current_user)
 ):
     """Accept a friend request. Creates mutual contact link."""
-    # Find the request where I am the CONTACT_USER_ID
-    # The ID passed is the 'Contact' table ID from the incoming request list.
-    result = await db.execute(
-        select(Contact).where(
-            Contact.id == request_id, 
-            Contact.contact_user_id == current_user.id,
-            Contact.status == 'pending'
-        )
-    )
-    incoming_request = result.scalar_one_or_none()
-    
-    if not incoming_request:
-        raise HTTPException(status_code=404, detail="Friend request not found")
-        
-    requester_id = incoming_request.user_id
-    
-    # 1. Update status to accepted
-    incoming_request.status = 'accepted'
-    
-    # 2. Create reverse link (Me -> Them) if not exists
-    reverse_check = await db.execute(
-        select(Contact).where(
-            Contact.user_id == current_user.id,
-            Contact.contact_user_id == requester_id
-        )
-    )
-    existing_reverse = reverse_check.scalar_one_or_none()
-    
-    if not existing_reverse:
-        reverse_contact = Contact(
-            user_id=current_user.id,
-            contact_user_id=requester_id,
-            status='accepted'
-        )
-        db.add(reverse_contact)
-    else:
-        existing_reverse.status = 'accepted'
-        
-    await db.commit()
-    return {"message": "Friend request accepted"}
+    try:
+        await contact_service.accept_request(db, request_id, current_user.id)
+        return {"message": "Friend request accepted"}
+    except RequestNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/contacts/{request_id}/reject", status_code=200)
@@ -303,20 +195,11 @@ async def reject_contact_request(
     current_user: User = Depends(get_current_user)
 ):
     """Reject (delete) a friend request."""
-    result = await db.execute(
-        select(Contact).where(
-            Contact.id == request_id,
-            Contact.contact_user_id == current_user.id
-        )
-    )
-    request = result.scalar_one_or_none()
-    
-    if not request:
-        raise HTTPException(status_code=404, detail="Request not found")
-        
-    await db.delete(request)
-    await db.commit()
-    return {"message": "Friend request rejected"}
+    try:
+        await contact_service.reject_request(db, request_id, current_user.id)
+        return {"message": "Friend request rejected"}
+    except RequestNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.delete("/contacts/{contact_id}", status_code=204)
@@ -326,35 +209,11 @@ async def delete_contact(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a contact (Unfriend). Removes mutual link."""
-    # Find the record
-    result = await db.execute(
-        select(Contact).where(
-            Contact.id == contact_id,
-            Contact.user_id == current_user.id
-        )
-    )
-    contact = result.scalar_one_or_none()
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    
-    other_user_id = contact.contact_user_id
-    
-    # Delete my record
-    await db.delete(contact)
-    
-    # Delete reverse record (Them -> Me)
-    reverse_result = await db.execute(
-        select(Contact).where(
-            Contact.user_id == other_user_id,
-            Contact.contact_user_id == current_user.id
-        )
-    )
-    reverse_contact = reverse_result.scalar_one_or_none()
-    if reverse_contact:
-        await db.delete(reverse_contact)
-        
-    await db.commit()
-    return None
+    try:
+        await contact_service.remove_contact(db, contact_id, current_user.id)
+        return None
+    except ContactNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.patch("/contacts/{contact_id}/favorite")
@@ -364,20 +223,11 @@ async def toggle_favorite(
     current_user: User = Depends(get_current_user)
 ):
     """Toggle favorite status for a contact."""
-    result = await db.execute(
-        select(Contact).where(
-            Contact.id == contact_id,
-            Contact.user_id == current_user.id
-        )
-    )
-    contact = result.scalar_one_or_none()
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    
-    contact.is_favorite = not contact.is_favorite
-    await db.commit()
-    
-    return {"is_favorite": contact.is_favorite}
+    try:
+        is_favorite = await contact_service.toggle_favorite(db, contact_id, current_user.id)
+        return {"is_favorite": is_favorite}
+    except ContactNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.patch("/contacts/{contact_id}/block")
@@ -387,17 +237,8 @@ async def toggle_block(
     current_user: User = Depends(get_current_user)
 ):
     """Toggle block status for a contact."""
-    result = await db.execute(
-        select(Contact).where(
-            Contact.id == contact_id,
-            Contact.user_id == current_user.id
-        )
-    )
-    contact = result.scalar_one_or_none()
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    
-    contact.is_blocked = not contact.is_blocked
-    await db.commit()
-    
-    return {"is_blocked": contact.is_blocked}
+    try:
+        is_blocked = await contact_service.toggle_block(db, contact_id, current_user.id)
+        return {"is_blocked": is_blocked}
+    except ContactNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))

@@ -42,7 +42,34 @@ from app.schemas.call import (
     ParticipantInfo,
 )
 
+
 router = APIRouter()
+
+
+async def _build_participant_info_list(db: AsyncSession, participants: List[CallParticipant]) -> List[ParticipantInfo]:
+    """Helper to build ParticipantInfo list from CallParticipant records."""
+    participants_info = []
+    
+    # Batch fetch users could be optimized, but for now we loop
+    for p in participants:
+         user = await user_service.get_by_id(db, p.user_id)
+         
+         if user:
+             participants_info.append(ParticipantInfo(
+                 id=p.id,
+                 user_id=user.id,
+                 full_name=user.full_name,
+                 phone=user.phone,
+                 primary_language=user.primary_language,
+                 target_language=p.participant_language,
+                 speaking_language=p.participant_language,
+                 dubbing_required=p.dubbing_required,
+                 use_voice_clone=p.use_voice_clone,
+                 voice_clone_quality=p.voice_clone_quality,
+             ))
+             
+    return participants_info
+
 
 
 @router.post("/calls/start", response_model=StartCallResponse)
@@ -82,24 +109,7 @@ async def start_call(
         raise HTTPException(status_code=500, detail=str(e))
     
     # Build participant info
-    participants_info = []
-    for p in participants:
-        # Get user info
-        user = await user_service.get_by_id(db, p.user_id)
-        
-        if user:
-            participants_info.append(ParticipantInfo(
-                id=p.id,
-                user_id=user.id,
-                full_name=user.full_name,
-                phone=user.phone or user.phone_number,
-                primary_language=user.primary_language,
-                target_language=p.participant_language,  # Use participant_language for target
-                speaking_language=p.participant_language,  # Use participant_language for speaking
-                dubbing_required=p.dubbing_required,
-                use_voice_clone=p.use_voice_clone,
-                voice_clone_quality=p.voice_clone_quality,
-            ))
+    participants_info = await _build_participant_info_list(db, participants)
     
     # Mark call as ringing and send notifications to non-caller participants
     await call_service.mark_call_ringing(db, call.id)
@@ -223,23 +233,7 @@ async def get_call(
         raise HTTPException(status_code=404, detail="Call not found")
     
     # Build participant info
-    participants_info = []
-    for p in participants:
-        user = await user_service.get_by_id(db, p.user_id)
-        
-        if user:
-            participants_info.append(ParticipantInfo(
-                id=p.id,
-                user_id=user.id,
-                full_name=user.full_name,
-                phone=user.phone or user.phone_number,
-                primary_language=user.primary_language,
-                target_language=p.participant_language,  # Use participant_language for target
-                speaking_language=p.participant_language,  # Use participant_language for speaking
-                dubbing_required=p.dubbing_required,
-                use_voice_clone=p.use_voice_clone,
-                voice_clone_quality=p.voice_clone_quality,
-            ))
+    participants_info = await _build_participant_info_list(db, participants)
     
     return CallDetailResponse(
         call_id=call.id,
@@ -337,23 +331,7 @@ async def get_pending_calls(
             participants = participants_result.scalars().all()
             
             # Build participant info
-            participants_info = []
-            for p in participants:
-                user = await user_service.get_by_id(db, p.user_id)
-                
-                if user:
-                    participants_info.append(ParticipantInfo(
-                        id=p.id,
-                        user_id=user.id,
-                        full_name=user.full_name,
-                        phone=user.phone or user.phone_number,
-                        primary_language=user.primary_language,
-                        target_language=p.participant_language,
-                        speaking_language=p.participant_language,
-                        dubbing_required=p.dubbing_required,
-                        use_voice_clone=p.use_voice_clone,
-                        voice_clone_quality=p.voice_clone_quality,
-                    ))
+            participants_info = await _build_participant_info_list(db, participants)
             
             result.append(CallDetailResponse(
                 call_id=call.id,
@@ -388,23 +366,7 @@ async def accept_call(
         )
         participants = participants_result.scalars().all()
         
-        participants_info = []
-        for p in participants:
-            user = await user_service.get_by_id(db, p.user_id)
-            
-            if user:
-                participants_info.append(ParticipantInfo(
-                    id=p.id,
-                    user_id=user.id,
-                    full_name=user.full_name,
-                    phone=user.phone or user.phone_number,
-                    primary_language=user.primary_language,
-                    target_language=p.participant_language,
-                    speaking_language=p.participant_language,
-                    dubbing_required=p.dubbing_required,
-                    use_voice_clone=p.use_voice_clone,
-                    voice_clone_quality=p.voice_clone_quality,
-                ))
+        participants_info = await _build_participant_info_list(db, participants)
         
         return CallDetailResponse(
             call_id=call.id,
