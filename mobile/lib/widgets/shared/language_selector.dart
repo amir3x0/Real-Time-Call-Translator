@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
+import '../../utils/language_utils.dart';
 import 'glass_card.dart';
 
 /// Language information model
@@ -19,11 +20,15 @@ class LanguageInfo {
 
 /// Centralized language data to avoid duplication across screens
 class LanguageData {
-  static const List<LanguageInfo> supportedLanguages = [
-    LanguageInfo(code: 'he', flag: '\u{1F1EE}\u{1F1F1}', name: 'עברית', englishName: 'Hebrew'),
-    LanguageInfo(code: 'en', flag: '\u{1F1FA}\u{1F1F8}', name: 'English', englishName: 'English'),
-    LanguageInfo(code: 'ru', flag: '\u{1F1F7}\u{1F1FA}', name: 'Русский', englishName: 'Russian'),
-  ];
+  static List<LanguageInfo> get supportedLanguages =>
+      LanguageUtils.getAllLanguages()
+          .map((data) => LanguageInfo(
+                code: data['code']!,
+                flag: data['flag']!,
+                name: data['name']!,
+                englishName: data['englishName']!,
+              ))
+          .toList();
 
   /// Get language info by code
   static LanguageInfo? getByCode(String code) {
@@ -140,7 +145,8 @@ class _LanguageChip extends StatelessWidget {
           SizedBox(width: compact ? 6 : 8),
           Text(
             showNativeName ? language.name : language.englishName,
-            style: (compact ? AppTheme.bodyMedium : AppTheme.bodyLarge).copyWith(
+            style:
+                (compact ? AppTheme.bodyMedium : AppTheme.bodyLarge).copyWith(
               color: isSelected ? Colors.white : AppTheme.secondaryText,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
@@ -185,7 +191,8 @@ class LanguageDropdown extends StatelessWidget {
               color: AppTheme.secondaryText.withValues(alpha: 0.7),
             ),
           ),
-          icon: const Icon(Icons.keyboard_arrow_down, color: AppTheme.secondaryText),
+          icon: const Icon(Icons.keyboard_arrow_down,
+              color: AppTheme.secondaryText),
           dropdownColor: AppTheme.darkCard,
           borderRadius: AppTheme.borderRadiusMedium,
           isExpanded: true,

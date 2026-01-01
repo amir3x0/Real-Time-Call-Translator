@@ -9,6 +9,7 @@ import '../../data/services/auth_service.dart';
 import '../../data/services/voice_service.dart';
 import '../../data/services/call_api_service.dart';
 import '../../widgets/voice_recorder_widget.dart';
+import '../../utils/language_utils.dart';
 import '../../config/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -26,12 +27,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _authService = AuthService();
   final VoiceService _voiceService = VoiceService();
   final CallApiService _callApiService = CallApiService();
-
-  static const List<Map<String, String>> _languages = [
-    {'code': 'he', 'flag': '🇮🇱', 'name': 'עברית'},
-    {'code': 'en', 'flag': '🇺🇸', 'name': 'English'},
-    {'code': 'ru', 'flag': '🇷🇺', 'name': 'Русский'},
-  ];
 
   @override
   void initState() {
@@ -300,7 +295,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: _languages.map((lang) {
+                children: LanguageUtils.getAllLanguages().map((lang) {
                   final isSelected = _selectedLang == lang['code'];
                   return Expanded(
                     child: GestureDetector(
