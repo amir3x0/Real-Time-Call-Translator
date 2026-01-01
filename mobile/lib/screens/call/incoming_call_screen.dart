@@ -6,6 +6,7 @@ import '../../providers/call_provider.dart';
 import '../../providers/lobby_provider.dart';
 import '../../models/call.dart';
 import '../../models/participant.dart';
+import '../../utils/language_utils.dart';
 
 class IncomingCallScreen extends StatefulWidget {
   const IncomingCallScreen({super.key});
@@ -43,33 +44,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
         if (mounted) Navigator.of(context).pop();
       }
     });
-  }
-
-  String _getLanguageName(String code) {
-    switch (code.toLowerCase()) {
-      case 'en':
-        return 'English';
-      case 'es':
-        return 'Spanish';
-      case 'fr':
-        return 'French';
-      case 'de':
-        return 'German';
-      case 'it':
-        return 'Italian';
-      case 'pt':
-        return 'Portuguese';
-      case 'ru':
-        return 'Russian';
-      case 'zh':
-        return 'Chinese';
-      case 'ja':
-        return 'Japanese';
-      case 'ko':
-        return 'Korean';
-      default:
-        return code.toUpperCase();
-    }
   }
 
   @override
@@ -193,12 +167,24 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                             color: Colors.white.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: Text(
-                            _getLanguageName(incomingCall.callLanguage),
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 16,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                LanguageUtils.getFlag(
+                                    incomingCall.callLanguage),
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                LanguageUtils.getEnglishName(
+                                    incomingCall.callLanguage),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/language_utils.dart';
 import '../../config/app_theme.dart';
 import '../../widgets/flash_bar.dart';
 
@@ -22,7 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   final bool _isLoading = false;
   String _selectedLang = 'en';
   late AnimationController _backgroundController;
-  
+
   // Password strength indicators
   bool _hasMinLength = false;
   bool _hasUppercase = false;
@@ -35,7 +36,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       vsync: this,
       duration: const Duration(seconds: 10),
     )..repeat(reverse: true);
-    
+
     _passController.addListener(_validatePassword);
   }
 
@@ -58,11 +59,6 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 
   // Language data with flags
-  static const List<Map<String, String>> _languages = [
-    {'code': 'he', 'flag': '🇮🇱', 'name': 'עברית'},
-    {'code': 'en', 'flag': '🇺🇸', 'name': 'English'},
-    {'code': 'ru', 'flag': '🇷🇺', 'name': 'Русский'},
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -112,8 +108,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                   ],
                 ),
               ),
-            ).animate(onPlay: (c) => c.repeat(reverse: true))
-              .scale(duration: 5.seconds, begin: const Offset(0.9, 0.9), end: const Offset(1.15, 1.15)),
+            ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
+                duration: 5.seconds,
+                begin: const Offset(0.9, 0.9),
+                end: const Offset(1.15, 1.15)),
           ),
 
           Positioned(
@@ -131,8 +129,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                   ],
                 ),
               ),
-            ).animate(onPlay: (c) => c.repeat(reverse: true))
-              .scale(duration: 6.seconds, begin: const Offset(0.85, 0.85), end: const Offset(1.1, 1.1)),
+            ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
+                duration: 6.seconds,
+                begin: const Offset(0.85, 0.85),
+                end: const Offset(1.1, 1.1)),
           ),
 
           // Main Content
@@ -146,7 +146,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                   Align(
                     alignment: Alignment.centerLeft,
                     child: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios, color: Colors.white70),
+                      icon: const Icon(Icons.arrow_back_ios,
+                          color: Colors.white70),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ).animate().fadeIn(duration: 300.ms),
@@ -157,17 +158,18 @@ class _RegisterScreenState extends State<RegisterScreen>
                   Text(
                     "Create Account",
                     style: AppTheme.headlineLarge.copyWith(fontSize: 32),
-                  ).animate()
-                    .fadeIn(delay: 200.ms, duration: 500.ms)
-                    .slideY(begin: 0.2, end: 0),
+                  )
+                      .animate()
+                      .fadeIn(delay: 200.ms, duration: 500.ms)
+                      .slideY(begin: 0.2, end: 0),
 
                   const SizedBox(height: 8),
 
                   Text(
                     "Join the future of multilingual communication",
-                    style: AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText),
-                  ).animate()
-                    .fadeIn(delay: 400.ms, duration: 500.ms),
+                    style: AppTheme.bodyMedium
+                        .copyWith(color: AppTheme.secondaryText),
+                  ).animate().fadeIn(delay: 400.ms, duration: 500.ms),
 
                   const SizedBox(height: 32),
 
@@ -176,9 +178,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                     controller: _nameController,
                     label: "Full Name",
                     icon: Icons.person_outline,
-                  ).animate()
-                    .fadeIn(delay: 500.ms, duration: 400.ms)
-                    .slideX(begin: -0.1, end: 0),
+                  )
+                      .animate()
+                      .fadeIn(delay: 500.ms, duration: 400.ms)
+                      .slideX(begin: -0.1, end: 0),
 
                   const SizedBox(height: 16),
 
@@ -188,9 +191,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                     label: "Phone",
                     icon: Icons.phone_android_outlined,
                     keyboardType: TextInputType.phone,
-                  ).animate()
-                    .fadeIn(delay: 600.ms, duration: 400.ms)
-                    .slideX(begin: -0.1, end: 0),
+                  )
+                      .animate()
+                      .fadeIn(delay: 600.ms, duration: 400.ms)
+                      .slideX(begin: -0.1, end: 0),
 
                   const SizedBox(height: 16),
 
@@ -200,49 +204,50 @@ class _RegisterScreenState extends State<RegisterScreen>
                     label: "Password",
                     icon: Icons.lock_outline,
                     obscureText: true,
-                  ).animate()
-                    .fadeIn(delay: 700.ms, duration: 400.ms)
-                    .slideX(begin: -0.1, end: 0),
+                  )
+                      .animate()
+                      .fadeIn(delay: 700.ms, duration: 400.ms)
+                      .slideX(begin: -0.1, end: 0),
 
                   const SizedBox(height: 12),
 
                   // Password strength indicators
                   _buildPasswordStrength()
-                    .animate()
-                    .fadeIn(delay: 750.ms, duration: 400.ms),
+                      .animate()
+                      .fadeIn(delay: 750.ms, duration: 400.ms),
 
                   const SizedBox(height: 24),
 
                   // Language Selector Label
                   Text(
                     "Primary Language",
-                    style: AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText),
-                  ).animate()
-                    .fadeIn(delay: 800.ms, duration: 400.ms),
+                    style: AppTheme.bodyMedium
+                        .copyWith(color: AppTheme.secondaryText),
+                  ).animate().fadeIn(delay: 800.ms, duration: 400.ms),
 
                   const SizedBox(height: 12),
 
                   // Visual Language Selector with Flags
                   _buildLanguageSelector()
-                    .animate()
-                    .fadeIn(delay: 850.ms, duration: 400.ms)
-                    .slideY(begin: 0.1, end: 0),
+                      .animate()
+                      .fadeIn(delay: 850.ms, duration: 400.ms)
+                      .slideY(begin: 0.1, end: 0),
 
                   const SizedBox(height: 24),
 
                   // Error Message
                   if (_error != null)
                     FlashBar(message: _error!)
-                      .animate()
-                      .shake(duration: 400.ms),
+                        .animate()
+                        .shake(duration: 400.ms),
 
                   const SizedBox(height: 16),
 
                   // Register Button
                   _buildRegisterButton(authProv)
-                    .animate()
-                    .fadeIn(delay: 900.ms, duration: 400.ms)
-                    .slideY(begin: 0.2, end: 0),
+                      .animate()
+                      .fadeIn(delay: 900.ms, duration: 400.ms)
+                      .slideY(begin: 0.2, end: 0),
 
                   const SizedBox(height: 24),
 
@@ -266,8 +271,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                         ),
                       ),
                     ),
-                  ).animate()
-                    .fadeIn(delay: 1000.ms, duration: 400.ms),
+                  ).animate().fadeIn(delay: 1000.ms, duration: 400.ms),
                 ],
               ),
             ),
@@ -303,7 +307,8 @@ class _RegisterScreenState extends State<RegisterScreen>
               labelStyle: AppTheme.bodyMedium,
               prefixIcon: Icon(icon, color: AppTheme.primaryElectricBlue),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             ),
           ),
         ),
@@ -330,14 +335,18 @@ class _RegisterScreenState extends State<RegisterScreen>
         Icon(
           isValid ? Icons.check_circle : Icons.radio_button_unchecked,
           size: 16,
-          color: isValid ? AppTheme.successGreen : AppTheme.secondaryText.withValues(alpha: 0.5),
+          color: isValid
+              ? AppTheme.successGreen
+              : AppTheme.secondaryText.withValues(alpha: 0.5),
         ),
         const SizedBox(width: 4),
         Text(
           label,
           style: AppTheme.bodyMedium.copyWith(
             fontSize: 12,
-            color: isValid ? AppTheme.successGreen : AppTheme.secondaryText.withValues(alpha: 0.5),
+            color: isValid
+                ? AppTheme.successGreen
+                : AppTheme.secondaryText.withValues(alpha: 0.5),
           ),
         ),
       ],
@@ -357,21 +366,23 @@ class _RegisterScreenState extends State<RegisterScreen>
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: _languages.map((lang) {
+            children: LanguageUtils.getAllLanguages().map((lang) {
               final isSelected = _selectedLang == lang['code'];
               return Expanded(
                 child: GestureDetector(
                   onTap: () => setState(() => _selectedLang = lang['code']!),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? AppTheme.primaryElectricBlue.withValues(alpha: 0.3)
                           : Colors.transparent,
                       borderRadius: AppTheme.borderRadiusSmall,
                       border: isSelected
-                          ? Border.all(color: AppTheme.primaryElectricBlue, width: 1.5)
+                          ? Border.all(
+                              color: AppTheme.primaryElectricBlue, width: 1.5)
                           : null,
                     ),
                     child: Column(
@@ -384,8 +395,12 @@ class _RegisterScreenState extends State<RegisterScreen>
                         Text(
                           lang['name']!,
                           style: AppTheme.bodyMedium.copyWith(
-                            color: isSelected ? Colors.white : AppTheme.secondaryText,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            color: isSelected
+                                ? Colors.white
+                                : AppTheme.secondaryText,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                             fontSize: 12,
                           ),
                           textAlign: TextAlign.center,
@@ -428,7 +443,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                     return;
                   }
                   if (!_hasMinLength) {
-                    setState(() => _error = 'Password must be at least 6 characters');
+                    setState(() =>
+                        _error = 'Password must be at least 6 characters');
                     return;
                   }
 
