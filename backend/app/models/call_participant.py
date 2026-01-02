@@ -25,7 +25,7 @@ class CallParticipant(Base):
     participant_language = Column(String(10), nullable=False)
     
     # Timing
-    joined_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    joined_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     left_at = Column(DateTime, nullable=True, index=True)  # NULL = still in call
     
     # Status
@@ -38,7 +38,7 @@ class CallParticipant(Base):
     voice_clone_quality = Column(String(20), nullable=True)  # excellent, good, fair, fallback
     
     # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     
     # Constraints
     __table_args__ = (

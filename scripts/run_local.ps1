@@ -1,5 +1,5 @@
-# Get the first IPv4 address that isn't localhost
-$RealIP = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notlike "*Loopback*" -and $_.IPAddress -notlike "169.254*" } | Select-Object -First 1).IPAddress
+# Get the first IPv4 address that isn't localhost and isn't a virtual adapter
+$RealIP = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notlike "*Loopback*" -and $_.InterfaceAlias -notlike "vEthernet*" -and $_.IPAddress -notlike "169.254*" } | Select-Object -First 1).IPAddress
 
 Write-Host "🚀 Launching app connecting to Backend at: $RealIP"
 

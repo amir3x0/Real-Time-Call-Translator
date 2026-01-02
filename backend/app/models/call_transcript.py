@@ -29,7 +29,7 @@ class CallTranscript(Base):
     timestamp_ms = Column(Integer, nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     
     def to_dict(self):
         return {

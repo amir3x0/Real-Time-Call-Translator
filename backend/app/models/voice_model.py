@@ -37,8 +37,8 @@ class VoiceModel(Base):
     last_used_at = Column(DateTime, nullable=True)
     
     # Metadata
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.utcnow(), onupdate=lambda: datetime.utcnow())
     trained_at = Column(DateTime, nullable=True)
     
     def to_dict(self):
