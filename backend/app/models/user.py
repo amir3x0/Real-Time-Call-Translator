@@ -35,8 +35,8 @@ class User(Base):
     voice_quality_score = Column(Integer, nullable=True)  # 1-100
     
     # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.utcnow(), onupdate=lambda: datetime.utcnow())
     
     def to_dict(self):
         """Convert to dictionary for JSON response"""

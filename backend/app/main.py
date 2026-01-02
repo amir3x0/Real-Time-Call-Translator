@@ -66,6 +66,14 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("✅ Database tables created")
     
+    # Log configuration for debugging
+    from app.config.settings import settings
+    from app.models.database import DATABASE_URL
+    logger.info(f"🔧 Configuration Check:")
+    logger.info(f"   DB_HOST={settings.DB_HOST}, DB_PORT={settings.DB_PORT}, DB_USER={settings.DB_USER}")
+    logger.info(f"   REDIS_HOST={settings.REDIS_HOST}, REDIS_PORT={settings.REDIS_PORT}")
+    logger.info(f"   DATABASE_URL={DATABASE_URL}")
+    
     # Ensure redis connection is established
     await get_redis()
     logger.info("✅ Redis connected")

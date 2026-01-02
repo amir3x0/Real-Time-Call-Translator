@@ -30,7 +30,7 @@ class Call(Base):
     status = Column(String(20), nullable=False, default='ongoing')  # ongoing, ended, missed
     
     # Timing
-    started_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    started_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     ended_at = Column(DateTime, nullable=True)
     duration_seconds = Column(Integer, nullable=True)
     
@@ -38,7 +38,7 @@ class Call(Base):
     participant_count = Column(Integer, default=1)
     
     # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     
     def end_call(self):
         """End the call session."""

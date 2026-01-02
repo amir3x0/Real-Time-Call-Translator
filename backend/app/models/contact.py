@@ -33,7 +33,7 @@ class Contact(Base):
     status = Column(String(20), default='accepted', nullable=False) # default='accepted' for backward compatibility
     
     # Timestamp
-    added_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    added_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     
     # Constraints
     __table_args__ = (
