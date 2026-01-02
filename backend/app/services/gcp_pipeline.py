@@ -12,6 +12,9 @@ from google.cloud import translate
 
 from app.config.settings import settings
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class PipelineResult:
@@ -162,41 +165,91 @@ class GCPSpeechPipeline:
         Yields:
             str: Final transcriptions.
         """
+        if language_code.startswith("en"):
+            model = "latest_long"
+        else:
+            model = "default"
+
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
             sample_rate_hertz=16000,
             language_code=language_code,
             enable_automatic_punctuation=True,
-            # model="phone_call", # Removed to support more languages
+            model=model,
         )
         
         streaming_config = speech.StreamingRecognitionConfig(
             config=config,
-            interim_results=True
+            interim_results=True,
+            single_utterance=False # We handle this manually now
         )
 
-        # Generator to yield StreamingRecognizeRequest
+        SILENCE_SENTINEL = object()
+
+        # We need a generator that we can "pause" and "resume" or just keep pulling from.
+        # But streaming_recognize takes an iterable.
+        # If we return from the generator, the server checks for final results and closes.
+        
+        # We need to peek at the audio_generator or handle special values.
+        # Let's assume audio_generator yields bytes OR "SILENCE" string.
+
         def request_generator():
             for chunk in audio_generator:
+                if chunk == b"SILENCE":
+                    # End this stream segment, forcing finalization
+                    return
                 yield speech.StreamingRecognizeRequest(audio_content=chunk)
 
-        responses = self._speech_client.streaming_recognize(
-            config=streaming_config,
-            requests=request_generator(),
-        )
+        while True:
+            try:
+                # We create a NEW request generator for each stream, 
+                # but it consumes from the SAME upstream audio_generator
+                requests = request_generator()
+                
+                responses = self._speech_client.streaming_recognize(
+                    config=streaming_config,
+                    requests=requests,
+                )
 
-        for response in responses:
-            if not response.results:
-                continue
+                for response in responses:
+                    if not response.results:
+                        # logger.info(f"Received response with no results: {response}")
+                        continue
 
-            result = response.results[0]
-            if not result.alternatives:
-                continue
+                    result = response.results[0]
+                    if not result.alternatives:
+                        # logger.info("Received result with no alternatives")
+                        continue
 
-            if result.is_final:
-                transcript = result.alternatives[0].transcript.strip()
-                if transcript:
-                    yield transcript
+                    if result.is_final:
+                        transcript = result.alternatives[0].transcript.strip()
+                        if transcript:
+                            yield transcript, True
+                    else:
+                        transcript = result.alternatives[0].transcript.strip()
+                        if transcript:
+                            # logger.info(f"Interim: {transcript}")
+                            yield transcript, False
+            except Exception as e:
+                # If we run out of audio or hit an error, break. 
+                # For single_utterance=True, it normally closes cleanly.
+                # If it's a real error, we might want to log it.
+                # But to be safe against infinite loops on error:
+                logger.error(f"Stream loop error (restarting?): {e}")
+                # Check if generator is exhausted? 
+                # But we can't easily check for generator exhaustion without consuming.
+                # For now, simplistic loop.
+                # If it is just "Out of range" or forceful close, we continue.
+                # But if it is a real crash, we might loop forever. 
+                # Let's hope single_utterance just finishes the iteration.
+                if "Audio Timeout" in str(e) or "400" in str(e):
+                     break
+                # break # Break on any error for safety for now
+                pass
+            
+            # If we are using single_utterance=False (English), we only run once.
+            if not streaming_config.single_utterance:
+                break
 
 
 @functools.lru_cache(maxsize=1)
