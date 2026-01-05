@@ -19,6 +19,7 @@ env/
 
 # --- Credentials ---
 config/google-credentials.json
+backend/config/google-credentials.json
 
 # --- User Uploads (runtime data) ---
 uploads/
