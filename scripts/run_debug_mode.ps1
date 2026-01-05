@@ -7,4 +7,4 @@ Write-Host "🚀 Launching app connecting to Backend at: $RealIP"
 Set-Location -Path "$PSScriptRoot/../mobile"
 
 # Run Flutter with the detected IP
-flutter run --release --dart-define=BACKEND_HOST=$RealIP
+flutter run --dart-define=BACKEND_HOST=$RealIP
