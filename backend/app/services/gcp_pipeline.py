@@ -27,7 +27,6 @@ class GCPSpeechPipeline:
 
     def __init__(self, project_id: Optional[str] = None, location: str = "global"):
         # Ensure GOOGLE_APPLICATION_CREDENTIALS is set for client libraries
-        # Ensure GOOGLE_APPLICATION_CREDENTIALS is set for client libraries
         if settings.GOOGLE_APPLICATION_CREDENTIALS and "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
             creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
             # Handle Docker path when running locally
