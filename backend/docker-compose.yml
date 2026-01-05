@@ -54,11 +54,10 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=RedisCache2024
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/app/config/google-credentials.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/config/google-credentials.json
     volumes:
       - ./app:/app/app
       - ./tests:/app/tests
-      - ./app/config:/app/app/config
       - ./data:/app/data
     # Hot reload for development - auto-restart on code changes
     command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]

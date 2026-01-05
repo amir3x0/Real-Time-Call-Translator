@@ -130,7 +130,6 @@ class CallService:
         # Get target users logic needs user_service, so we still might need it for TARGETS
         # BUT the circular dependency was usually caused by UserService needing CallService (or vice versa)
         # We can keep the import for target lookup if it's not the cause, OR we can inject user_service.
-        
         # Wait - let's see if we can just import user_service at top level now? 
         # If not, we should probably pass target_users as objects too or keep the inner import for targets only.
         # But the instruction was to remove the inner import.
@@ -140,8 +139,6 @@ class CallService:
         # Let's check imports.
         
         from app.services.user_service import user_service # Moving this here for now for Targets
-        
-        # Validate all targets
         
         # Validate all targets
         target_users = []
