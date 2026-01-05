@@ -19,7 +19,7 @@ RATE = 16000
 
 LANGUAGES = {
     '1': {'name': 'English', 'code': 'en-US'},
-    '2': {'name': 'Hebrew', 'code': 'he-IL'},
+    '2': {'name': 'Hebrew', 'code': 'iw-IL'},
     '3': {'name': 'Russian', 'code': 'ru-RU'},
     '4': {'name': 'Spanish', 'code': 'es-ES'},
 }
@@ -63,7 +63,7 @@ async def live_transcription(source_lang="en-US", target_lang="he-IL"):
 
     def fix_rtl(text):
         if not text: return ""
-        # Check for Hebrew characters
+        # Naive Hebrew detection and reversal for visual display
         if any("\u0590" <= c <= "\u05FF" for c in text):
             return text[::-1]
         return text
@@ -74,27 +74,38 @@ async def live_transcription(source_lang="en-US", target_lang="he-IL"):
             async for message in pubsub.listen():
                 if message["type"] == "message":
                     data = json.loads(message["data"])
-                    transcript = data.get('transcript')
-                    translation = data.get('translation')
+                    msg_type = data.get("type", "translation")
+                    
+                    transcript = data.get('transcript', '')
+                    translation = data.get('translation', '')
+                    is_final = data.get('is_final', True) # Default to True for backward compat
                     
                     # Fix RTL for terminal display
+                    transcript_display = fix_rtl(transcript)
                     translation_display = fix_rtl(translation)
                     
-                    print(f"\n🗣️  You said: {transcript}")
-                    print(f"🔄 Translated: {translation_display}")
+                    if msg_type == "transcription_update" or not is_final:
+                        # Print interim in-place
+                        print(f"\r⏳ Interim: {transcript_display} | 🔄 {translation_display}          ", end="", flush=True)
+                    else:
+                        # Final result
+                        print(f"\r🗣️  You said: {transcript_display}          ") # Clear line
+                        print(f"🔄 Translated: {translation_display}")
 
-                    # Play audio if available
-                    audio_hex = data.get('audio_content')
-                    if audio_hex:
-                        try:
-                            audio_bytes = bytes.fromhex(audio_hex)
-                            # Run in executor to avoid blocking the event loop
-                            loop = asyncio.get_running_loop()
-                            await loop.run_in_executor(None, output_stream.write, audio_bytes)
-                        except Exception as e:
-                            print(f"Audio playback error: {e}")
+                        # Play audio if available
+                        audio_hex = data.get('audio_content')
+                        if audio_hex:
+                            try:
+                                audio_bytes = bytes.fromhex(audio_hex)
+                                # Run in executor to avoid blocking the event loop
+                                loop = asyncio.get_running_loop()
+                                await loop.run_in_executor(None, output_stream.write, audio_bytes)
+                            except Exception as e:
+                                print(f"Audio playback error: {e}")
         except Exception as e:
             print(f"Listener error: {e}")
+            import traceback
+            traceback.print_exc()
 
     async def record_loop():
         print("🔴 Recording... Speak now!")

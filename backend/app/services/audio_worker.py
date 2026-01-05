@@ -25,7 +25,7 @@ async def handle_audio_stream(
     speaker_id: str,
     source_lang: str,
     target_lang: str,
-    audio_queue: queue.Queue
+    audio_source: any # queue.Queue or iterator
 ):
     """
     Background task that consumes audio chunks from a queue and streams them to GCP.
@@ -36,13 +36,17 @@ async def handle_audio_stream(
     pipeline = _get_pipeline()
     redis = await get_redis()
     
-    # Generator that yields chunks from the thread-safe queue
+    # Generator that yields chunks from the thread-safe queue OR just uses the source if it's already a generator
     def audio_generator():
-        while True:
-            chunk = audio_queue.get()
-            if chunk is None:
-                return
-            yield chunk
+        if hasattr(audio_source, '__iter__') or hasattr(audio_source, '__next__'):
+             yield from audio_source
+        else:
+            # Fallback for raw queue (legacy)
+            while True:
+                chunk = audio_source.get()
+                if chunk is None:
+                    return
+                yield chunk
 
     # Helper to run the blocking pipeline
     def run_pipeline():
@@ -56,39 +60,61 @@ async def handle_audio_stream(
     
     try:
         def process_stream():
-            for transcript in run_pipeline():
-                # Got a final transcript!
-                logger.info(f"📝 Transcript: {transcript}")
-                
-                # Translate
-                translation = pipeline._translate_text(
-                    transcript,
-                    source_language_code=source_lang[:2],
-                    target_language_code=target_lang[:2]
-                )
-                logger.info(f"🔄 Translation: {translation}")
-                
-                # TTS
-                audio_content = pipeline._synthesize(
-                    translation,
-                    language_code=target_lang,
-                    voice_name=None
-                )
-                
-                # Publish
-                channel = f"channel:translation:{session_id}"
-                payload = {
-                    "type": "translation",
-                    "session_id": session_id,
-                    "speaker_id": speaker_id,
-                    "transcript": transcript,
-                    "translation": translation,
-                    "audio_content": audio_content.hex() if audio_content else None,
-                    "source_lang": source_lang,
-                    "target_lang": target_lang
-                }
+            for transcript, is_final in run_pipeline():
+                if is_final:
+                    # Got a final transcript!
+                    logger.info(f"📝 Final Transcript: {transcript}")
+                    
+                    # Translate
+                    translation = pipeline._translate_text(
+                        transcript,
+                        source_language_code=source_lang[:2],
+                        target_language_code=target_lang[:2]
+                    )
+                    logger.info(f"🔄 Translation: {translation}")
+                    
+                    # TTS
+                    audio_content = pipeline._synthesize(
+                        translation,
+                        language_code=target_lang,
+                        voice_name=None
+                    )
+                    
+                    # Publish Final
+                    payload = {
+                        "type": "translation",
+                        "session_id": session_id,
+                        "speaker_id": speaker_id,
+                        "transcript": transcript,
+                        "translation": translation,
+                        "audio_content": audio_content.hex() if audio_content else None,
+                        "source_lang": source_lang,
+                        "target_lang": target_lang,
+                        "is_final": True
+                    }
+                else:
+                    # Interim transcript - translate it for real-time feedback
+                    # Note: This increases API usage
+                    translation_interim = pipeline._translate_text(
+                        transcript,
+                        source_language_code=source_lang[:2],
+                        target_language_code=target_lang[:2]
+                    )
+                    
+                    payload = {
+                        "type": "transcription_update", # Different type for interim
+                        "session_id": session_id,
+                        "speaker_id": speaker_id,
+                        "transcript": transcript,
+                        "translation": translation_interim,
+                        "audio_content": None,
+                        "source_lang": source_lang,
+                        "target_lang": target_lang,
+                        "is_final": False
+                    }
                 
                 # Publish back to Redis
+                channel = f"channel:translation:{session_id}"
                 asyncio.run_coroutine_threadsafe(
                     redis.publish(channel, json.dumps(payload)),
                     loop
@@ -120,11 +146,52 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
         
         # Check if we have an active stream
         if key not in active_streams:
-            # Start new stream with a thread-safe Queue
+    # Start new stream with a thread-safe Queue
             q = queue.Queue()
             active_streams[key] = q
+            
+            # Wrapper to add silence detection
+            def silence_detecting_generator(input_q):
+                import audioop
+                import time
+                
+                last_voice_time = time.time()
+                silence_threshold = 1.5 # Seconds
+                # rms_threshold = 500 # Adjust based on mic. 
+                # Since we don't know the mic levels well, let's rely on time between chunks? 
+                # No, we get continuous chunks. We need RMS.
+                rms_threshold = 300 
+                
+                while True:
+                    try:
+                        chunk = input_q.get(timeout=0.2) # Wait for audio
+                        if chunk is None:
+                            return
+                        
+                        # Calculate RMS
+                        try:
+                            # 2 bytes width for 16-bit audio
+                            rms = audioop.rms(chunk, 2)
+                        except:
+                            rms = 1000 # Fallback
+                            
+                        now = time.time()
+                        if rms > rms_threshold:
+                            last_voice_time = now
+                        else:
+                            if now - last_voice_time > silence_threshold:
+                                # Detected silence!
+                                # logger.info("Silence detected - forcing finalization")
+                                yield b"SILENCE"
+                                last_voice_time = now # Reset so we don't spam
+                        
+                        yield chunk
+                        
+                    except queue.Empty:
+                        continue
+
             asyncio.create_task(handle_audio_stream(
-                session_id, speaker_id, source_lang, target_lang, q
+                session_id, speaker_id, source_lang, target_lang, silence_detecting_generator(q)
             ))
         
         # Push chunk to queue
