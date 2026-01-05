@@ -55,7 +55,7 @@ class VoiceTrainingService:
         
         recording.quality_score = quality_score
         recording.is_processed = True
-        recording.processed_at = datetime.now(UTC)
+        recording.processed_at = datetime.utcnow()
         
         await db.commit()
         

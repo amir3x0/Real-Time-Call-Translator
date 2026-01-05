@@ -73,7 +73,7 @@ class StatusService:
             user = await user_service.get_by_id(db, user_id)
             if user:
                 user.is_online = True
-                user.last_seen = datetime.now(UTC)
+                user.last_seen = datetime.utcnow()
                 await db.commit()
                 logger.info(f"User {user_id} ({user.full_name}) marked online (DB)")
                 
@@ -113,7 +113,7 @@ class StatusService:
             user = await user_service.get_by_id(db, user_id)
             if user:
                 user.is_online = False
-                user.last_seen = datetime.now(UTC)
+                user.last_seen = datetime.utcnow()
                 await db.commit()
                 logger.info(f"User {user_id} ({user.full_name}) marked offline (DB)")
                 
@@ -148,7 +148,7 @@ class StatusService:
             from app.services.user_service import user_service
             user = await user_service.get_by_id(db, user_id)
             if user:
-                user.last_seen = datetime.now(UTC)
+                user.last_seen = datetime.utcnow()
                 await db.commit()
     
     @staticmethod
@@ -199,7 +199,7 @@ class StatusService:
                         # If Redis key doesn't exist, mark as offline in DB
                         if not exists:
                             user.is_online = False
-                            user.last_seen = datetime.now(UTC)
+                            user.last_seen = datetime.utcnow()
                             logger.info(f"Cleanup: User {user.id} ({user.full_name}) marked offline")
                     
                     await db.commit()

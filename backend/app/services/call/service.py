@@ -166,7 +166,7 @@ class CallService:
             call_language=caller.primary_language,
             is_active=True,
             status='initiating',
-            started_at=datetime.now(UTC),
+            started_at=datetime.utcnow(),
             participant_count=total_participants,
         )
         db.add(call)
@@ -290,7 +290,7 @@ class CallService:
         call.status = 'ongoing'
         
         # Update participant
-        participant.joined_at = datetime.now(UTC)
+        participant.joined_at = datetime.utcnow()
         participant.is_connected = True
         
         await db.commit()
@@ -334,11 +334,11 @@ class CallService:
         # Update call status
         call.status = 'rejected'
         call.is_active = False
-        call.ended_at = datetime.now(UTC)
+        call.ended_at = datetime.utcnow()
         
         # Update participant
         participant.is_connected = False
-        participant.left_at = datetime.now(UTC)
+        participant.left_at = datetime.utcnow()
         
         await db.commit()
         await db.refresh(call)

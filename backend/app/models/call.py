@@ -44,7 +44,7 @@ class Call(Base):
         """End the call session."""
         self.is_active = False
         self.status = 'ended'
-        self.ended_at = datetime.now(UTC)
+        self.ended_at = datetime.utcnow()
         if self.started_at:
             delta = self.ended_at - self.started_at
             self.duration_seconds = int(delta.total_seconds())

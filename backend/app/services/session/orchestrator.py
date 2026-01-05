@@ -188,7 +188,7 @@ class CallOrchestrator:
         
         # Update participant as connected
         participant.is_connected = True
-        participant.joined_at = datetime.now(UTC)
+        participant.joined_at = datetime.utcnow()
         await db.commit()
         
         # Mark user as online and notify contacts
@@ -362,7 +362,7 @@ class CallOrchestrator:
                 participant = result.scalar_one_or_none()
                 if participant:
                     participant.is_connected = False
-                    participant.left_at = datetime.now(UTC)
+                    participant.left_at = datetime.utcnow()
                     await db.commit()
                 
                 # Check if call should end (fewer than 2 participants)

@@ -47,7 +47,7 @@ class CallParticipant(Base):
     
     def leave_call(self):
         """Mark participant as left."""
-        self.left_at = datetime.now(UTC)
+        self.left_at = datetime.utcnow()
         self.is_connected = False
     
     def determine_dubbing_required(self, call_language: str) -> None:
