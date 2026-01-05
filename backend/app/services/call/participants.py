@@ -94,7 +94,7 @@ async def handle_participant_joined(
         raise CallNotFoundError(f"Participant {user_id} not found in call {call_id}")
     
     # Update participant status
-    participant.joined_at = datetime.now(UTC)
+    participant.joined_at = datetime.utcnow()
     participant.is_connected = True
     participant.left_at = None
     

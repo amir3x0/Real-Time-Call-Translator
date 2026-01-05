@@ -146,7 +146,7 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     
     # Update user status to online
     user.is_online = True
-    user.last_seen = datetime.now(UTC)
+    user.last_seen = datetime.utcnow()
     await db.commit()
     
     token = create_access_token(str(user.id))
@@ -180,7 +180,7 @@ async def logout(
 ):
     """Logout - mark user as offline."""
     current_user.is_online = False
-    current_user.last_seen = datetime.now(UTC)
+    current_user.last_seen = datetime.utcnow()
     await db.commit()
     return {"message": "Logged out successfully"}
 
@@ -210,7 +210,7 @@ async def update_profile(
     if request.primary_language is not None:
         current_user.primary_language = request.primary_language
     
-    current_user.updated_at = datetime.now(UTC)
+    current_user.updated_at = datetime.utcnow()
     await db.commit()
     await db.refresh(current_user)
     
