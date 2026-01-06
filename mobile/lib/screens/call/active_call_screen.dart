@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -23,6 +24,10 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   late List<double> _amplitudes;
   final double _subtitleOpacity = 1.0;
   bool _isExiting = false;
+  
+  // Call timer
+  Timer? _callTimer;
+  int _callDurationSeconds = 0;
 
   @override
   void initState() {
@@ -32,6 +37,15 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
     _amplitudes = List<double>.generate(24, (i) => _randAmp());
+    
+    // Start call duration timer
+    _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {
+          _callDurationSeconds++;
+        });
+      }
+    });
     
     // Listen for remote call ended
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -48,6 +62,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
 
   @override
   void dispose() {
+    // Cancel call timer
+    _callTimer?.cancel();
     // Clear callback to prevent memory leak
     final callProvider = Provider.of<CallProvider>(context, listen: false);
     callProvider.onCallEnded = null;
@@ -67,6 +83,18 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   }
 
   double _randAmp() => 0.2 + Random().nextDouble() * 0.8;
+  
+  /// Format seconds into MM:SS or HH:MM:SS
+  String _formatDuration(int totalSeconds) {
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,9 +168,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      '00:45',
-                      style: TextStyle(color: Colors.white, fontSize: 18),
+                    Text(
+                      _formatDuration(_callDurationSeconds),
+                      style: const TextStyle(color: Colors.white, fontSize: 18),
                     ),
                     NetworkIndicator(participants: callProvider.participants),
                   ],
