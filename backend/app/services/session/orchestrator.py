@@ -25,6 +25,7 @@ from app.services.auth_service import decode_token
 from app.services.status_service import status_service
 from app.services.connection import connection_manager
 from app.services.call import call_service
+from app.services.call.lifecycle import CallLifecycleManager
 
 logger = logging.getLogger(__name__)
 
@@ -258,6 +259,16 @@ class CallOrchestrator:
             while True:
                 message = await self.websocket.receive()
                 
+                # LOG EVERYTHING
+                msg_type = message.get('type')
+                keys = list(message.keys())
+                # Truncate bytes for log clarity if present
+                log_msg = f"[WebSocket] RAW RECV: Keys={keys}, Type={msg_type}"
+                if "bytes" in message:
+                    log_msg += f", BytesLen={len(message['bytes'])}"
+                
+                logger.info(log_msg)
+
                 if "text" in message:
                     await self._handle_text_message(message["text"])
                 elif "bytes" in message:
@@ -289,6 +300,16 @@ class CallOrchestrator:
             
             elif msg_type == 'ping':
                 await self.websocket.send_json({"type": "pong"})
+                
+            elif msg_type == 'audio':
+                # Fallback for when binary frames are blocked/dropped
+                # Audio data encoded as base64 in "data" field
+                import base64
+                try:
+                    audio_bytes = base64.b64decode(data.get('data', ''))
+                    await self._handle_binary_message(audio_bytes)
+                except Exception as e:
+                    logger.error(f"[WebSocket] Failed to decode base64 audio: {e}")
             
             else:
                 logger.warning(f"[WebSocket] Unknown message type: {msg_type}")
@@ -324,60 +345,96 @@ class CallOrchestrator:
     
     async def _handle_binary_message(self, audio_data: bytes) -> None:
         """Handle binary audio data."""
-        logger.debug(f"[WebSocket] Received {len(audio_data)} bytes from {self.user_id}")
+        if len(audio_data) < 100:
+            logger.warning(f"[WebSocket] Audio chunk too small ({len(audio_data)} bytes), skipping")
+            return
+            
+        logger.info(f"[WebSocket] Received {len(audio_data)} bytes from {self.user_id} in session {self.session_id}")
         
-        if len(audio_data) > 0:
-            # Calculate timestamp from call start
-            timestamp_ms = 0
-            if self.call_start_time:
-                elapsed = datetime.now(UTC) - self.call_start_time
-                timestamp_ms = int(elapsed.total_seconds() * 1000)
-            
-            # Broadcast audio to other participants
-            result = await connection_manager.broadcast_audio(
-                session_id=self.session_id,
-                speaker_id=self.user_id,
-                audio_data=audio_data,
-                timestamp_ms=timestamp_ms
-            )
-            
-            logger.debug(f"[WebSocket] Audio routed: {result}")
+        # Calculate timestamp from call start
+        timestamp_ms = 0
+        if self.call_start_time:
+            # Ensure both datetimes are timezone-aware for comparison
+            call_start = self.call_start_time
+            if call_start.tzinfo is None:
+                # Make naive datetime aware by assuming UTC
+                from datetime import timezone
+                call_start = call_start.replace(tzinfo=timezone.utc)
+            elapsed = datetime.now(UTC) - call_start
+            timestamp_ms = int(elapsed.total_seconds() * 1000)
+        
+        # Broadcast audio to other participants (handles translation if needed)
+        result = await connection_manager.broadcast_audio(
+            session_id=self.session_id,
+            speaker_id=self.user_id,
+            audio_data=audio_data,
+            timestamp_ms=timestamp_ms
+        )
+        
+        logger.debug(f"[WebSocket] Audio routed: {result}")
     
     async def _handle_disconnect(self) -> None:
-        """Cleanup when connection ends."""
+        """
+        Cleanup when connection ends.
+        
+        Delegates to specialized managers following SRP:
+        - CallLifecycleManager: participant/call state changes
+        - connection_manager: WebSocket connection cleanup
+        - status_service: user online/offline status
+        """
+        logger.info(f"[WebSocket] _handle_disconnect called for user {self.user_id}, session {self.session_id}")
+        
+        call_ended = False
+        
+        # Handle call-specific logic BEFORE removing from connection manager
+        if self._is_real_call():
+            call_id = self.call_info["call_id"]
+            call_ended = await self._handle_call_disconnect(call_id)
+        
+        # Disconnect from connection manager (sends participant_left)
         await connection_manager.disconnect(self.user_id)
         
+        # Mark user as offline
         async with AsyncSessionLocal() as db:
-            # Only update CallParticipant if this was a real call (not lobby)
-            if self.session_id != "lobby" and self.call_info and self.call_info.get("call_id"):
-                # Mark participant as disconnected
-                result = await db.execute(
-                    select(CallParticipant).where(
-                        and_(
-                            CallParticipant.call_id == self.call_info["call_id"],
-                            CallParticipant.user_id == self.user_id
-                        )
-                    )
-                )
-                participant = result.scalar_one_or_none()
-                if participant:
-                    participant.is_connected = False
-                    participant.left_at = datetime.utcnow()
-                    await db.commit()
-                
-                # Check if call should end (fewer than 2 participants)
-                call_ended, _ = await call_service.handle_participant_left(
-                    db, self.call_info["call_id"], self.user_id
-                )
-                
-                if call_ended:
-                    logger.info(f"[WebSocket] Call {self.call_info['call_id']} ended - fewer than 2 participants")
-                    
-                    # Notify remaining participants that call ended
-                    await connection_manager.broadcast_to_session(
-                        self.session_id,
-                        {"type": "call_ended", "reason": "insufficient_participants"}
-                    )
-            
-            # Mark user as offline and notify contacts
             await status_service.set_user_offline(self.user_id, db, connection_manager)
+    
+    def _is_real_call(self) -> bool:
+        """Check if this is a real call session (not lobby)."""
+        return (
+            self.session_id != "lobby" 
+            and self.call_info is not None 
+            and self.call_info.get("call_id") is not None
+        )
+    
+    async def _handle_call_disconnect(self, call_id: str) -> bool:
+        """
+        Handle disconnect from an active call.
+        
+        Returns:
+            True if the call was ended, False otherwise.
+        """
+        logger.info(f"[WebSocket] Processing disconnect for call_id={call_id}")
+        
+        async with AsyncSessionLocal() as db:
+            lifecycle = CallLifecycleManager(db)
+            
+            # Update participant and check if call should end
+            participant_updated, call_ended = await lifecycle.handle_participant_disconnect(
+                call_id=call_id,
+                user_id=self.user_id,
+                min_participants=2
+            )
+            
+            if call_ended:
+                # Notify remaining participants BEFORE we disconnect
+                await self._notify_call_ended()
+        
+        return call_ended
+    
+    async def _notify_call_ended(self) -> None:
+        """Send call_ended message to remaining participants."""
+        await connection_manager.broadcast_to_session(
+            self.session_id,
+            {"type": "call_ended", "reason": "insufficient_participants"}
+        )
+        logger.info(f"[WebSocket] Sent call_ended to session {self.session_id}")

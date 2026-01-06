@@ -120,7 +120,7 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api")
 
 # Include WebSocket routes
-app.include_router(ws_router)
+app.include_router(ws_router, prefix="/ws")
 
 
 @app.get("/")
@@ -142,3 +142,67 @@ async def health():
         "active_sessions": connection_manager.get_active_session_count(),
         "total_connections": connection_manager.get_total_connections()
     }
+
+
+@app.get("/debug/audio-test")
+async def debug_audio_test():
+    """
+    Debug endpoint to test the full audio pipeline without WebSocket.
+    
+    Tests: GCP STT -> Translate -> TTS
+    """
+    from app.services.gcp_pipeline import process_audio_chunk, PipelineResult
+    import base64
+    
+    # Generate 1 second of silence (for testing connectivity, not actual speech)
+    # In production, you'd send actual audio
+    test_audio = b'\x00' * 32000  # 1 second at 16kHz, 16-bit
+    
+    try:
+        result = await process_audio_chunk(
+            test_audio,
+            source_language_code="en-US",
+            target_language_code="he-IL"
+        )
+        
+        return {
+            "status": "success",
+            "transcript": result.transcript or "(silence - no speech detected)",
+            "translation": result.translation or "(no translation)",
+            "tts_audio_size": len(result.synthesized_audio) if result.synthesized_audio else 0,
+            "message": "Pipeline working correctly" if result.transcript else "Pipeline works but no speech in test audio"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "message": "Check GCP credentials and project configuration"
+        }
+
+
+@app.get("/debug/connections")
+async def debug_connections():
+    """Debug endpoint to see all active connections."""
+    sessions_info = {}
+    
+    # Access internal sessions dict (for debugging only)
+    for session_id, connections in connection_manager._sessions.items():
+        sessions_info[session_id] = {
+            "participant_count": len(connections),
+            "participants": [
+                {
+                    "user_id": conn.user_id,
+                    "language": conn.participant_language,
+                    "is_muted": conn.is_muted,
+                    "connected_at": conn.connected_at.isoformat()
+                }
+                for conn in connections.values()
+            ]
+        }
+    
+    return {
+        "total_sessions": connection_manager.get_active_session_count(),
+        "total_connections": connection_manager.get_total_connections(),
+        "sessions": sessions_info
+    }
+

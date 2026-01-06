@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:flutter_sound/flutter_sound.dart';
@@ -11,7 +12,7 @@ import '../data/websocket/websocket_service.dart';
 /// Manages:
 /// - Audio session configuration
 /// - Microphone recording and streaming
-/// - Audio playback from WebSocket
+/// - Audio playback from WebSocket with jitter buffering
 class AudioController {
   final WebSocketService _wsService;
   final VoidCallback _notifyListeners;
@@ -23,11 +24,24 @@ class AudioController {
   StreamSubscription<Uint8List>? _micStreamSub;
   StreamSubscription<Uint8List>? _incomingAudioSub;
 
+  // Audio buffering for smooth playback
+  final Queue<Uint8List> _audioBuffer = Queue<Uint8List>();
+  Timer? _playbackTimer;
+  static const int _minBufferSize = 3; // Wait for 3 chunks before playing
+  static const int _maxBufferSize = 10; // Drop old chunks if buffer grows too large
+  bool _isBuffering = true;
+
   // State
   bool _isPlayerInitialized = false;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
   bool _audioInitializing = false;
+
+  // Audio chunk accumulation for better STT results
+  final List<int> _accumulatedChunks = [];
+  Timer? _sendTimer;
+  static const int _sendIntervalMs = 300; // Send accumulated audio every 300ms
+  static const int _minChunkSize = 6400; // Minimum bytes before sending (200ms at 16kHz)
 
   AudioController(this._wsService, this._notifyListeners);
 
@@ -92,20 +106,52 @@ class AudioController {
   Future<void> _setupIncomingAudioListener() async {
     _incomingAudioSub?.cancel();
     int chunksReceived = 0;
+    
     _incomingAudioSub = _wsService.audioStream.listen(
       (data) {
-        if (_audioPlayer != null && _isPlayerInitialized && data.isNotEmpty) {
-          _audioPlayer!.uint8ListSink!.add(data);
-          chunksReceived++;
-          if (chunksReceived % 50 == 0) {
-            debugPrint(
-                '[AudioController] Playing chunk #$chunksReceived (${data.length} bytes)');
-          }
+        if (data.isEmpty) return;
+        
+        chunksReceived++;
+        
+        // Add to buffer
+        _audioBuffer.add(data);
+        
+        // Drop old chunks if buffer is too large (catch up with real-time)
+        while (_audioBuffer.length > _maxBufferSize) {
+          _audioBuffer.removeFirst();
+          debugPrint('[AudioController] Buffer overflow, dropping old chunk');
+        }
+        
+        // Start playback once we have enough buffered
+        if (_isBuffering && _audioBuffer.length >= _minBufferSize) {
+          _isBuffering = false;
+          _startBufferedPlayback();
+          debugPrint('[AudioController] Starting buffered playback');
+        }
+        
+        if (chunksReceived % 50 == 0) {
+          debugPrint('[AudioController] Received chunk #$chunksReceived, buffer size: ${_audioBuffer.length}');
         }
       },
       onError: (e) => debugPrint('[AudioController] Incoming audio error: $e'),
       cancelOnError: false,
     );
+  }
+  
+  void _startBufferedPlayback() {
+    _playbackTimer?.cancel();
+    
+    // Play chunks at regular intervals to smooth out jitter
+    _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (_audioBuffer.isNotEmpty && _audioPlayer != null && _isPlayerInitialized) {
+        final chunk = _audioBuffer.removeFirst();
+        _audioPlayer!.uint8ListSink?.add(chunk);
+      } else if (_audioBuffer.isEmpty) {
+        // Buffer underrun - wait for more data
+        _isBuffering = true;
+        debugPrint('[AudioController] Buffer underrun, waiting for more data');
+      }
+    });
   }
 
   Future<void> _setupMicrophone() async {
@@ -121,16 +167,24 @@ class AudioController {
           ),
         );
 
-        int chunksSent = 0;
         _micStreamSub?.cancel();
+        
+        // Start periodic sender for accumulated audio
+        _sendTimer?.cancel();
+        _sendTimer = Timer.periodic(
+          const Duration(milliseconds: _sendIntervalMs),
+          (_) => _sendAccumulatedAudio(),
+        );
+        
         _micStreamSub = stream.listen(
           (data) {
             if (!_isMuted) {
-              _wsService.sendAudio(data);
-              chunksSent++;
-              if (chunksSent % 50 == 0) {
-                debugPrint(
-                    '[AudioController] Sent 50 chunks (${data.length} bytes each)');
+              // Accumulate chunks instead of sending immediately
+              _accumulatedChunks.addAll(data);
+              
+              // If we have enough data, send immediately
+              if (_accumulatedChunks.length >= _minChunkSize * 2) {
+                _sendAccumulatedAudio();
               }
             }
           },
@@ -138,10 +192,22 @@ class AudioController {
           cancelOnError: false,
         );
 
-        debugPrint('[AudioController] Microphone started');
+        debugPrint('[AudioController] Microphone started with chunk accumulation');
       }
     } else {
       debugPrint('[AudioController] No microphone permission');
+    }
+  }
+  
+  void _sendAccumulatedAudio() {
+    if (_accumulatedChunks.isEmpty || _isMuted) return;
+    
+    // Only send if we have minimum chunk size
+    if (_accumulatedChunks.length >= _minChunkSize) {
+      final audioData = Uint8List.fromList(_accumulatedChunks);
+      _wsService.sendAudio(audioData);
+      debugPrint('[AudioController] Sent accumulated audio: ${audioData.length} bytes');
+      _accumulatedChunks.clear();
     }
   }
 
@@ -189,6 +255,11 @@ class AudioController {
   Future<void> dispose() async {
     debugPrint('[AudioController] Disposing...');
 
+    _sendTimer?.cancel();
+    _sendTimer = null;
+    _playbackTimer?.cancel();
+    _playbackTimer = null;
+    
     await _micStreamSub?.cancel();
     _micStreamSub = null;
 
@@ -204,6 +275,8 @@ class AudioController {
     }
     _audioRecorder = null;
     _audioSession = null;
+    _audioBuffer.clear();
+    _accumulatedChunks.clear();
 
     debugPrint('[AudioController] Disposed');
   }

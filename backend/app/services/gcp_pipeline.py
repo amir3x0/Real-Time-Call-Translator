@@ -68,20 +68,29 @@ class GCPSpeechPipeline:
         voice_name: Optional[str] = None,
     ) -> PipelineResult:
         """Run transcription -> translation -> speech synthesis for a chunk."""
+        logger.info(f"[GCP] Processing chunk of size {len(chunk)} bytes")
+        
         transcript = self._transcribe(chunk, source_language_code)
         if not transcript:
+            logger.debug("[GCP] No transcript generated (silence or error)")
             return PipelineResult("", "", b"")
+            
+        logger.info(f"[GCP] STT Result: '{transcript}'")
 
         translation = self._translate_text(
             transcript,
             source_language_code=source_language_code[:2],
             target_language_code=target_language_code[:2],
         )
+        logger.info(f"[GCP] Translated: '{transcript}' -> '{translation}'")
+        
         synthesized = self._synthesize(
             translation,
             language_code=target_language_code,
             voice_name=voice_name,
         )
+        logger.info(f"[GCP] Synthesized {len(synthesized)} bytes of TTS audio")
+        
         return PipelineResult(transcript, translation, synthesized)
 
     def _transcribe(self, chunk: bytes, language_code: str) -> str:
@@ -256,17 +265,25 @@ def _get_pipeline() -> GCPSpeechPipeline:
     return GCPSpeechPipeline()
 
 
+# Dedicated thread pool for GCP operations (larger than default)
+from concurrent.futures import ThreadPoolExecutor
+_gcp_executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="gcp_worker")
+
+
 async def process_audio_chunk(
     chunk: bytes,
     source_language_code: str = "he-IL",
     target_language_code: str = "en-US",
     voice_name: Optional[str] = None,
 ) -> PipelineResult:
-    """Async helper that executes the pipeline without blocking the event loop."""
+    """Async helper that executes the pipeline without blocking the event loop.
+    
+    Uses a dedicated thread pool to handle multiple concurrent GCP requests.
+    """
     loop = asyncio.get_running_loop()
     pipeline = _get_pipeline()
     return await loop.run_in_executor(
-        None,
+        _gcp_executor,  # Use dedicated executor instead of default
         lambda: pipeline.process_chunk(
             chunk,
             source_language_code=source_language_code,

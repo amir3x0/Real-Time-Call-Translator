@@ -135,9 +135,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           // FIX: Check if we are in an active call to avoid disrupting it
           if (callProvider.status == CallStatus.active ||
               callProvider.status == CallStatus.ringing ||
+              callProvider.status == CallStatus.initiating ||
               lobbyProvider.incomingCall != null) {
             debugPrint(
-                '[App] In active/ringing call - skipping Lobby reconnection');
+                '[App] In active/ringing/initiating call - skipping Lobby reconnection');
             return;
           }
 

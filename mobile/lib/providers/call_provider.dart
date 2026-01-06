@@ -6,8 +6,13 @@ import '../data/services/call_api_service.dart';
 import '../models/call.dart';
 import '../models/live_caption.dart';
 import '../models/participant.dart';
+import '../models/transcription_entry.dart';
 import 'audio_controller.dart';
 import 'caption_manager.dart';
+import 'transcription_manager.dart';
+
+/// Callback for when call ends remotely (e.g., other participant left)
+typedef OnCallEndedCallback = void Function(String reason);
 
 /// Managed Active Call Sessions.
 ///
@@ -24,15 +29,19 @@ class CallProvider with ChangeNotifier {
   String? _activeSpeakerId;
 
   bool _disposed = false;
+  
+  /// Callback invoked when call ends remotely
+  OnCallEndedCallback? onCallEnded;
 
   // Services
   final WebSocketService _wsService;
   final CallApiService _apiService;
   StreamSubscription<WSMessage>? _wsSub;
 
-  // Helpers
+  // Helpers (SRP: Each handles specific responsibility)
   late final AudioController _audioController;
   late final CaptionManager _captionManager;
+  late final TranscriptionManager _transcriptionManager;
 
   CallProvider({
     required WebSocketService wsService,
@@ -41,6 +50,7 @@ class CallProvider with ChangeNotifier {
         _apiService = apiService {
     _audioController = AudioController(_wsService, notifyListeners);
     _captionManager = CaptionManager(notifyListeners, () => _disposed);
+    _transcriptionManager = TranscriptionManager(notifyListeners, () => _disposed);
   }
 
   // === Getters ===
@@ -50,6 +60,8 @@ class CallProvider with ChangeNotifier {
   List<CallParticipant> get participants => List.unmodifiable(_participants);
   String get liveTranscription => _liveTranscription;
   List<LiveCaptionData> get captionBubbles => _captionManager.captionBubbles;
+  List<TranscriptionEntry> get transcriptionHistory => _transcriptionManager.entries;
+  TranscriptionEntry? get latestTranscription => _transcriptionManager.latestEntry;
   String? get activeSpeakerId => _activeSpeakerId;
   bool get isMuted => _audioController.isMuted;
   bool get isSpeakerOn => _audioController.isSpeakerOn;
@@ -72,29 +84,70 @@ class CallProvider with ChangeNotifier {
 
   /// Starts a real call by calling backend API and connecting to WebSocket
   Future<void> startCall(List<String> participantUserIds) async {
-    _status = CallStatus.initiating; // New status for UI feedback?
+    _status = CallStatus.initiating;
     notifyListeners();
 
     try {
-      final resp = await _apiService.startCall(participantUserIds);
-      final sessionId = resp['session_id'] as String;
-      final parts = resp['participants'] as List<dynamic>;
-
-      _participants = parts
-          .map((p) => CallParticipant.fromJson(Map<String, dynamic>.from(p)))
-          .toList();
-      _status = CallStatus.active;
-      _activeSessionId = sessionId;
-
-      // Connect to WS
-      await _joinCallSession(sessionId);
-
-      notifyListeners();
+      await _initiateCallWithRetry(participantUserIds);
     } catch (e) {
-      _status = CallStatus.ended; // Or error
+      debugPrint('[CallProvider] Error starting call: $e');
+      _status = CallStatus.ended;
       notifyListeners();
       rethrow;
     }
+  }
+
+  /// Attempts to initiate call, with auto-recovery from stuck state
+  Future<void> _initiateCallWithRetry(List<String> participantUserIds) async {
+    try {
+      await _executeCallInitiation(participantUserIds);
+    } catch (e) {
+      if (_isStuckInCallError(e)) {
+        await _recoverFromStuckState(participantUserIds);
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  /// Core call initiation logic - single responsibility: start a call
+  Future<void> _executeCallInitiation(List<String> participantUserIds) async {
+    debugPrint('[CallProvider] Starting call with participants: $participantUserIds');
+    final resp = await _apiService.startCall(participantUserIds);
+    await _processCallResponse(resp);
+  }
+
+  /// Process API response and setup call state
+  Future<void> _processCallResponse(Map<String, dynamic> resp) async {
+    debugPrint('[CallProvider] Received response: $resp');
+    
+    final sessionId = resp['session_id'] as String;
+    final callId = resp['call_id'] as String?;
+    final parts = resp['participants'] as List<dynamic>;
+
+    _participants = parts
+        .map((p) => CallParticipant.fromJson(Map<String, dynamic>.from(p)))
+        .toList();
+    _status = CallStatus.active;
+    _activeSessionId = sessionId;
+
+    debugPrint('[CallProvider] Connecting to WebSocket: session=$sessionId, call=$callId');
+    await _joinCallSession(sessionId, callId: callId);
+    notifyListeners();
+  }
+
+  /// Check if error is "already in active call" error
+  bool _isStuckInCallError(Object error) {
+    final errorStr = error.toString().toLowerCase();
+    return errorStr.contains('already in') && errorStr.contains('active call');
+  }
+
+  /// Recover from stuck call state and retry
+  Future<void> _recoverFromStuckState(List<String> participantUserIds) async {
+    debugPrint('[CallProvider] Detected stuck call state - auto-resetting...');
+    await _apiService.resetCallState();
+    debugPrint('[CallProvider] Reset successful, retrying call...');
+    await _executeCallInitiation(participantUserIds);
   }
 
   /// Join an existing call session (e.g. accepting an incoming call)
@@ -108,15 +161,25 @@ class CallProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _joinCallSession(String sessionId) async {
+  Future<void> _joinCallSession(String sessionId, {String? callId}) async {
+    debugPrint('[CallProvider] Joining call session: $sessionId, call_id: $callId');
     await _wsSub?.cancel();
-    await _wsService.connect(sessionId);
+    final connected = await _wsService.connect(sessionId, callId: callId);
+    if (!connected) {
+      debugPrint(
+          '[CallProvider] FAILED to connect to call session: $sessionId');
+      // Optionally handle error state here
+      return;
+    }
+
+    debugPrint('[CallProvider] Successfully connected to call session');
     _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
 
     // Initialize Audio
     await _audioController.initAudio();
   }
 
+  /// End the call (called by user or when remote call_ended received)
   void endCall() {
     debugPrint('[CallProvider] endCall called');
     _audioController.dispose();
@@ -126,7 +189,20 @@ class CallProvider with ChangeNotifier {
     _wsSub?.cancel();
     _wsService.disconnect();
     _captionManager.clearBubbles();
+    _transcriptionManager.clear();
     notifyListeners();
+  }
+
+  /// Handle remote call ended (e.g., other participant left)
+  void _handleCallEnded(WSMessage message) {
+    final reason = message.data?['reason'] as String? ?? 'unknown';
+    debugPrint('[CallProvider] Call ended remotely: $reason');
+    
+    // Clean up the call
+    endCall();
+    
+    // Notify listener (e.g., ActiveCallScreen) to navigate away
+    onCallEnded?.call(reason);
   }
 
   // === Audio Controls ===
@@ -138,9 +214,13 @@ class CallProvider with ChangeNotifier {
   // === WebSocket Message Handling ===
 
   void _handleWebSocketMessage(WSMessage message) {
+    debugPrint('[CallProvider] WS message: ${message.type}');
     switch (message.type) {
       case WSMessageType.transcript:
         _handleTranscript(message);
+        break;
+      case WSMessageType.translation:
+        _handleTranslation(message);
         break;
       case WSMessageType.participantJoined:
         _handleParticipantJoined(message);
@@ -150,7 +230,7 @@ class CallProvider with ChangeNotifier {
       case WSMessageType.muteStatusChanged:
         break;
       case WSMessageType.callEnded:
-        endCall();
+        _handleCallEnded(message);
         break;
       case WSMessageType.error:
         debugPrint('[CallProvider] WebSocket error: ${message.data}');
@@ -161,21 +241,61 @@ class CallProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Handle live transcript (original text as it's being spoken)
   void _handleTranscript(WSMessage message) {
-    if (_participants.isEmpty) return;
     final text = message.data?['text'] as String? ?? '';
     final speakerId = message.data?['speaker_id'] as String?;
-    if (speakerId != null) {
+    
+    debugPrint('[CallProvider] Transcript: "$text" from $speakerId');
+    
+    if (speakerId != null && text.isNotEmpty) {
       _liveTranscription = text;
       _setActiveSpeaker(speakerId);
       _captionManager.addCaptionBubble(speakerId, text);
     }
   }
 
+  /// Handle translation message (includes both original and translated text)
+  void _handleTranslation(WSMessage message) {
+    final data = message.data;
+    if (data == null) return;
+    
+    final originalText = data['original_text'] as String? ?? data['text'] ?? '';
+    final translatedText = data['translated_text'] as String? ?? '';
+    final speakerId = data['speaker_id'] as String? ?? '';
+    final sourceLanguage = data['source_language'] as String? ?? data['source_lang'] ?? '';
+    final targetLanguage = data['target_language'] as String? ?? data['target_lang'] ?? '';
+    final confidence = (data['confidence'] as num?)?.toDouble();
+    
+    debugPrint('[CallProvider] Translation: "$originalText" -> "$translatedText"');
+    
+    // Find speaker name
+    String speakerName = 'Unknown';
+    final participant = _participants.where((p) => p.userId == speakerId || p.id == speakerId).firstOrNull;
+    if (participant != null) {
+      speakerName = participant.displayName;
+    }
+    
+    // Add to transcription history
+    _transcriptionManager.addFromMessage(
+      participantId: speakerId,
+      participantName: speakerName,
+      originalText: originalText,
+      translatedText: translatedText,
+      sourceLanguage: sourceLanguage,
+      targetLanguage: targetLanguage,
+      confidence: confidence,
+    );
+    
+    // Update live transcription display
+    _liveTranscription = translatedText.isNotEmpty ? translatedText : originalText;
+    _setActiveSpeaker(speakerId);
+  }
+
   void _setActiveSpeaker(String? participantId) {
     _activeSpeakerId = participantId;
     _participants = _participants
-        .map((p) => p.copyWith(isSpeaking: p.id == participantId))
+        .map((p) => p.copyWith(isSpeaking: p.id == participantId || p.userId == participantId))
         .toList(growable: false);
   }
 
