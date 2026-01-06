@@ -5,8 +5,11 @@ Manages the lifecycle of a WebSocket connection for real-time calls:
 - Connection authentication and setup
 - Participant info loading from database
 - Message loop handling (text/binary)
+- Redis Stream publishing for audio processing
+- Pub/Sub listener for translation results
 - Cleanup on disconnect
 """
+import asyncio
 import json
 import logging
 from datetime import datetime, UTC
@@ -26,6 +29,8 @@ from app.services.status_service import status_service
 from app.services.connection import connection_manager
 from app.services.call import call_service
 from app.services.call.lifecycle import CallLifecycleManager
+from app.services.rtc_service import publish_audio_chunk
+from app.config.redis import get_redis
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +61,9 @@ class CallOrchestrator:
         self.call_info: Optional[Dict[str, Any]] = None
         self.participant_info: Optional[Dict[str, Any]] = None
         self.call_start_time: Optional[datetime] = None
+        
+        # Pub/Sub listener task for receiving translation results
+        self._pubsub_task: Optional[asyncio.Task] = None
     
     async def run(self) -> None:
         """
@@ -83,11 +91,18 @@ class CallOrchestrator:
         if self.session_id == "lobby":
             await self._send_initial_contact_status()
         
-        # 7. Run message loop
+        # 7. Start Pub/Sub listener for translation results (call sessions only)
+        if self.session_id != "lobby":
+            self._pubsub_task = asyncio.create_task(
+                self._listen_for_translations()
+            )
+            logger.info(f"[WebSocket] Started Pub/Sub listener for session {self.session_id}")
+        
+        # 8. Run message loop
         try:
             await self._message_loop()
         finally:
-            # 8. Cleanup on disconnect
+            # 9. Cleanup on disconnect
             await self._handle_disconnect()
     
     async def _authenticate(self) -> bool:
@@ -344,34 +359,45 @@ class CallOrchestrator:
         })
     
     async def _handle_binary_message(self, audio_data: bytes) -> None:
-        """Handle binary audio data."""
+        """
+        Handle binary audio data.
+        
+        Publishes audio to Redis Stream for the Worker to process.
+        The Worker handles: STT -> Translation -> TTS -> Pub/Sub
+        Results come back via _listen_for_translations()
+        """
         if len(audio_data) < 100:
             logger.warning(f"[WebSocket] Audio chunk too small ({len(audio_data)} bytes), skipping")
+            return
+        
+        # Skip audio processing for lobby
+        if self.session_id == "lobby":
             return
             
         logger.info(f"[WebSocket] Received {len(audio_data)} bytes from {self.user_id} in session {self.session_id}")
         
-        # Calculate timestamp from call start
-        timestamp_ms = 0
-        if self.call_start_time:
-            # Ensure both datetimes are timezone-aware for comparison
-            call_start = self.call_start_time
-            if call_start.tzinfo is None:
-                # Make naive datetime aware by assuming UTC
-                from datetime import timezone
-                call_start = call_start.replace(tzinfo=timezone.utc)
-            elapsed = datetime.now(UTC) - call_start
-            timestamp_ms = int(elapsed.total_seconds() * 1000)
+        # Get source language from participant info
+        source_lang = self.participant_info.get("participant_language", "he")
+        source_lang = _normalize_language_code(source_lang)
         
-        # Broadcast audio to other participants (handles translation if needed)
-        result = await connection_manager.broadcast_audio(
-            session_id=self.session_id,
-            speaker_id=self.user_id,
-            audio_data=audio_data,
-            timestamp_ms=timestamp_ms
-        )
+        # Get target language (the other participant's language)
+        target_lang = await self._get_target_language()
+        target_lang = _normalize_language_code(target_lang)
         
-        logger.debug(f"[WebSocket] Audio routed: {result}")
+        logger.info(f"[WebSocket] Publishing to Redis Stream: {source_lang} -> {target_lang}")
+        
+        # Publish to Redis Stream for Worker processing
+        try:
+            result = await publish_audio_chunk(
+                session_id=self.session_id,
+                chunk=audio_data,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                speaker_id=self.user_id
+            )
+            logger.debug(f"[WebSocket] Audio published to stream: {result}")
+        except Exception as e:
+            logger.error(f"[WebSocket] Failed to publish audio: {e}")
     
     async def _handle_disconnect(self) -> None:
         """
@@ -381,8 +407,18 @@ class CallOrchestrator:
         - CallLifecycleManager: participant/call state changes
         - connection_manager: WebSocket connection cleanup
         - status_service: user online/offline status
+        - Pub/Sub listener cleanup
         """
         logger.info(f"[WebSocket] _handle_disconnect called for user {self.user_id}, session {self.session_id}")
+        
+        # Cancel Pub/Sub listener task if running
+        if self._pubsub_task and not self._pubsub_task.done():
+            self._pubsub_task.cancel()
+            try:
+                await self._pubsub_task
+            except asyncio.CancelledError:
+                pass
+            logger.info(f"[WebSocket] Cancelled Pub/Sub listener for session {self.session_id}")
         
         call_ended = False
         
@@ -438,3 +474,148 @@ class CallOrchestrator:
             {"type": "call_ended", "reason": "insufficient_participants"}
         )
         logger.info(f"[WebSocket] Sent call_ended to session {self.session_id}")
+    
+    async def _get_target_language(self) -> str:
+        """
+        Get the target language (other participant's language).
+        
+        In a 2-participant call, this is the language of the other participant.
+        """
+        if not self.call_info or not self.call_info.get("call_id"):
+            return "en"  # Default fallback
+        
+        try:
+            async with AsyncSessionLocal() as db:
+                # Get all participants in this call except current user
+                result = await db.execute(
+                    select(CallParticipant).where(
+                        and_(
+                            CallParticipant.call_id == self.call_info["call_id"],
+                            CallParticipant.user_id != self.user_id
+                        )
+                    )
+                )
+                other_participant = result.scalar_one_or_none()
+                
+                if other_participant:
+                    return other_participant.participant_language or "en"
+                    
+        except Exception as e:
+            logger.error(f"[WebSocket] Error getting target language: {e}")
+        
+        return "en"  # Default fallback
+    
+    async def _listen_for_translations(self) -> None:
+        """
+        Listen for translation results from the Worker via Redis Pub/Sub.
+        
+        The Worker publishes to channel:translation:{session_id}
+        """
+        channel_name = f"channel:translation:{self.session_id}"
+        logger.info(f"[WebSocket] Subscribing to {channel_name}")
+        
+        try:
+            redis = await get_redis()
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(channel_name)
+            
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    try:
+                        data = json.loads(message["data"])
+                        await self._handle_translation_result(data)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"[WebSocket] Invalid JSON from Pub/Sub: {e}")
+                    except Exception as e:
+                        logger.error(f"[WebSocket] Error handling translation: {e}")
+                        
+        except asyncio.CancelledError:
+            logger.info(f"[WebSocket] Pub/Sub listener cancelled for {self.session_id}")
+            raise
+        except Exception as e:
+            logger.error(f"[WebSocket] Pub/Sub error: {e}")
+        finally:
+            try:
+                await pubsub.unsubscribe(channel_name)
+                await pubsub.close()
+            except:
+                pass
+    
+    async def _handle_translation_result(self, data: Dict[str, Any]) -> None:
+        """
+        Handle translation result from the Worker.
+        
+        Forwards the result to the appropriate WebSocket client.
+        
+        Message types from Worker:
+        - transcription_update: Interim STT result
+        - translation: Final translation with TTS audio
+        """
+        msg_type = data.get("type")
+        speaker_id = data.get("speaker_id")
+        
+        # Don't send back to the speaker
+        if speaker_id == self.user_id:
+            return
+        
+        if msg_type == "transcription_update":
+            # Interim transcription - send as JSON
+            await self.websocket.send_json({
+                "type": "transcription_update",
+                "transcript": data.get("transcript", ""),
+                "is_final": data.get("is_final", False),
+                "speaker_id": speaker_id
+            })
+            
+        elif msg_type == "translation":
+            # Final translation with TTS audio
+            # Send text info as JSON
+            await self.websocket.send_json({
+                "type": "translation",
+                "original_text": data.get("transcript", ""),
+                "translated_text": data.get("translation", ""),
+                "source_lang": data.get("source_lang", ""),
+                "target_lang": data.get("target_lang", ""),
+                "speaker_id": speaker_id
+            })
+            
+            # Send TTS audio as binary if present
+            audio_hex = data.get("audio_content")
+            if audio_hex:
+                try:
+                    audio_bytes = bytes.fromhex(audio_hex)
+                    await self.websocket.send_bytes(audio_bytes)
+                    logger.info(f"[WebSocket] Sent {len(audio_bytes)} bytes TTS audio to {self.user_id}")
+                except Exception as e:
+                    logger.error(f"[WebSocket] Failed to send TTS audio: {e}")
+
+
+def _normalize_language_code(lang: str) -> str:
+    """
+    Normalize language codes to Google Cloud format.
+    
+    Examples:
+        he -> he-IL
+        en -> en-US
+        ru -> ru-RU
+        he-IL -> he-IL (unchanged)
+    """
+    if not lang:
+        return "en-US"
+    
+    # Already in full format
+    if "-" in lang:
+        return lang
+    
+    # Map short codes to full codes
+    lang_map = {
+        "he": "he-IL",
+        "en": "en-US",
+        "ru": "ru-RU",
+        "ar": "ar-XA",
+        "es": "es-ES",
+        "fr": "fr-FR",
+        "de": "de-DE",
+    }
+    
+    return lang_map.get(lang.lower(), f"{lang}-{lang.upper()}")

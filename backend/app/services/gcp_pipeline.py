@@ -70,6 +70,16 @@ class GCPSpeechPipeline:
         """Run transcription -> translation -> speech synthesis for a chunk."""
         logger.info(f"[GCP] Processing chunk of size {len(chunk)} bytes")
         
+        # DEBUG: Save first few chunks to file for analysis
+        import time
+        debug_file = f"/app/data/debug_audio_{int(time.time())}.pcm"
+        try:
+            with open(debug_file, "wb") as f:
+                f.write(chunk)
+            logger.info(f"[GCP] DEBUG: Saved audio chunk to {debug_file}")
+        except Exception as e:
+            logger.warning(f"[GCP] DEBUG: Could not save audio: {e}")
+        
         transcript = self._transcribe(chunk, source_language_code)
         if not transcript:
             logger.debug("[GCP] No transcript generated (silence or error)")
@@ -94,6 +104,7 @@ class GCPSpeechPipeline:
         return PipelineResult(transcript, translation, synthesized)
 
     def _transcribe(self, chunk: bytes, language_code: str) -> str:
+        logger.info(f"[GCP] STT Starting for {len(chunk)} bytes, lang={language_code}")
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
             sample_rate_hertz=16000,
@@ -102,14 +113,22 @@ class GCPSpeechPipeline:
             # model="phone_call", # Removed to support more languages
         )
         audio = speech.RecognitionAudio(content=chunk)
-        response = self._speech_client.recognize(config=config, audio=audio)
-        if not response.results:
+        try:
+            response = self._speech_client.recognize(config=config, audio=audio)
+            logger.info(f"[GCP] STT Response: results_count={len(response.results) if response.results else 0}")
+            if not response.results:
+                logger.info("[GCP] STT: No speech detected in this chunk")
+                return ""
+            transcript = " ".join(
+                result.alternatives[0].transcript.strip()
+                for result in response.results
+                if result.alternatives
+            ).strip()
+            logger.info(f"[GCP] STT Transcript: '{transcript}'")
+            return transcript
+        except Exception as e:
+            logger.error(f"[GCP] STT Error: {e}")
             return ""
-        return " ".join(
-            result.alternatives[0].transcript.strip()
-            for result in response.results
-            if result.alternatives
-        ).strip()
 
     def _translate_text(
         self,

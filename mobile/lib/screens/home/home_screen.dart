@@ -242,27 +242,6 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           ),
-          // Profile Button
-          ClipRRect(
-            borderRadius: AppTheme.borderRadiusSmall,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: AppTheme.glassDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: AppTheme.radiusSmall,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.person_outline, color: Colors.white70),
-                  onPressed: () {
-                    // Navigate to profile
-                  },
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

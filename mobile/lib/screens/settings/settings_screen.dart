@@ -7,7 +7,6 @@ import '../../providers/settings_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/voice_service.dart';
-import '../../data/services/call_api_service.dart';
 import '../../widgets/voice_recorder_widget.dart';
 import '../../utils/language_utils.dart';
 import '../../config/app_theme.dart';
@@ -26,7 +25,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   final AuthService _authService = AuthService();
   final VoiceService _voiceService = VoiceService();
-  final CallApiService _callApiService = CallApiService();
 
   @override
   void initState() {
@@ -105,18 +103,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildLogoutButton(authProv)
               .animate()
               .fadeIn(delay: 500.ms, duration: 400.ms),
-
-          const SizedBox(height: 24),
-
-          // Section: Developer
-          _buildSectionHeader('Developer Options', Icons.developer_mode)
-              .animate()
-              .fadeIn(delay: 550.ms, duration: 400.ms),
-          const SizedBox(height: 12),
-
-          _buildResetStateButton()
-              .animate()
-              .fadeIn(delay: 600.ms, duration: 400.ms),
 
           // Extra padding for floating nav bar
           const SizedBox(height: 100),
@@ -613,63 +599,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResetStateButton() {
-    return ClipRRect(
-      borderRadius: AppTheme.borderRadiusMedium,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-        child: Container(
-          decoration: AppTheme.glassDecoration(
-            color: Colors.orange.withValues(alpha: 0.1),
-            borderColor: Colors.orange.withValues(alpha: 0.3),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: AppTheme.borderRadiusMedium,
-              onTap: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                try {
-                  await _callApiService.resetCallState();
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Call state reset successfully'),
-                      backgroundColor: AppTheme.successGreen,
-                    ),
-                  );
-                } catch (e) {
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to reset: $e'),
-                      backgroundColor: AppTheme.errorRed,
-                    ),
-                  );
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.refresh, color: Colors.orange),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Reset Call State',
-                      style: AppTheme.labelLarge.copyWith(
-                        color: Colors.orange,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ),

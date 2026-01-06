@@ -141,6 +141,11 @@ async def start_call(
     host = "10.231.5.22" if settings.API_HOST == "0.0.0.0" else settings.API_HOST
     websocket_url = f"ws://{host}:{settings.API_PORT}/ws/{call.session_id}"
     
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[START_CALL] Caller {current_user.id} started call {call.id}")
+    logger.info(f"[START_CALL] Created session_id={call.session_id}")
+    
     return StartCallResponse(
         call_id=call.id,
         session_id=call.session_id,
@@ -367,8 +372,14 @@ async def accept_call(
     current_user: User = Depends(get_current_user)
 ):
     """Accept an incoming call."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         call = await call_service.accept_call(db, call_id, current_user.id)
+        
+        logger.info(f"[ACCEPT] User {current_user.id} accepted call {call_id}")
+        logger.info(f"[ACCEPT] Returning session_id={call.session_id}")
         
         # Get participants for response
         participants_result = await db.execute(

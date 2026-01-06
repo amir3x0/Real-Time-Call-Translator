@@ -54,7 +54,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=RedisCache2024
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/config/google-credentials.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/app/config/google-credentials.json
     volumes:
       - ./app:/app/app
       - ./tests:/app/tests
@@ -63,6 +63,37 @@ services:
     command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - translator_network
+    restart: unless-stopped
+
+  # Audio Processing Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: translator-backend
+    container_name: translator_worker
+    environment:
+      - DB_USER=translator_admin
+      - DB_PASSWORD=TranslatorPass2024
+      - DB_NAME=call_translator
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=RedisCache2024
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/app/config/google-credentials.json
+    volumes:
+      - ./app:/app/app
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+    command: ["python", "-m", "scripts.worker"]
     depends_on:
       postgres:
         condition: service_healthy
