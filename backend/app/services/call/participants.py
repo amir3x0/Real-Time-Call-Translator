@@ -43,7 +43,7 @@ async def create_participant(
         call_id=call.id,
         user_id=user.id,
         participant_language=user.primary_language,
-        joined_at=datetime.now(UTC) if is_caller else None,
+        joined_at=datetime.utcnow() if is_caller else None,
         is_connected=is_caller,
     )
     

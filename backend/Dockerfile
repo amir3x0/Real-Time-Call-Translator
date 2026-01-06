@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
     libsndfile1 \
+    portaudio19-dev \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
@@ -38,8 +39,8 @@ EXPOSE 8000
 # Health check (use Python stdlib to avoid external deps)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python3 -c "import sys,urllib.request;\
-resp=urllib.request.urlopen('http://localhost:8000/health');\
-sys.exit(0 if resp.getcode()==200 else 1)"
+    resp=urllib.request.urlopen('http://localhost:8000/health');\
+    sys.exit(0 if resp.getcode()==200 else 1)"
 
 # Run application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

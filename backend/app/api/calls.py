@@ -136,8 +136,10 @@ async def start_call(
                 caller_language=call.call_language
             )
     
-    # Build WebSocket URL
-    websocket_url = f"ws://{settings.API_HOST}:{settings.API_PORT}/ws/{call.session_id}"
+    # Build WebSocket URL (use actual host, not 0.0.0.0)
+    # Client should use this URL directly
+    host = "10.231.5.22" if settings.API_HOST == "0.0.0.0" else settings.API_HOST
+    websocket_url = f"ws://{host}:{settings.API_PORT}/ws/{call.session_id}"
     
     return StartCallResponse(
         call_id=call.id,

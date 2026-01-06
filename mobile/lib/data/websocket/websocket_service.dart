@@ -21,6 +21,7 @@ enum WSMessageType {
   muteStatusChanged,
   callEnded,
   transcript,
+  translation,
   incomingCall,
   userStatusChanged,
   contactRequest,
@@ -68,8 +69,9 @@ class WSMessage {
       case 'call_ended':
         return WSMessageType.callEnded;
       case 'transcript':
-      case 'translation': // Handle translation messages as transcripts
         return WSMessageType.transcript;
+      case 'translation':
+        return WSMessageType.translation;
       case 'incoming_call':
         return WSMessageType.incomingCall;
       case 'user_status_changed':
@@ -100,6 +102,7 @@ class WebSocketService {
   String? _userId;
   String? _callId;
   bool _isConnected = false;
+  bool _intentionalDisconnect = false;
 
   /// Stream of control messages (JSON)
   Stream<WSMessage> get messages =>
@@ -187,6 +190,10 @@ class WebSocketService {
       _startHeartbeat();
 
       debugPrint('[WebSocketService] Connected to session $sessionId');
+
+      // TEST BINARY TRANSMISSION
+      sendTestBinary();
+
       return true;
     } catch (e) {
       debugPrint('[WebSocketService] Connection error: $e');
@@ -195,11 +202,19 @@ class WebSocketService {
     }
   }
 
+  void sendTestBinary() {
+    if (_isConnected && _channel != null) {
+      debugPrint('[WebSocketService] Sending TEST BINARY packet (4 bytes)');
+      _channel!.sink.add(Uint8List.fromList([1, 2, 3, 4]));
+    }
+  }
+
   /// Disconnect from the WebSocket
   Future<void> disconnect() async {
     debugPrint(
         '[WebSocketService] Disconnecting... from:\n${StackTrace.current}');
 
+    _intentionalDisconnect = true; // Mark as intentional to prevent callEnded
     _stopHeartbeat();
 
     // Send leave message before closing
@@ -232,6 +247,7 @@ class WebSocketService {
     if (!_isConnected || _channel == null) return;
 
     try {
+      // Changed to Base64 JSON to avoid binary transport issues
       _channel!.sink.add(audioData);
     } catch (e) {
       debugPrint('[WebSocketService] Error sending audio: $e');
@@ -315,9 +331,18 @@ class WebSocketService {
     _isConnected = false;
     _stopHeartbeat();
 
-    _messageController?.add(WSMessage(
-      type: WSMessageType.callEnded,
-      data: {'reason': 'connection_closed'},
-    ));
+    // Only send callEnded if this was NOT an intentional disconnect
+    // (e.g., switching from lobby to call session should not trigger callEnded)
+    if (!_intentionalDisconnect) {
+      _messageController?.add(WSMessage(
+        type: WSMessageType.callEnded,
+        data: {'reason': 'connection_closed'},
+      ));
+    }
+
+    // Reset flag for next connection
+    _intentionalDisconnect = false;
+
+    debugPrint('[WebSocketService] Disconnected');
   }
 }

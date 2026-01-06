@@ -15,6 +15,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Language code mapping for GCP API
+LANGUAGE_CODE_MAP = {
+    "he": "he-IL",
+    "en": "en-US", 
+    "ru": "ru-RU",
+    "he-IL": "he-IL",
+    "en-US": "en-US",
+    "ru-RU": "ru-RU",
+}
+
+
+def normalize_language_code(lang: str) -> str:
+    """Convert short language codes to full BCP-47 codes for GCP."""
+    if not lang:
+        return "en-US"
+    return LANGUAGE_CODE_MAP.get(lang, lang if "-" in lang else f"{lang}-{lang.upper()}")
+
+
 async def broadcast_audio(
     sessions: Dict[str, Dict[str, "CallConnection"]],
     session_id: str,
@@ -26,8 +44,8 @@ async def broadcast_audio(
     Broadcast audio data to all participants in a session.
     
     This method handles the routing logic:
-    - For participants with same language as call: passthrough
-    - For participants with different language: translation needed
+    - For participants with same language as speaker: passthrough
+    - For participants with different language: translation via GCP
     
     Args:
         sessions: Active sessions dictionary
@@ -47,7 +65,8 @@ async def broadcast_audio(
         "speaker_id": speaker_id,
         "timestamp_ms": timestamp_ms,
         "passthrough_count": 0,
-        "translation_count": 0
+        "translation_count": 0,
+        "errors": []
     }
     
     # Get speaker connection
@@ -55,49 +74,86 @@ async def broadcast_audio(
     if not speaker_conn:
         return {"status": "error", "message": "Speaker not found"}
     
-    # Get all other connections
+    # Get all other connections (excluding speaker, excluding muted)
     connections = [
         conn for conn in sessions[session_id].values()
         if conn.user_id != speaker_id and not conn.is_muted
     ]
     
-    logger.info(f"[AudioRouter] Broadcasting audio from {speaker_id} to {len(connections)} participants in session {session_id}")
-    for c in connections:
-        logger.debug(f"Target: {c.user_id}, Muted: {c.is_muted}, Dubbing: {c.dubbing_required}")
-
-    # Group by target language
-    translation_requests = set()
+    # Self-test mode: if only speaker is in session, send back to themselves for testing
+    is_self_test = len(sessions[session_id]) == 1
+    if is_self_test:
+        connections = [speaker_conn]
+        logger.info(f"[AudioRouter] Self-test mode: echoing back to speaker {speaker_id}")
     
+    if not connections:
+        logger.debug(f"[AudioRouter] No recipients for audio from {speaker_id}")
+        return result
+    
+    # Normalize speaker's language code
+    source_lang_short = speaker_conn.participant_language or "en"
+    source_lang_full = normalize_language_code(source_lang_short)
+    
+    logger.info(f"[AudioRouter] Broadcasting {len(audio_data)} bytes from {speaker_id} ({source_lang_short}) to {len(connections)} participants")
+    
+    # Import GCP pipeline
+    from app.services.gcp_pipeline import process_audio_chunk
+    
+    # Process each recipient
     for conn in connections:
-        # Determine if translation is needed
-        source_lang = speaker_conn.participant_language
-        target_lang = conn.participant_language
+        target_lang_short = conn.participant_language or "en"
+        target_lang_full = normalize_language_code(target_lang_short)
         
-        # Debug logging
-        if conn.dubbing_required:
-            logger.debug(f"User {conn.user_id} requires dubbing from {source_lang} to {target_lang}")
+        logger.debug(f"[AudioRouter] Target {conn.user_id}: {target_lang_short} ({target_lang_full})")
         
-        if source_lang == target_lang:
+        # Check if translation is needed (compare short codes for flexibility)
+        needs_translation = source_lang_short != target_lang_short
+        
+        if not needs_translation:
             # Same language - direct passthrough
-            await conn.send_bytes(audio_data)
-            result["passthrough_count"] += 1
+            try:
+                success = await conn.send_bytes(audio_data)
+                if success:
+                    result["passthrough_count"] += 1
+                else:
+                    result["errors"].append(f"Passthrough failed for {conn.user_id}")
+            except Exception as e:
+                logger.error(f"[AudioRouter] Passthrough failed for {conn.user_id}: {e}")
+                result["errors"].append(str(e))
         else:
-            # Different language - queue for translation
-            # We add to set to avoid duplicate publishing for same language pair
-            translation_requests.add((source_lang, target_lang))
-            logger.debug(f"Queueing translation: {source_lang} -> {target_lang} for user {conn.user_id}")
-    
-    # Publish for translation
-    from app.services.rtc_service import publish_audio_chunk
-    for source_lang, target_lang in translation_requests:
-        await publish_audio_chunk(
-            session_id=session_id,
-            chunk=audio_data,
-            source_lang=source_lang,
-            target_lang=target_lang,
-            speaker_id=speaker_id
-        )
-        result["translation_count"] += 1
+            # Different language - Process via GCP
+            try:
+                logger.info(f"[AudioRouter] Translating: {source_lang_full} -> {target_lang_full}")
+                pipeline_result = await process_audio_chunk(
+                    audio_data,
+                    source_language_code=source_lang_full,
+                    target_language_code=target_lang_full
+                )
+                
+                if pipeline_result.synthesized_audio and len(pipeline_result.synthesized_audio) > 0:
+                    logger.info(f"[AudioRouter] Sending {len(pipeline_result.synthesized_audio)} bytes TTS audio to {conn.user_id}")
+                    logger.info(f"[AudioRouter] Transcript: '{pipeline_result.transcript}' -> '{pipeline_result.translation}'")
+                    
+                    success = await conn.send_bytes(pipeline_result.synthesized_audio)
+                    if success:
+                        result["translation_count"] += 1
+                    else:
+                        result["errors"].append(f"Send failed for {conn.user_id}")
+                else:
+                    # No transcript (silence or noise) - optionally forward original audio
+                    logger.debug(f"[AudioRouter] No transcript from GCP, forwarding original audio")
+                    await conn.send_bytes(audio_data)
+                    result["passthrough_count"] += 1
+
+            except Exception as e:
+                logger.error(f"[AudioRouter] Translation failed for {conn.user_id}: {e}")
+                result["errors"].append(f"Translation error: {str(e)}")
+                # Fallback: send original audio so call doesn't go silent
+                try:
+                    await conn.send_bytes(audio_data)
+                    result["passthrough_count"] += 1
+                except:
+                    pass
     
     return result
 
