@@ -115,6 +115,7 @@ async def handle_audio_stream(
                 
                 # Publish back to Redis
                 channel = f"channel:translation:{session_id}"
+                logger.info(f"📤 Publishing {payload.get('type')} to {channel}: speaker={speaker_id}, {source_lang}->{target_lang}")
                 asyncio.run_coroutine_threadsafe(
                     redis.publish(channel, json.dumps(payload)),
                     loop

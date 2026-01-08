@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 _audio_buffers: Dict[tuple, bytearray] = {}
 _buffer_timers: Dict[tuple, asyncio.TimerHandle] = {}
 
-# Buffer settings - accumulate 1.5 seconds of audio before STT
-BUFFER_DURATION_SEC = 1.5
+# Buffer settings - accumulate 0.8 seconds of audio before STT (reduced for lower latency)
+BUFFER_DURATION_SEC = 0.8
 SAMPLE_RATE = 16000
 BYTES_PER_SAMPLE = 2  # 16-bit PCM
-MIN_BUFFER_SIZE = int(BUFFER_DURATION_SEC * SAMPLE_RATE * BYTES_PER_SAMPLE)  # ~48000 bytes
+MIN_BUFFER_SIZE = int(BUFFER_DURATION_SEC * SAMPLE_RATE * BYTES_PER_SAMPLE)  # ~25600 bytes
 
 
 # Language code mapping for GCP API

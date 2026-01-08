@@ -25,11 +25,14 @@ class CallProvider with ChangeNotifier {
   CallStatus _status = CallStatus.pending;
   List<CallParticipant> _participants = [];
   String? _activeSessionId;
-  String _liveTranscription = "";
+  String? _liveTranscription;
   String? _activeSpeakerId;
 
+  /// Current user ID - set when joining a call
+  String? _currentUserId;
+
   bool _disposed = false;
-  
+
   /// Callback invoked when call ends remotely
   OnCallEndedCallback? onCallEnded;
 
@@ -50,7 +53,8 @@ class CallProvider with ChangeNotifier {
         _apiService = apiService {
     _audioController = AudioController(_wsService, notifyListeners);
     _captionManager = CaptionManager(notifyListeners, () => _disposed);
-    _transcriptionManager = TranscriptionManager(notifyListeners, () => _disposed);
+    _transcriptionManager =
+        TranscriptionManager(notifyListeners, () => _disposed);
   }
 
   // === Getters ===
@@ -58,10 +62,12 @@ class CallProvider with ChangeNotifier {
   CallStatus get status => _status;
   String? get activeSessionId => _activeSessionId;
   List<CallParticipant> get participants => List.unmodifiable(_participants);
-  String get liveTranscription => _liveTranscription;
+  String get liveTranscription => _liveTranscription ?? '';
   List<LiveCaptionData> get captionBubbles => _captionManager.captionBubbles;
-  List<TranscriptionEntry> get transcriptionHistory => _transcriptionManager.entries;
-  TranscriptionEntry? get latestTranscription => _transcriptionManager.latestEntry;
+  List<TranscriptionEntry> get transcriptionHistory =>
+      _transcriptionManager.entries;
+  TranscriptionEntry? get latestTranscription =>
+      _transcriptionManager.latestEntry;
   String? get activeSpeakerId => _activeSpeakerId;
   bool get isMuted => _audioController.isMuted;
   bool get isSpeakerOn => _audioController.isSpeakerOn;
@@ -83,7 +89,10 @@ class CallProvider with ChangeNotifier {
   // === Call Lifecycle ===
 
   /// Starts a real call by calling backend API and connecting to WebSocket
-  Future<void> startCall(List<String> participantUserIds) async {
+  /// [currentUserId] is needed for audio routing (to avoid hearing your own translation)
+  Future<void> startCall(List<String> participantUserIds,
+      {String? currentUserId}) async {
+    _currentUserId = currentUserId;
     _status = CallStatus.initiating;
     notifyListeners();
 
@@ -112,7 +121,8 @@ class CallProvider with ChangeNotifier {
 
   /// Core call initiation logic - single responsibility: start a call
   Future<void> _executeCallInitiation(List<String> participantUserIds) async {
-    debugPrint('[CallProvider] Starting call with participants: $participantUserIds');
+    debugPrint(
+        '[CallProvider] Starting call with participants: $participantUserIds');
     final resp = await _apiService.startCall(participantUserIds);
     await _processCallResponse(resp);
   }
@@ -120,7 +130,7 @@ class CallProvider with ChangeNotifier {
   /// Process API response and setup call state
   Future<void> _processCallResponse(Map<String, dynamic> resp) async {
     debugPrint('[CallProvider] Received response: $resp');
-    
+
     final sessionId = resp['session_id'] as String;
     final callId = resp['call_id'] as String?;
     final parts = resp['participants'] as List<dynamic>;
@@ -131,7 +141,8 @@ class CallProvider with ChangeNotifier {
     _status = CallStatus.active;
     _activeSessionId = sessionId;
 
-    debugPrint('[CallProvider] Connecting to WebSocket: session=$sessionId, call=$callId');
+    debugPrint(
+        '[CallProvider] Connecting to WebSocket: session=$sessionId, call=$callId');
     await _joinCallSession(sessionId, callId: callId);
     notifyListeners();
   }
@@ -162,7 +173,8 @@ class CallProvider with ChangeNotifier {
   }
 
   Future<void> _joinCallSession(String sessionId, {String? callId}) async {
-    debugPrint('[CallProvider] Joining call session: $sessionId, call_id: $callId');
+    debugPrint(
+        '[CallProvider] Joining call session: $sessionId, call_id: $callId');
     await _wsSub?.cancel();
     final connected = await _wsService.connect(sessionId, callId: callId);
     if (!connected) {
@@ -197,10 +209,10 @@ class CallProvider with ChangeNotifier {
   void _handleCallEnded(WSMessage message) {
     final reason = message.data?['reason'] as String? ?? 'unknown';
     debugPrint('[CallProvider] Call ended remotely: $reason');
-    
+
     // Clean up the call
     endCall();
-    
+
     // Notify listener (e.g., ActiveCallScreen) to navigate away
     onCallEnded?.call(reason);
   }
@@ -218,6 +230,9 @@ class CallProvider with ChangeNotifier {
     switch (message.type) {
       case WSMessageType.transcript:
         _handleTranscript(message);
+        break;
+      case WSMessageType.transcriptionUpdate:
+        _handleTranscriptionUpdate(message);
         break;
       case WSMessageType.translation:
         _handleTranslation(message);
@@ -245,9 +260,9 @@ class CallProvider with ChangeNotifier {
   void _handleTranscript(WSMessage message) {
     final text = message.data?['text'] as String? ?? '';
     final speakerId = message.data?['speaker_id'] as String?;
-    
+
     debugPrint('[CallProvider] Transcript: "$text" from $speakerId');
-    
+
     if (speakerId != null && text.isNotEmpty) {
       _liveTranscription = text;
       _setActiveSpeaker(speakerId);
@@ -259,43 +274,107 @@ class CallProvider with ChangeNotifier {
   void _handleTranslation(WSMessage message) {
     final data = message.data;
     if (data == null) return;
-    
-    final originalText = data['original_text'] as String? ?? data['text'] ?? '';
-    final translatedText = data['translated_text'] as String? ?? '';
+
+    // --- שלב 1: חילוץ נתונים (Parsing) ---
+    // אנחנו משתמשים במפתחות המדויקים שה-Worker שולח (transcript, translation)
+    // אבל משאירים את ה-fallback לקוד הישן ליתר ביטחון
+    final originalText =
+        data['transcript'] as String? ?? data['original_text'] as String? ?? '';
+    final translatedText = data['translation'] as String? ??
+        data['translated_text'] as String? ??
+        '';
     final speakerId = data['speaker_id'] as String? ?? '';
-    final sourceLanguage = data['source_language'] as String? ?? data['source_lang'] ?? '';
-    final targetLanguage = data['target_language'] as String? ?? data['target_lang'] ?? '';
-    final confidence = (data['confidence'] as num?)?.toDouble();
-    
-    debugPrint('[CallProvider] Translation: "$originalText" -> "$translatedText"');
-    
-    // Find speaker name
-    String speakerName = 'Unknown';
-    final participant = _participants.where((p) => p.userId == speakerId || p.id == speakerId).firstOrNull;
-    if (participant != null) {
-      speakerName = participant.displayName;
+    final sourceLanguage = data['source_lang'] as String? ?? 'auto';
+    final targetLanguage = data['target_lang'] as String? ?? 'auto';
+
+    // --- שלב 2: סינון - אם אני הדובר, לא מנגנים לי אודיו ---
+    if (speakerId.isNotEmpty && speakerId == _currentUserId) {
+      debugPrint(
+          '[CallProvider] This is my own speech ($speakerId), skipping audio playback');
+      // עדיין מוסיפים להיסטוריה אבל לא מנגנים
+      if (translatedText.isNotEmpty && originalText.isNotEmpty) {
+        _addTranslationToHistory(speakerId, originalText, translatedText,
+            sourceLanguage, targetLanguage);
+      }
+      return;
     }
-    
-    // Add to transcription history
-    _transcriptionManager.addFromMessage(
-      participantId: speakerId,
-      participantName: speakerName,
-      originalText: originalText,
-      translatedText: translatedText,
-      sourceLanguage: sourceLanguage,
-      targetLanguage: targetLanguage,
-      confidence: confidence,
+
+    // --- שלב 3: עדכון הממשק (UI Logic) ---
+    // הוספה להיסטוריה כדי שהמשתמש יראה את הבועה הסופית
+    if (translatedText.isNotEmpty && originalText.isNotEmpty) {
+      _addTranslationToHistory(speakerId, originalText, translatedText,
+          sourceLanguage, targetLanguage);
+
+      // איפוס הטקסט החי כי קיבלנו תוצאה סופית
+      _liveTranscription = null;
+    }
+
+    debugPrint(
+        '[CallProvider] Translation processed: "$originalText" -> "$translatedText"');
+  }
+
+  /// Helper method to add translation to history
+  void _addTranslationToHistory(
+    String speakerId,
+    String originalText,
+    String translatedText,
+    String sourceLanguage,
+    String targetLanguage,
+  ) {
+    // Find participant name from speakerId
+    final participant = _participants.firstWhere(
+      (p) => p.userId == speakerId || p.id == speakerId,
+      orElse: () => CallParticipant(
+        id: speakerId,
+        callId: '',
+        userId: speakerId,
+        targetLanguage: targetLanguage,
+        speakingLanguage: sourceLanguage,
+        joinedAt: DateTime.now(),
+        createdAt: DateTime.now(),
+        displayName: 'Unknown',
+      ),
     );
-    
-    // Update live transcription display
-    _liveTranscription = translatedText.isNotEmpty ? translatedText : originalText;
-    _setActiveSpeaker(speakerId);
+
+    _transcriptionManager.addEntry(
+      TranscriptionEntry(
+        participantId: speakerId,
+        participantName: participant.displayName,
+        originalText: originalText,
+        translatedText: translatedText,
+        timestamp: DateTime.now(),
+        sourceLanguage: sourceLanguage,
+        targetLanguage: targetLanguage,
+      ),
+    );
+  }
+
+  void _handleTranscriptionUpdate(WSMessage message) {
+    // Server sends 'transcript' for the original text and optionally 'translation' for interim translation
+    final transcript = message.data?['transcript'] as String?;
+    final translation = message.data?['translation'] as String?;
+    final speakerId = message.data?['speaker_id'] as String?;
+
+    // Skip if this is my own speech
+    if (speakerId != null && speakerId == _currentUserId) {
+      return;
+    }
+
+    // Use translation if available (for real-time translated display), otherwise use transcript
+    final displayText =
+        translation?.isNotEmpty == true ? translation : transcript;
+
+    if (displayText != null && displayText.isNotEmpty) {
+      _liveTranscription = displayText;
+      debugPrint('[CallProvider] Live transcription update: "$displayText"');
+    }
   }
 
   void _setActiveSpeaker(String? participantId) {
     _activeSpeakerId = participantId;
     _participants = _participants
-        .map((p) => p.copyWith(isSpeaking: p.id == participantId || p.userId == participantId))
+        .map((p) => p.copyWith(
+            isSpeaking: p.id == participantId || p.userId == participantId))
         .toList(growable: false);
   }
 

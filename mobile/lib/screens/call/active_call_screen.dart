@@ -24,10 +24,13 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   late List<double> _amplitudes;
   final double _subtitleOpacity = 1.0;
   bool _isExiting = false;
-  
+
   // Call timer
   Timer? _callTimer;
   int _callDurationSeconds = 0;
+
+  // Store provider reference for safe disposal
+  CallProvider? _callProviderRef;
 
   @override
   void initState() {
@@ -37,7 +40,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
     _amplitudes = List<double>.generate(24, (i) => _randAmp());
-    
+
     // Start call duration timer
     _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
@@ -46,7 +49,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         });
       }
     });
-    
+
     // Listen for remote call ended
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final callProvider = Provider.of<CallProvider>(context, listen: false);
@@ -57,6 +60,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Save reference while context is still valid (for safe disposal)
+    _callProviderRef ??= Provider.of<CallProvider>(context, listen: false);
     HapticFeedback.selectionClick();
   }
 
@@ -64,9 +69,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   void dispose() {
     // Cancel call timer
     _callTimer?.cancel();
-    // Clear callback to prevent memory leak
-    final callProvider = Provider.of<CallProvider>(context, listen: false);
-    callProvider.onCallEnded = null;
+    // Clear callback using saved reference (context is invalid in dispose)
+    _callProviderRef?.onCallEnded = null;
     _waveController.dispose();
     super.dispose();
   }
@@ -75,21 +79,21 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   void _onCallEndedRemotely(String reason) {
     if (_isExiting || !mounted) return;
     _isExiting = true;
-    
+
     debugPrint('[ActiveCallScreen] Call ended remotely: $reason');
-    
+
     // Navigate back to home without showing a message
     Navigator.of(context).pop();
   }
 
   double _randAmp() => 0.2 + Random().nextDouble() * 0.8;
-  
+
   /// Format seconds into MM:SS or HH:MM:SS
   String _formatDuration(int totalSeconds) {
     final hours = totalSeconds ~/ 3600;
     final minutes = (totalSeconds % 3600) ~/ 60;
     final seconds = totalSeconds % 60;
-    
+
     if (hours > 0) {
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
@@ -137,6 +141,52 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
               ],
             ),
           ),
+
+          // Live transcription bubble (text being transcribed in real-time)
+          if (callProvider.liveTranscription.isNotEmpty)
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 220,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 150),
+                opacity: 1.0,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(150),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blueAccent.withAlpha(100)),
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Colors.blueAccent),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          callProvider.liveTranscription,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           // Transcription panel with original + translated text
           Positioned(

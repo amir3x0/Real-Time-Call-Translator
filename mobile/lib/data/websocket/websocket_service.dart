@@ -21,7 +21,9 @@ enum WSMessageType {
   muteStatusChanged,
   callEnded,
   transcript,
+  transcriptionUpdate,
   translation,
+  audio,
   incomingCall,
   userStatusChanged,
   contactRequest,
@@ -70,8 +72,12 @@ class WSMessage {
         return WSMessageType.callEnded;
       case 'transcript':
         return WSMessageType.transcript;
+      case 'transcription_update':
+        return WSMessageType.transcriptionUpdate;
       case 'translation':
         return WSMessageType.translation;
+      case 'audio':
+        return WSMessageType.audio;
       case 'incoming_call':
         return WSMessageType.incomingCall;
       case 'user_status_changed':
@@ -312,7 +318,19 @@ class WebSocketService {
       debugPrint(
           '[WebSocketService] Received audio chunk: ${message.length} bytes');
       final audioData = Uint8List.fromList(message);
-      _audioController?.add(audioData);
+
+      // Debug: Check if audio controller exists and has listeners
+      if (_audioController == null) {
+        debugPrint(
+            '[WebSocketService] ⚠️ _audioController is NULL! Audio will be lost!');
+      } else if (_audioController!.isClosed) {
+        debugPrint(
+            '[WebSocketService] ⚠️ _audioController is CLOSED! Audio will be lost!');
+      } else {
+        debugPrint(
+            '[WebSocketService] ✅ Adding audio to stream (hasListener: ${_audioController!.hasListener})');
+        _audioController!.add(audioData);
+      }
     }
   }
 

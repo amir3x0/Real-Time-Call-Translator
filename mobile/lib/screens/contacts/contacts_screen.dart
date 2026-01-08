@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../providers/auth_provider.dart';
 import '../../providers/call_provider.dart';
 import '../../providers/contacts_provider.dart';
 import '../../models/contact.dart';
@@ -524,6 +525,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Future<void> _initiateCall(BuildContext context, Contact contact) async {
     final callProvider = Provider.of<CallProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     // Show loading
     showDialog(
@@ -533,7 +535,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
 
     try {
-      await callProvider.startCall([contact.contactUserId]);
+      await callProvider.startCall(
+        [contact.contactUserId],
+        currentUserId: authProvider.currentUser?.id,
+      );
 
       if (!context.mounted) return;
       // Close loader

@@ -384,7 +384,7 @@ class CallOrchestrator:
         target_lang = await self._get_target_language()
         target_lang = _normalize_language_code(target_lang)
         
-        logger.info(f"[WebSocket] Publishing to Redis Stream: {source_lang} -> {target_lang}")
+        logger.info(f"[WebSocket] 🎙️ Publishing audio: user={self.user_id}, session={self.session_id}, {source_lang} -> {target_lang}, {len(audio_data)} bytes")
         
         # Publish to Redis Stream for Worker processing
         try:
@@ -512,32 +512,38 @@ class CallOrchestrator:
         The Worker publishes to channel:translation:{session_id}
         """
         channel_name = f"channel:translation:{self.session_id}"
-        logger.info(f"[WebSocket] Subscribing to {channel_name}")
+        logger.info(f"[WebSocket][{self.user_id}] Subscribing to {channel_name}")
         
         try:
             redis = await get_redis()
             pubsub = redis.pubsub()
             await pubsub.subscribe(channel_name)
+            logger.info(f"[WebSocket][{self.user_id}] ✅ Successfully subscribed to {channel_name}")
             
+            message_count = 0
             async for message in pubsub.listen():
                 if message["type"] == "message":
+                    message_count += 1
+                    logger.info(f"[WebSocket][{self.user_id}] 📨 Received Pub/Sub message #{message_count}")
                     try:
                         data = json.loads(message["data"])
+                        logger.info(f"[WebSocket][{self.user_id}] Parsed message type: {data.get('type')}, speaker: {data.get('speaker_id')}")
                         await self._handle_translation_result(data)
                     except json.JSONDecodeError as e:
-                        logger.error(f"[WebSocket] Invalid JSON from Pub/Sub: {e}")
+                        logger.error(f"[WebSocket][{self.user_id}] Invalid JSON from Pub/Sub: {e}")
                     except Exception as e:
-                        logger.error(f"[WebSocket] Error handling translation: {e}")
+                        logger.error(f"[WebSocket][{self.user_id}] Error handling translation: {e}")
                         
         except asyncio.CancelledError:
-            logger.info(f"[WebSocket] Pub/Sub listener cancelled for {self.session_id}")
+            logger.info(f"[WebSocket][{self.user_id}] Pub/Sub listener cancelled for {self.session_id}")
             raise
         except Exception as e:
-            logger.error(f"[WebSocket] Pub/Sub error: {e}")
+            logger.error(f"[WebSocket][{self.user_id}] Pub/Sub error: {e}")
         finally:
             try:
                 await pubsub.unsubscribe(channel_name)
                 await pubsub.close()
+                logger.info(f"[WebSocket][{self.user_id}] Unsubscribed and closed Pub/Sub connection")
             except:
                 pass
     
@@ -554,9 +560,14 @@ class CallOrchestrator:
         msg_type = data.get("type")
         speaker_id = data.get("speaker_id")
         
+        logger.info(f"[WebSocket][{self.user_id}] Processing {msg_type} from speaker {speaker_id}")
+        
         # Don't send back to the speaker
         if speaker_id == self.user_id:
+            logger.info(f"[WebSocket][{self.user_id}] Skipping - this is from myself")
             return
+        
+        logger.info(f"[WebSocket][{self.user_id}] ✅ Forwarding {msg_type} to client")
         
         if msg_type == "transcription_update":
             # Interim transcription - send as JSON
@@ -566,18 +577,21 @@ class CallOrchestrator:
                 "is_final": data.get("is_final", False),
                 "speaker_id": speaker_id
             })
+            logger.info(f"[WebSocket][{self.user_id}] Sent transcription_update: {data.get('transcript', '')[:50]}")
             
         elif msg_type == "translation":
             # Final translation with TTS audio
             # Send text info as JSON
-            await self.websocket.send_json({
+            translation_msg = {
                 "type": "translation",
                 "original_text": data.get("transcript", ""),
                 "translated_text": data.get("translation", ""),
                 "source_lang": data.get("source_lang", ""),
                 "target_lang": data.get("target_lang", ""),
                 "speaker_id": speaker_id
-            })
+            }
+            await self.websocket.send_json(translation_msg)
+            logger.info(f"[WebSocket][{self.user_id}] Sent translation JSON: '{data.get('transcript', '')}' -> '{data.get('translation', '')}'")
             
             # Send TTS audio as binary if present
             audio_hex = data.get("audio_content")
@@ -585,9 +599,11 @@ class CallOrchestrator:
                 try:
                     audio_bytes = bytes.fromhex(audio_hex)
                     await self.websocket.send_bytes(audio_bytes)
-                    logger.info(f"[WebSocket] Sent {len(audio_bytes)} bytes TTS audio to {self.user_id}")
+                    logger.info(f"[WebSocket][{self.user_id}] ✅ Sent {len(audio_bytes)} bytes TTS audio")
                 except Exception as e:
-                    logger.error(f"[WebSocket] Failed to send TTS audio: {e}")
+                    logger.error(f"[WebSocket][{self.user_id}] ❌ Failed to send TTS audio: {e}")
+            else:
+                logger.warning(f"[WebSocket][{self.user_id}] No TTS audio in translation")
 
 
 def _normalize_language_code(lang: str) -> str:
@@ -612,10 +628,7 @@ def _normalize_language_code(lang: str) -> str:
         "he": "he-IL",
         "en": "en-US",
         "ru": "ru-RU",
-        "ar": "ar-XA",
         "es": "es-ES",
-        "fr": "fr-FR",
-        "de": "de-DE",
     }
     
     return lang_map.get(lang.lower(), f"{lang}-{lang.upper()}")

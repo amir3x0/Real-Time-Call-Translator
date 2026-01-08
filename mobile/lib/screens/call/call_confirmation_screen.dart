@@ -545,6 +545,7 @@ class CallConfirmationScreen extends StatelessWidget {
   Future<void> _startCall(BuildContext context) async {
     final contactsProvider = context.read<ContactsProvider>();
     final callProvider = context.read<CallProvider>();
+    final authProvider = context.read<AuthProvider>();
     final selectedContacts = contactsProvider.selectedContacts;
 
     if (selectedContacts.isEmpty) return;
@@ -557,7 +558,11 @@ class CallConfirmationScreen extends StatelessWidget {
           selectedContacts.map((contact) => contact.contactUserId).toList();
 
       // Start the call using CallProvider and WAIT for it
-      await callProvider.startCall(participantUserIds);
+      // Pass current user ID for audio routing (to avoid hearing your own translation)
+      await callProvider.startCall(
+        participantUserIds,
+        currentUserId: authProvider.currentUser?.id,
+      );
 
       // Clear selection after starting call
       contactsProvider.clearSelection();

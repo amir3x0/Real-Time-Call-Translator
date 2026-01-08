@@ -586,7 +586,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             onPressed: () {
                               Navigator.pop(ctx);
                               authProv.logout();
-                              Navigator.pushReplacementNamed(context, '/');
+                              Navigator.pushReplacementNamed(context, '/login');
                             },
                             child: Text(
                               'Sign Out',

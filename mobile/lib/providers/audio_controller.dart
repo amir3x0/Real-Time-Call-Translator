@@ -27,8 +27,10 @@ class AudioController {
   // Audio buffering for smooth playback
   final Queue<Uint8List> _audioBuffer = Queue<Uint8List>();
   Timer? _playbackTimer;
-  static const int _minBufferSize = 3; // Wait for 3 chunks before playing
-  static const int _maxBufferSize = 10; // Drop old chunks if buffer grows too large
+  static const int _minBufferSize =
+      1; // Wait for 3 chunks before playing (lower latency)
+  static const int _maxBufferSize =
+      12; // Drop old chunks if buffer grows too large
   bool _isBuffering = true;
 
   // State
@@ -41,7 +43,8 @@ class AudioController {
   final List<int> _accumulatedChunks = [];
   Timer? _sendTimer;
   static const int _sendIntervalMs = 300; // Send accumulated audio every 300ms
-  static const int _minChunkSize = 6400; // Minimum bytes before sending (200ms at 16kHz)
+  static const int _minChunkSize =
+      6400; // Minimum bytes before sending (200ms at 16kHz)
 
   AudioController(this._wsService, this._notifyListeners);
 
@@ -106,50 +109,70 @@ class AudioController {
   Future<void> _setupIncomingAudioListener() async {
     _incomingAudioSub?.cancel();
     int chunksReceived = 0;
-    
+
+    // Debug: Check if audioStream is real or empty
+    debugPrint('[AudioController] Setting up audio listener...');
+    debugPrint(
+        '[AudioController] WebSocket connected: ${_wsService.isConnected}');
+
     _incomingAudioSub = _wsService.audioStream.listen(
       (data) {
         if (data.isEmpty) return;
-        
+
         chunksReceived++;
-        
+
+        // Log EVERY chunk for debugging TTS audio
+        final isWavHeader = data.length > 4 &&
+            data[0] == 0x52 &&
+            data[1] == 0x49 &&
+            data[2] == 0x46 &&
+            data[3] == 0x46; // "RIFF"
+        debugPrint(
+            '[AudioController] 🔊 Received chunk #$chunksReceived: ${data.length} bytes${isWavHeader ? " (WAV header detected!)" : ""}');
+
         // Add to buffer
         _audioBuffer.add(data);
-        
+
         // Drop old chunks if buffer is too large (catch up with real-time)
         while (_audioBuffer.length > _maxBufferSize) {
           _audioBuffer.removeFirst();
           debugPrint('[AudioController] Buffer overflow, dropping old chunk');
         }
-        
+
         // Start playback once we have enough buffered
         if (_isBuffering && _audioBuffer.length >= _minBufferSize) {
           _isBuffering = false;
           _startBufferedPlayback();
           debugPrint('[AudioController] Starting buffered playback');
         }
-        
-        if (chunksReceived % 50 == 0) {
-          debugPrint('[AudioController] Received chunk #$chunksReceived, buffer size: ${_audioBuffer.length}');
-        }
       },
       onError: (e) => debugPrint('[AudioController] Incoming audio error: $e'),
       cancelOnError: false,
     );
   }
-  
+
   void _startBufferedPlayback() {
     _playbackTimer?.cancel();
-    
+
     // Play chunks at regular intervals to smooth out jitter
+    int playedChunks = 0;
     _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (_audioBuffer.isNotEmpty && _audioPlayer != null && _isPlayerInitialized) {
+      if (_audioBuffer.isNotEmpty &&
+          _audioPlayer != null &&
+          _isPlayerInitialized) {
         final chunk = _audioBuffer.removeFirst();
+        playedChunks++;
+        debugPrint(
+            '[AudioController] 🔈 Playing chunk #$playedChunks: ${chunk.length} bytes');
         _audioPlayer!.uint8ListSink?.add(chunk);
-      } else if (_audioBuffer.isEmpty) {
-        // Buffer underrun - wait for more data
+      } else if (_audioBuffer.isEmpty && !_isBuffering) {
+        // Buffer underrun - stop playing and wait for buffer to refill
         _isBuffering = true;
-        debugPrint('[AudioController] Buffer underrun, waiting for more data');
+        debugPrint(
+            '[AudioController] Buffer underrun, entering buffering mode');
+        // Stop the timer until we have enough buffered data again
+        _playbackTimer?.cancel();
+        _playbackTimer = null;
       }
     });
   }
@@ -168,20 +191,20 @@ class AudioController {
         );
 
         _micStreamSub?.cancel();
-        
+
         // Start periodic sender for accumulated audio
         _sendTimer?.cancel();
         _sendTimer = Timer.periodic(
           const Duration(milliseconds: _sendIntervalMs),
           (_) => _sendAccumulatedAudio(),
         );
-        
+
         _micStreamSub = stream.listen(
           (data) {
             if (!_isMuted) {
               // Accumulate chunks instead of sending immediately
               _accumulatedChunks.addAll(data);
-              
+
               // If we have enough data, send immediately
               if (_accumulatedChunks.length >= _minChunkSize * 2) {
                 _sendAccumulatedAudio();
@@ -192,21 +215,23 @@ class AudioController {
           cancelOnError: false,
         );
 
-        debugPrint('[AudioController] Microphone started with chunk accumulation');
+        debugPrint(
+            '[AudioController] Microphone started with chunk accumulation');
       }
     } else {
       debugPrint('[AudioController] No microphone permission');
     }
   }
-  
+
   void _sendAccumulatedAudio() {
     if (_accumulatedChunks.isEmpty || _isMuted) return;
-    
+
     // Only send if we have minimum chunk size
     if (_accumulatedChunks.length >= _minChunkSize) {
       final audioData = Uint8List.fromList(_accumulatedChunks);
       _wsService.sendAudio(audioData);
-      debugPrint('[AudioController] Sent accumulated audio: ${audioData.length} bytes');
+      debugPrint(
+          '[AudioController] Sent accumulated audio: ${audioData.length} bytes');
       _accumulatedChunks.clear();
     }
   }
@@ -259,7 +284,7 @@ class AudioController {
     _sendTimer = null;
     _playbackTimer?.cancel();
     _playbackTimer = null;
-    
+
     await _micStreamSub?.cancel();
     _micStreamSub = null;
 
