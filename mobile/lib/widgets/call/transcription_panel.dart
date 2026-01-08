@@ -20,7 +20,6 @@ class TranscriptionPanel extends StatelessWidget {
     this.showOriginal = true,
     this.showTranslated = true,
   });
-
   final List<TranscriptionEntry> entries;
   final int maxVisible;
   final bool showOriginal;
@@ -45,15 +44,18 @@ class TranscriptionPanel extends StatelessWidget {
             border: Border.all(color: Colors.white12),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: visibleEntries
-                .map((entry) => _TranscriptionEntryTile(
-                      entry: entry,
-                      showOriginal: showOriginal,
-                      showTranslated: showTranslated,
-                    ))
-                .toList(),
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: visibleEntries
+                  .map((entry) => _TranscriptionEntryTile(
+                        entry: entry,
+                        showOriginal: showOriginal,
+                        showTranslated: showTranslated,
+                      ))
+                  .toList(),
+            ),
           ),
         ),
       ),

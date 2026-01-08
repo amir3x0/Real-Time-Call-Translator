@@ -22,6 +22,7 @@ class AppTheme {
   static const Color errorRed = Color(0xFFEF4444); // Coral Red
   static const Color warningOrange = Color(0xFFF59E0B); // Amber
   static const Color infoBlue = Color(0xFF3B82F6);
+  static const Color accentCyan = Color(0xFF00D9FF); // Vibrant Cyan
 
   // Neutral Colors
   static const Color darkBackground = Color(0xFF0E0E16);

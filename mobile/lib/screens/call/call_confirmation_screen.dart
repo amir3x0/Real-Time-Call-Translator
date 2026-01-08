@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/contact.dart';
-import '../../models/user.dart';
 import '../../providers/contacts_provider.dart';
 import '../../providers/call_provider.dart';
 import '../../utils/language_utils.dart';
 import '../../providers/auth_provider.dart';
+import '../../config/app_theme.dart';
 
-/// Call Confirmation Screen - מסך אישור שיחה
+/// Call Confirmation Screen
 ///
 /// Displays a preview of selected participants and their languages
 /// before initiating the call. Shows:
@@ -26,88 +26,106 @@ class CallConfirmationScreen extends StatelessWidget {
     final currentUser = context.read<AuthProvider>().currentUser!;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+      backgroundColor: AppTheme.darkSurface,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.backgroundGradient,
         ),
-        title: const Text(
-          'אישור שיחה',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Custom App Bar
+              _buildAppBar(context),
+
+              // Participants preview section
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Text(
+                        'Call Participants',
+                        style: AppTheme.labelLarge.copyWith(
+                          color: AppTheme.secondaryText,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Current user (initiator) card
+                      _buildParticipantCard(
+                        context,
+                        name: currentUser.fullName,
+                        language: currentUser.primaryLanguage,
+                        isCurrentUser: true,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Translation flow indicator
+                      if (selectedContacts.isNotEmpty) ...[
+                        _buildTranslationFlowIndicator(
+                          currentUser.primaryLanguage,
+                          selectedContacts
+                              .map((c) => c.language)
+                              .toSet()
+                              .toList(),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
+                      // Selected contacts
+                      ...selectedContacts.map((contact) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _buildParticipantCard(
+                              context,
+                              name: contact.displayName,
+                              language: contact.language,
+                              isCurrentUser: false,
+                              onRemove: () {
+                                contactsProvider.toggleSelection(contact.id);
+                              },
+                            ),
+                          )),
+
+                      // Languages summary
+                      if (selectedContacts.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        _buildLanguagesSummary(
+                            currentUser.primaryLanguage, selectedContacts),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+
+              // Bottom action buttons
+              _buildActionButtons(context, selectedContacts.isNotEmpty),
+            ],
           ),
         ),
-        centerTitle: true,
       ),
-      body: Column(
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
         children: [
-          // Participants preview section
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  const Text(
-                    'משתתפים בשיחה',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Current user (initiator) card
-                  _buildParticipantCard(
-                    context,
-                    name: currentUser.fullName,
-                    language: currentUser.primaryLanguage,
-                    isCurrentUser: true,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Translation flow indicator
-                  if (selectedContacts.isNotEmpty) ...[
-                    _buildTranslationFlowIndicator(
-                      currentUser.primaryLanguage,
-                      selectedContacts.map((c) => c.language).toSet().toList(),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // Selected contacts
-                  ...selectedContacts.map((contact) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildParticipantCard(
-                          context,
-                          name: contact.displayName,
-                          language: contact.language,
-                          isCurrentUser: false,
-                          onRemove: () {
-                            contactsProvider.toggleSelection(contact.id);
-                          },
-                        ),
-                      )),
-
-                  // Languages summary
-                  if (selectedContacts.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    _buildLanguagesSummary(currentUser, selectedContacts),
-                  ],
-                ],
-              ),
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const Expanded(
+            child: Text(
+              'Confirm Call',
+              style: AppTheme.titleLarge,
+              textAlign: TextAlign.center,
             ),
           ),
-
-          // Bottom action buttons
-          _buildActionButtons(context, selectedContacts.isNotEmpty),
+          const SizedBox(width: 48), // Balance the back button
         ],
       ),
     );
@@ -125,12 +143,12 @@ class CallConfirmationScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isCurrentUser
-            ? const Color(0xFF00D9FF).withValues(alpha: 0.1)
+            ? AppTheme.accentCyan.withValues(alpha: 0.1)
             : Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppTheme.borderRadiusMedium,
         border: Border.all(
           color: isCurrentUser
-              ? const Color(0xFF00D9FF).withValues(alpha: 0.3)
+              ? AppTheme.accentCyan.withValues(alpha: 0.3)
               : Colors.white.withValues(alpha: 0.1),
         ),
       ),
@@ -150,9 +168,7 @@ class CallConfirmationScreen extends StatelessWidget {
                     Flexible(
                       child: Text(
                         name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
+                        style: AppTheme.titleMedium.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -166,13 +182,13 @@ class CallConfirmationScreen extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00D9FF).withValues(alpha: 0.2),
+                          color: AppTheme.accentCyan.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
-                          'את/ה',
+                          'You',
                           style: TextStyle(
-                            color: Color(0xFF00D9FF),
+                            color: AppTheme.accentCyan,
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
@@ -191,9 +207,8 @@ class CallConfirmationScreen extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       LanguageUtils.getName(language),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 14,
+                      style: AppTheme.bodyMedium.copyWith(
+                        color: AppTheme.secondaryText,
                       ),
                     ),
                   ],
@@ -227,15 +242,13 @@ class CallConfirmationScreen extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: isCurrentUser
-            ? const LinearGradient(
-                colors: [Color(0xFF00D9FF), Color(0xFF00B4D8)],
-              )
-            : LinearGradient(
+            ? LinearGradient(
                 colors: [
-                  Colors.purple.shade400,
-                  Colors.purple.shade600,
+                  AppTheme.accentCyan,
+                  AppTheme.accentCyan.withValues(alpha: 0.7)
                 ],
-              ),
+              )
+            : AppTheme.purpleGradient,
       ),
       child: Center(
         child: Text(
@@ -264,19 +277,20 @@ class CallConfirmationScreen extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+          color: AppTheme.successGreen.withValues(alpha: 0.1),
+          borderRadius: AppTheme.borderRadiusMedium,
+          border:
+              Border.all(color: AppTheme.successGreen.withValues(alpha: 0.3)),
         ),
-        child: Row(
+        child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 20),
-            const SizedBox(width: 8),
+            Icon(Icons.check_circle, color: AppTheme.successGreen, size: 20),
+            SizedBox(width: 8),
             Text(
-              'אותה שפה - ללא צורך בתרגום',
+              'Same language - no translation needed',
               style: TextStyle(
-                color: Colors.green.shade300,
+                color: AppTheme.successGreen,
                 fontSize: 14,
               ),
             ),
@@ -288,18 +302,18 @@ class CallConfirmationScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF00D9FF).withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
+        color: AppTheme.accentCyan.withValues(alpha: 0.05),
+        borderRadius: AppTheme.borderRadiusMedium,
         border: Border.all(
-          color: const Color(0xFF00D9FF).withValues(alpha: 0.2),
+          color: AppTheme.accentCyan.withValues(alpha: 0.2),
         ),
       ),
       child: Column(
         children: [
           const Text(
-            'תרגום בזמן אמת',
+            'Real-time Translation',
             style: TextStyle(
-              color: Color(0xFF00D9FF),
+              color: AppTheme.accentCyan,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -316,7 +330,7 @@ class CallConfirmationScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Icon(
                   Icons.swap_horiz,
-                  color: const Color(0xFF00D9FF).withValues(alpha: 0.7),
+                  color: AppTheme.accentCyan.withValues(alpha: 0.7),
                   size: 24,
                 ),
               ),
@@ -334,7 +348,7 @@ class CallConfirmationScreen extends StatelessWidget {
                         child: Text(
                           '+',
                           style: TextStyle(
-                            color: Colors.white54,
+                            color: AppTheme.secondaryText,
                             fontSize: 16,
                           ),
                         ),
@@ -378,8 +392,9 @@ class CallConfirmationScreen extends StatelessWidget {
   }
 
   /// Build languages summary section
-  Widget _buildLanguagesSummary(User currentUser, List<Contact> contacts) {
-    final allLanguages = <String>{currentUser.primaryLanguage};
+  Widget _buildLanguagesSummary(
+      String currentUserLang, List<Contact> contacts) {
+    final allLanguages = <String>{currentUserLang};
     for (final contact in contacts) {
       allLanguages.add(contact.language);
     }
@@ -388,24 +403,23 @@ class CallConfirmationScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppTheme.borderRadiusMedium,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.translate,
-                color: Colors.white.withValues(alpha: 0.6),
+                color: AppTheme.secondaryText,
                 size: 18,
               ),
               const SizedBox(width: 8),
               Text(
-                'סיכום שפות',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 13,
+                'Languages Summary',
+                style: AppTheme.bodyMedium.copyWith(
+                  color: AppTheme.secondaryText,
                 ),
               ),
             ],
@@ -437,11 +451,11 @@ class CallConfirmationScreen extends StatelessWidget {
           if (allLanguages.length > 1) ...[
             const SizedBox(height: 12),
             Text(
-              'השיחה תתורגם אוטומטית בין ${allLanguages.length} שפות',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 12,
+              'Call will be auto-translated between ${allLanguages.length} languages',
+              style: AppTheme.bodyMedium.copyWith(
+                color: AppTheme.secondaryText,
                 fontStyle: FontStyle.italic,
+                fontSize: 12,
               ),
             ),
           ],
@@ -455,7 +469,7 @@ class CallConfirmationScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF16213E),
+        color: AppTheme.darkCard,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
@@ -464,79 +478,82 @@ class CallConfirmationScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            // Cancel button
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () {
-                  // Clear selection and go back
-                  context.read<ContactsProvider>().clearSelection();
-                  Navigator.of(context).pop();
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+      child: Row(
+        children: [
+          // Cancel button
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {
+                // Clear selection and go back
+                context.read<ContactsProvider>().clearSelection();
+                Navigator.of(context).pop();
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppTheme.borderRadiusMedium,
                 ),
-                child: const Text(
-                  'ביטול',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+              ),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // Start call button
+          Expanded(
+            flex: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: hasParticipants ? AppTheme.primaryGradient : null,
+                color: hasParticipants ? null : Colors.grey.shade700,
+                borderRadius: AppTheme.borderRadiusMedium,
+                boxShadow: hasParticipants ? AppTheme.buttonShadow : null,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: hasParticipants ? () => _startCall(context) : null,
+                  borderRadius: AppTheme.borderRadiusMedium,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.call,
+                          size: 22,
+                          color: hasParticipants
+                              ? Colors.white
+                              : Colors.grey.shade500,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Start Call',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: hasParticipants
+                                ? Colors.white
+                                : Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-
-            const SizedBox(width: 16),
-
-            // Start call button
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: hasParticipants ? () => _startCall(context) : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00D9FF),
-                  foregroundColor: Colors.black,
-                  disabledBackgroundColor: Colors.grey.shade700,
-                  disabledForegroundColor: Colors.grey.shade500,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: hasParticipants ? 4 : 0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.call,
-                      size: 22,
-                      color:
-                          hasParticipants ? Colors.black : Colors.grey.shade500,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'התחל שיחה',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: hasParticipants
-                            ? Colors.black
-                            : Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -550,15 +567,12 @@ class CallConfirmationScreen extends StatelessWidget {
 
     if (selectedContacts.isEmpty) return;
 
-    // Show loading state could be added here if we had a loading state in UI
-
     try {
       // Extract user IDs from selected contacts for the API call
       final participantUserIds =
           selectedContacts.map((contact) => contact.contactUserId).toList();
 
       // Start the call using CallProvider and WAIT for it
-      // Pass current user ID for audio routing (to avoid hearing your own translation)
       await callProvider.startCall(
         participantUserIds,
         currentUserId: authProvider.currentUser?.id,
@@ -582,7 +596,7 @@ class CallConfirmationScreen extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to start call: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.errorRed,
           ),
         );
       }

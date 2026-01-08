@@ -1,15 +1,16 @@
 import 'dart:async';
-import 'dart:math';
+
+import 'dart:ui'; // Required for ImageFilter
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/call_provider.dart';
-import '../../widgets/call/circle_control.dart';
 import '../../widgets/call/network_indicator.dart';
 import '../../widgets/call/participant_grid.dart';
 import '../../widgets/call/transcription_panel.dart';
+import '../../config/app_theme.dart';
 
 class ActiveCallScreen extends StatefulWidget {
   const ActiveCallScreen({super.key});
@@ -20,9 +21,6 @@ class ActiveCallScreen extends StatefulWidget {
 
 class _ActiveCallScreenState extends State<ActiveCallScreen>
     with SingleTickerProviderStateMixin {
-  late AnimationController _waveController;
-  late List<double> _amplitudes;
-  final double _subtitleOpacity = 1.0;
   bool _isExiting = false;
 
   // Call timer
@@ -35,12 +33,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   @override
   void initState() {
     super.initState();
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-    _amplitudes = List<double>.generate(24, (i) => _randAmp());
-
     // Start call duration timer
     _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
@@ -71,7 +63,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
     _callTimer?.cancel();
     // Clear callback using saved reference (context is invalid in dispose)
     _callProviderRef?.onCallEnded = null;
-    _waveController.dispose();
     super.dispose();
   }
 
@@ -85,8 +76,6 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
     // Navigate back to home without showing a message
     Navigator.of(context).pop();
   }
-
-  double _randAmp() => 0.2 + Random().nextDouble() * 0.8;
 
   /// Format seconds into MM:SS or HH:MM:SS
   String _formatDuration(int totalSeconds) {
@@ -103,184 +92,291 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   @override
   Widget build(BuildContext context) {
     final callProvider = Provider.of<CallProvider>(context);
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E16),
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          // Futuristic gradient background
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF12122A),
-                    Color(0xFF1A1A3A),
-                    Color(0xFF2B2B5C)
+          // 1. Dynamic Background
+          _buildDynamicBackground(callProvider),
+
+          // 2. Main Content
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                // Top Bar (Timer + Network)
+                _buildTopBar(callProvider),
+
+                // Spacer
+                const Spacer(flex: 1),
+
+                // Transcription Hero (Center Stage)
+                Expanded(
+                  flex: 10,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Center(
+                      child: TranscriptionPanel(
+                        key: const Key('transcription-panel'),
+                        entries: callProvider.transcriptionHistory,
+                        maxVisible: 4,
+                        showOriginal: true,
+                        showTranslated: true,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Live transcription bubble (text being transcribed in real-time)
+                if (callProvider.liveTranscription.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 16),
+                    child: _buildLiveTranscriptionBubble(callProvider),
+                  ),
+
+                // Spacer
+                const Spacer(flex: 2),
+
+                // Participant Strip (Floating Bubbles)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: ParticipantGrid(
+                    participants: callProvider.participants,
+                  ),
+                ),
+
+                // Controls Capsule
+                _buildControlCapsule(callProvider, bottomPadding),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDynamicBackground(CallProvider provider) {
+    // Determine active color based on speaker
+    Color activeColor = const Color(0xFF1A1A3A); // Default dark blue
+    /*
+    // Future improvement: use speaker's color
+    if (provider.activeSpeakerId != null) {
+       // activeColor = ...
+    }
+    */
+
+    return AnimatedContainer(
+      duration: const Duration(seconds: 2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF0E0E16),
+            activeColor,
+            const Color(0xFF0F1630),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Reused buildTopBar...
+  Widget _buildTopBar(CallProvider callProvider) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Timer Capsule
+          ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(30),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: AppTheme.successGreen,
+                        boxShadow: [
+                          BoxShadow(color: AppTheme.successGreen, blurRadius: 4)
+                        ],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _formatDuration(_callDurationSeconds),
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
           ),
 
-          // Participants Grid with speaking glow + waveform overlay
-          Positioned.fill(
-            child: Column(
+          // Network Indicator
+          NetworkIndicator(participants: callProvider.participants),
+        ],
+      ),
+    );
+  }
+
+  // Reused live bubble...
+  Widget _buildLiveTranscriptionBubble(CallProvider callProvider) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: 1.0,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryIndigo.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(20),
+              border:
+                  Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.3)),
+            ),
+            child: Row(
               children: [
-                const SizedBox(height: 56),
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation(AppTheme.accentCyan),
+                  ),
+                ),
+                const SizedBox(width: 16),
                 Expanded(
-                  child: ParticipantGrid(
-                    participants: callProvider.participants,
-                    waveAnimation: _waveController,
-                    waveAmplitudes: _amplitudes,
-                    captionBubbles: callProvider.captionBubbles,
+                  child: Text(
+                    callProvider.liveTranscription,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
 
-          // Live transcription bubble (text being transcribed in real-time)
-          if (callProvider.liveTranscription.isNotEmpty)
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 220,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 150),
-                opacity: 1.0,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withAlpha(150),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blueAccent.withAlpha(100)),
-                  ),
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Colors.blueAccent),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          callProvider.liveTranscription,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                            fontStyle: FontStyle.italic,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+  Widget _buildControlCapsule(CallProvider callProvider, double bottomPadding) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomPadding + 24, left: 32, right: 32),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(40),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(40),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
-
-          // Transcription panel with original + translated text
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 96,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _subtitleOpacity,
-              child: TranscriptionPanel(
-                key: const Key('transcription-panel'),
-                entries: callProvider.transcriptionHistory,
-                maxVisible: 3,
-                showOriginal: true,
-                showTranslated: true,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildControlButton(
+                  icon: callProvider.isMuted ? Icons.mic_off : Icons.mic,
+                  isActive: !callProvider.isMuted,
+                  activeColor: Colors.white,
+                  inactiveColor: AppTheme.errorRed,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    callProvider.toggleMute();
+                  },
+                ),
+                _buildControlButton(
+                    icon: Icons.call_end,
+                    isActive: true,
+                    activeColor: Colors.white,
+                    bgColor: AppTheme.errorRed,
+                    size: 56, // Larger end call button
+                    onTap: () {
+                      HapticFeedback.heavyImpact();
+                      callProvider.endCall();
+                      Navigator.pop(context);
+                    }),
+                _buildControlButton(
+                  icon: callProvider.isSpeakerOn
+                      ? Icons.volume_up
+                      : Icons.phone_in_talk,
+                  isActive: callProvider.isSpeakerOn,
+                  activeColor: AppTheme.primaryElectricBlue,
+                  inactiveColor: Colors.white70,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    callProvider.toggleSpeaker();
+                  },
+                ),
+              ],
             ),
           ),
+        ),
+      ),
+    );
+  }
 
-          // Top bar with timer + network indicator
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _formatDuration(_callDurationSeconds),
-                      style: const TextStyle(color: Colors.white, fontSize: 18),
-                    ),
-                    NetworkIndicator(participants: callProvider.participants),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Controls bar
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: SafeArea(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF121226),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    CircleControl(
-                      icon: callProvider.isMuted ? Icons.mic_off : Icons.mic,
-                      color: callProvider.isMuted ? Colors.grey : Colors.white,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        callProvider.toggleMute();
-                      },
-                    ),
-                    CircleControl(
-                      icon: callProvider.isSpeakerOn
-                          ? Icons.volume_up
-                          : Icons.phone_in_talk,
-                      color: callProvider.isSpeakerOn
-                          ? Colors.blueAccent
-                          : Colors.white,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        callProvider.toggleSpeaker();
-                      },
-                    ),
-                    CircleControl(
-                      icon: Icons.call_end,
-                      color: Colors.redAccent,
-                      requireLongPress: true,
-                      onLongPress: () {
-                        HapticFeedback.heavyImpact();
-                        callProvider.endCall();
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+  Widget _buildControlButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool isActive = false,
+    Color activeColor = Colors.white,
+    Color inactiveColor = Colors.grey,
+    Color? bgColor,
+    double size = 48,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: bgColor ??
+              (isActive
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.transparent),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color: bgColor != null
+              ? Colors.white
+              : (isActive ? activeColor : inactiveColor),
+          size: size * 0.5,
+        ),
       ),
     );
   }

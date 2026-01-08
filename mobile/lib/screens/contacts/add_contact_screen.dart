@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import '../../providers/contacts_provider.dart';
 import '../../data/services/contact_service.dart';
 import '../../utils/language_utils.dart';
-
 import '../../models/user.dart';
+import '../../config/app_theme.dart';
 
 /// Add Contact Screen
 ///
@@ -101,82 +101,108 @@ class _AddContactScreenState extends State<AddContactScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+      backgroundColor: AppTheme.darkSurface,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.backgroundGradient,
         ),
-        title: const Text(
-          'Add Contact',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Instructions
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00D9FF).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF00D9FF).withValues(alpha: 0.3),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Custom App Bar
+              _buildAppBar(),
+
+              // Content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Instructions
+                      _buildInstructionsCard(),
+
+                      const SizedBox(height: 24),
+
+                      // Phone input field
+                      _buildPhoneInput(),
+
+                      const SizedBox(height: 16),
+
+                      // Search button
+                      _buildSearchButton(),
+
+                      const SizedBox(height: 24),
+
+                      // Results section
+                      if (_isSearching)
+                        _buildLoadingIndicator()
+                      else if (_errorMessage != null)
+                        _buildErrorMessage()
+                      else if (_searchResults.isNotEmpty)
+                        _buildSearchResultsList()
+                      else if (_hasSearched)
+                        _buildNoResultMessage(),
+                    ],
+                  ),
                 ),
               ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    color: Color(0xFF00D9FF),
-                    size: 22,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Search users by phone number or name to add them to your contacts',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const Expanded(
+            child: Text(
+              'Add Contact',
+              style: AppTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(width: 48), // Balance the close button
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInstructionsCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.accentCyan.withValues(alpha: 0.1),
+        borderRadius: AppTheme.borderRadiusMedium,
+        border: Border.all(
+          color: AppTheme.accentCyan.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline,
+            color: AppTheme.accentCyan,
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Search users by phone number or name to add them to your contacts',
+              style: AppTheme.bodyMedium.copyWith(
+                color: Colors.white.withValues(alpha: 0.8),
               ),
             ),
-
-            const SizedBox(height: 24),
-
-            // Phone input field
-            _buildPhoneInput(),
-
-            const SizedBox(height: 16),
-
-            // Search button
-            _buildSearchButton(),
-
-            const SizedBox(height: 24),
-
-            // Results section
-            if (_isSearching)
-              _buildLoadingIndicator()
-            else if (_errorMessage != null)
-              _buildErrorMessage()
-            else if (_searchResults.isNotEmpty)
-              _buildSearchResultsList()
-            else if (_hasSearched)
-              _buildNoResultMessage(),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -186,39 +212,34 @@ class _AddContactScreenState extends State<AddContactScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppTheme.borderRadiusMedium,
         border: Border.all(
           color: _phoneFocusNode.hasFocus
-              ? const Color(0xFF00D9FF)
+              ? AppTheme.accentCyan
               : Colors.white.withValues(alpha: 0.1),
         ),
       ),
       child: TextField(
         controller: _phoneController,
         focusNode: _phoneFocusNode,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          letterSpacing: 1,
-        ),
+        style: AppTheme.bodyLarge.copyWith(letterSpacing: 1),
         keyboardType: TextInputType.text, // Supports both phone and name search
         textDirection: TextDirection.ltr,
         textAlign: TextAlign.center,
         decoration: InputDecoration(
           hintText: '050-XXX-XXXX or name',
-          hintStyle: TextStyle(
-            color: Colors.white.withValues(alpha: 0.3),
-            fontSize: 18,
+          hintStyle: AppTheme.bodyMedium.copyWith(
+            color: AppTheme.secondaryText,
           ),
-          prefixIcon: Icon(
+          prefixIcon: const Icon(
             Icons.search,
-            color: Colors.white.withValues(alpha: 0.5),
+            color: AppTheme.secondaryText,
           ),
           suffixIcon: _phoneController.text.isNotEmpty
               ? IconButton(
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.clear,
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: AppTheme.secondaryText,
                   ),
                   onPressed: () {
                     _phoneController.clear();
@@ -244,23 +265,35 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
   /// Build search button
   Widget _buildSearchButton() {
-    return ElevatedButton.icon(
-      onPressed: _isSearching ? null : _searchUser,
-      icon: const Icon(Icons.search, size: 20),
-      label: const Text(
-        'Search',
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppTheme.primaryGradient,
+        borderRadius: AppTheme.borderRadiusMedium,
+        boxShadow: AppTheme.buttonShadow,
       ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF00D9FF),
-        foregroundColor: Colors.black,
-        disabledBackgroundColor: Colors.grey.shade700,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _isSearching ? null : _searchUser,
+          borderRadius: AppTheme.borderRadiusMedium,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.search, size: 20, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  'Search',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -273,14 +306,13 @@ class _AddContactScreenState extends State<AddContactScreen> {
       child: Column(
         children: [
           const CircularProgressIndicator(
-            color: Color(0xFF00D9FF),
+            color: AppTheme.accentCyan,
           ),
           const SizedBox(height: 16),
           Text(
             'Searching...',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 14,
+            style: AppTheme.bodyMedium.copyWith(
+              color: AppTheme.secondaryText,
             ),
           ),
         ],
@@ -293,17 +325,17 @@ class _AddContactScreenState extends State<AddContactScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        color: AppTheme.errorRed.withValues(alpha: 0.1),
+        borderRadius: AppTheme.borderRadiusMedium,
         border: Border.all(
-          color: Colors.red.withValues(alpha: 0.3),
+          color: AppTheme.errorRed.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
         children: [
           const Icon(
             Icons.error_outline,
-            color: Colors.red,
+            color: AppTheme.errorRed,
             size: 24,
           ),
           const SizedBox(width: 12),
@@ -311,7 +343,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
             child: Text(
               _errorMessage!,
               style: const TextStyle(
-                color: Colors.red,
+                color: AppTheme.errorRed,
                 fontSize: 14,
               ),
             ),
@@ -330,14 +362,13 @@ class _AddContactScreenState extends State<AddContactScreen> {
           Icon(
             Icons.person_search,
             size: 60,
-            color: Colors.white.withValues(alpha: 0.3),
+            color: AppTheme.secondaryText.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           Text(
             'No results found',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
-              fontSize: 16,
+            style: AppTheme.bodyMedium.copyWith(
+              color: AppTheme.secondaryText,
             ),
           ),
         ],
@@ -359,35 +390,55 @@ class _AddContactScreenState extends State<AddContactScreen> {
         return Container(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: AppTheme.borderRadiusMedium,
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.blueGrey.shade700,
-              child: Text(
-                user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.white),
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppTheme.primaryGradient,
+              ),
+              child: Center(
+                child: Text(
+                  user.fullName.isNotEmpty
+                      ? user.fullName[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
               ),
             ),
             title: Text(
               user.fullName,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w600),
+              style: AppTheme.titleMedium.copyWith(fontWeight: FontWeight.w600),
             ),
             subtitle: Row(
               children: [
-                Text(user.phone,
-                    style:
-                        TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+                Text(
+                  user.phone,
+                  style: AppTheme.bodyMedium.copyWith(
+                    color: AppTheme.secondaryText,
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Text(LanguageUtils.getFlag(user.primaryLanguage),
-                    style: const TextStyle(fontSize: 16)),
+                Text(
+                  LanguageUtils.getFlag(user.primaryLanguage),
+                  style: const TextStyle(fontSize: 16),
+                ),
                 const SizedBox(width: 6),
-                Text(LanguageUtils.getName(user.primaryLanguage),
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 12)),
+                Text(
+                  LanguageUtils.getName(user.primaryLanguage),
+                  style: AppTheme.bodyMedium.copyWith(
+                    color: AppTheme.secondaryText,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
             trailing: Row(
@@ -398,38 +449,59 @@ class _AddContactScreenState extends State<AddContactScreen> {
                   height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isOnline ? Colors.green : Colors.grey,
+                    color: isOnline ? AppTheme.successGreen : Colors.grey,
                   ),
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    final navigator = Navigator.of(context);
-
-                    // Add contact via provider
-                    final res = await contactsProvider.addContact(user.id);
-                    final ok = res == AddContactResult.success ||
-                        res == AddContactResult.alreadyExists;
-
-                    if (ok) {
-                      messenger.showSnackBar(
-                        SnackBar(
-                            content:
-                                Text('${user.fullName} added to contacts')),
-                      );
-                      navigator.pop();
-                    } else {
-                      messenger.showSnackBar(
-                        const SnackBar(content: Text('Failed to add contact')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
+                const SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppTheme.successGreen,
+                    borderRadius: AppTheme.borderRadiusSmall,
                   ),
-                  child: const Text('Add'),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final navigator = Navigator.of(context);
+
+                        // Add contact via provider
+                        final res = await contactsProvider.addContact(user.id);
+                        final ok = res == AddContactResult.success ||
+                            res == AddContactResult.alreadyExists;
+
+                        if (ok) {
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content:
+                                  Text('${user.fullName} added to contacts'),
+                              backgroundColor: AppTheme.successGreen,
+                            ),
+                          );
+                          navigator.pop();
+                        } else {
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Failed to add contact'),
+                              backgroundColor: AppTheme.errorRed,
+                            ),
+                          );
+                        }
+                      },
+                      borderRadius: AppTheme.borderRadiusSmall,
+                      child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Text(
+                          'Add',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

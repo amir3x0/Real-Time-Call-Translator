@@ -1,28 +1,132 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:avatar_glow/avatar_glow.dart';
-import '../../models/participant.dart';
-import '../../config/app_theme.dart';
+import 'package:mobile/config/app_theme.dart';
+import 'package:mobile/models/participant.dart';
 
 class ParticipantCard extends StatelessWidget {
-  final CallParticipant participant;
-  final String mockName;
-  final bool isFullScreen;
-  final bool isSpeaking;
-
   const ParticipantCard({
     super.key,
     required this.participant,
     this.mockName = "User",
     this.isFullScreen = false,
     this.isSpeaking = false,
+    this.isCompact = false,
   });
+
+  final CallParticipant participant;
+  final String mockName;
+  final bool isFullScreen;
+  final bool isSpeaking;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
+    if (isCompact) {
+      return _buildCompactCard();
+    }
+    return _buildFullCard();
+  }
+
+  Widget _buildCompactCard() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            // Speaking Glow
+            if (isSpeaking)
+              AvatarGlow(
+                glowColor: AppTheme.secondaryPurple,
+                glowRadiusFactor: 0.4,
+                duration: const Duration(milliseconds: 1500),
+                repeat: true,
+                animate: true,
+                child: const SizedBox(width: 56, height: 56),
+              ),
+
+            // Avatar
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSpeaking
+                      ? AppTheme.secondaryPurple
+                      : Colors.white.withValues(alpha: 0.1),
+                  width: isSpeaking ? 2 : 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                backgroundColor: AppTheme.primaryIndigo,
+                child: Text(
+                  mockName.isNotEmpty ? mockName[0].toUpperCase() : 'U',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+            // Mute Icon (Mini badge)
+            if (participant.isMuted)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.errorRed,
+                    shape: BoxShape.circle,
+                    border:
+                        Border.all(color: AppTheme.darkBackground, width: 2),
+                  ),
+                  child:
+                      const Icon(Icons.mic_off, size: 12, color: Colors.white),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Compact Name & Flag
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              mockName,
+              style: AppTheme.bodySmall.copyWith(
+                color: Colors.white.withValues(alpha: 0.9),
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              _getFlag(participant.speakingLanguage),
+              style: const TextStyle(fontSize: 10),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFullCard() {
     final avatarRadius = isFullScreen ? 80.0 : 50.0;
     final fontSize = isFullScreen ? 50.0 : 30.0;
-    
+
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusLarge,
       child: Container(
@@ -65,7 +169,8 @@ class ParticipantCard extends StatelessWidget {
             // Avatar with glow effect
             Center(
               child: AvatarGlow(
-                glowColor: isSpeaking ? AppTheme.secondaryPurple : Colors.transparent,
+                glowColor:
+                    isSpeaking ? AppTheme.secondaryPurple : Colors.transparent,
                 glowRadiusFactor: isSpeaking ? 0.6 : 0.0,
                 duration: const Duration(milliseconds: 2000),
                 animate: isSpeaking,
@@ -93,7 +198,8 @@ class ParticipantCard extends StatelessWidget {
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(20),
@@ -179,7 +285,7 @@ class ParticipantCard extends StatelessWidget {
 
   Color _getBorderColor() {
     if (isSpeaking) return AppTheme.secondaryPurple;
-    
+
     try {
       return Color(
         int.parse(participant.connectionColor.replaceFirst('#', '0xff')),

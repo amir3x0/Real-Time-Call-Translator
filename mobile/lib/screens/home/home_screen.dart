@@ -165,17 +165,6 @@ class _HomeScreenState extends State<HomeScreen>
                     .fadeIn(duration: 400.ms)
                     .slideY(begin: -0.2, end: 0),
 
-                // Start Call Hero Button (only on Contacts tab)
-                if (_currentIndex == 0) ...[
-                  const SizedBox(height: 16),
-                  _buildStartCallButton()
-                      .animate()
-                      .fadeIn(delay: 200.ms, duration: 400.ms)
-                      .scale(
-                          begin: const Offset(0.95, 0.95),
-                          end: const Offset(1, 1)),
-                ],
-
                 // Body Content
                 Expanded(
                   child: _buildBody(),
@@ -185,10 +174,8 @@ class _HomeScreenState extends State<HomeScreen>
           ),
 
           // Floating Navigation Dock
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            bottom: _isNavVisible ? 24 : -100,
+          Positioned(
+            bottom: 24,
             left: 40,
             right: 40,
             child: _buildFloatingNavBar()
@@ -258,94 +245,6 @@ class _HomeScreenState extends State<HomeScreen>
       default:
         return '';
     }
-  }
-
-  Widget _buildStartCallButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: ClipRRect(
-        borderRadius: AppTheme.borderRadiusLarge,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            height: 80,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppTheme.primaryElectricBlue.withValues(alpha: 0.3),
-                  AppTheme.secondaryPurple.withValues(alpha: 0.2),
-                ],
-              ),
-              borderRadius: AppTheme.borderRadiusLarge,
-              border: Border.all(
-                color: AppTheme.primaryElectricBlue.withValues(alpha: 0.5),
-                width: 1.5,
-              ),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: AppTheme.borderRadiusLarge,
-                onTap: () {
-                  Navigator.pushNamed(context, '/call/select');
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.primaryGradient,
-                          shape: BoxShape.circle,
-                          boxShadow:
-                              AppTheme.glowShadow(AppTheme.primaryElectricBlue),
-                        ),
-                        child: const Icon(
-                          Icons.call,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Start Translated Call',
-                              style: AppTheme.titleMedium.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              'Select participants to call',
-                              style: AppTheme.bodyMedium.copyWith(
-                                color: AppTheme.secondaryText,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        color: Colors.white.withValues(alpha: 0.7),
-                        size: 18,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildBody() {
