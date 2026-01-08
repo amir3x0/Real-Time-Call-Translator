@@ -53,7 +53,7 @@ void main() {
     expect(find.byType(ActiveCallScreen), findsOneWidget);
 
     // Set call to active
-    callProv.setStatusForTesting(CallStatus.active);
+    callProv.setStatusForTesting(CallStatus.ongoing);
     await tester.pump();
 
     // Verify participants grid is shown

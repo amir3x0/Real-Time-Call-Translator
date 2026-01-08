@@ -6,6 +6,7 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:audio_session/audio_session.dart';
 
 import '../data/websocket/websocket_service.dart';
+import '../config/constants.dart';
 
 /// Handles audio initialization, recording, and playback for calls.
 ///
@@ -27,10 +28,8 @@ class AudioController {
   // Audio buffering for smooth playback
   final Queue<Uint8List> _audioBuffer = Queue<Uint8List>();
   Timer? _playbackTimer;
-  static const int _minBufferSize =
-      1; // Wait for 3 chunks before playing (lower latency)
-  static const int _maxBufferSize =
-      12; // Drop old chunks if buffer grows too large
+  static const int _minBufferSize = AppConstants.audioMinBufferSize;
+  static const int _maxBufferSize = AppConstants.audioMaxBufferSize;
   bool _isBuffering = true;
 
   // State
@@ -42,9 +41,8 @@ class AudioController {
   // Audio chunk accumulation for better STT results
   final List<int> _accumulatedChunks = [];
   Timer? _sendTimer;
-  static const int _sendIntervalMs = 300; // Send accumulated audio every 300ms
-  static const int _minChunkSize =
-      6400; // Minimum bytes before sending (200ms at 16kHz)
+  static const int _sendIntervalMs = AppConstants.audioSendIntervalMs;
+  static const int _minChunkSize = AppConstants.audioMinChunkSize;
 
   AudioController(this._wsService, this._notifyListeners);
 
@@ -86,8 +84,8 @@ class AudioController {
       await _audioPlayer!.startPlayerFromStream(
         codec: Codec.pcm16,
         numChannels: 1,
-        sampleRate: 16000,
-        bufferSize: 8192,
+        sampleRate: AppConstants.audioSampleRate,
+        bufferSize: AppConstants.audioBufferSize,
         interleaved: true,
       );
       debugPrint('[AudioController] Player started in stream mode');
@@ -185,7 +183,7 @@ class AudioController {
         final stream = await _audioRecorder!.startStream(
           const RecordConfig(
             encoder: AudioEncoder.pcm16bits,
-            sampleRate: 16000,
+            sampleRate: AppConstants.audioSampleRate,
             numChannels: 1,
           ),
         );

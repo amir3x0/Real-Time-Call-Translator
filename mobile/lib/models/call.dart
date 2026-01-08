@@ -5,20 +5,19 @@ enum CallStatus {
   ringing('ringing'),
   ongoing('ongoing'),
   ended('ended'),
-  missed('missed'),
-  // Legacy values for backwards compatibility
-  pending('pending'),
-  active('active'),
-  cancelled('cancelled');
+  missed('missed');
 
   final String value;
   const CallStatus(this.value);
 
   static CallStatus fromString(String value) {
     final normalized = value.toLowerCase();
+    // Map legacy 'active' to 'ongoing'
+    if (normalized == 'active') return CallStatus.ongoing;
+
     return CallStatus.values.firstWhere(
       (status) => status.value == normalized,
-      orElse: () => CallStatus.pending,
+      orElse: () => CallStatus.initiating,
     );
   }
 }
@@ -29,7 +28,8 @@ class Call {
   final String sessionId;
   final CallStatus status;
   final String? callerUserId;
-  final String callLanguage; // The language of the call (set by caller) - IMMUTABLE
+  final String
+      callLanguage; // The language of the call (set by caller) - IMMUTABLE
   final bool isActive;
   final int maxParticipants;
   final int currentParticipants;
@@ -78,7 +78,7 @@ class Call {
       endedAt:
           json['ended_at'] != null ? DateTime.parse(json['ended_at']) : null,
       durationSeconds: json['duration_seconds'],
-      createdAt: json['created_at'] != null 
+      createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
       updatedAt: json['updated_at'] != null
@@ -146,18 +146,14 @@ class Call {
   }
 
   /// Check if call is currently active (ongoing or initiating)
-  bool get isCallActive => 
-      isActive && 
-      (status == CallStatus.ongoing || 
-       status == CallStatus.initiating ||
-       status == CallStatus.ringing ||
-       status == CallStatus.active);
+  bool get isCallActive =>
+      isActive &&
+      (status == CallStatus.ongoing ||
+          status == CallStatus.initiating ||
+          status == CallStatus.ringing);
 
   /// Check if call is ended
-  bool get isEnded =>
-      status == CallStatus.ended || 
-      status == CallStatus.missed ||
-      status == CallStatus.cancelled;
+  bool get isEnded => status == CallStatus.ended || status == CallStatus.missed;
 
   /// Get call duration as formatted string
   String get formattedDuration {
@@ -166,7 +162,7 @@ class Call {
     final seconds = (durationSeconds! % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
   }
-  
+
   /// Get status display string
   String get statusDisplay {
     switch (status) {
@@ -175,16 +171,12 @@ class Call {
       case CallStatus.ringing:
         return 'Ringing...';
       case CallStatus.ongoing:
-      case CallStatus.active:
         return 'In Call';
       case CallStatus.ended:
         return 'Ended';
       case CallStatus.missed:
         return 'Missed';
-      case CallStatus.cancelled:
-        return 'Cancelled';
-      case CallStatus.pending:
-        return 'Pending';
+
       case CallStatus.idle:
         return 'Idle';
     }

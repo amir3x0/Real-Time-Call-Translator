@@ -53,7 +53,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     final incomingCall = lobbyProvider.incomingCall;
 
     // Only pop if incoming call is null AND we are not in active state (accepted)
-    if (incomingCall == null && callProvider.status != CallStatus.active) {
+    if (incomingCall == null && callProvider.status != CallStatus.ongoing) {
       // No incoming call and not active, navigate back
       WidgetsBinding.instance.addPostFrameCallback((_) {
         // Ensure we don't pop if we're already navigating away or unmounted
@@ -66,7 +66,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
       );
     }
 
-    if (incomingCall == null && callProvider.status == CallStatus.active) {
+    if (incomingCall == null && callProvider.status == CallStatus.ongoing) {
       // Call accepted, waiting for navigation or already navigating
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),

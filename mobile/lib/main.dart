@@ -133,7 +133,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
         if (authProvider.isAuthenticated) {
           // FIX: Check if we are in an active call to avoid disrupting it
-          if (callProvider.status == CallStatus.active ||
+          if (callProvider.status == CallStatus.ongoing ||
               callProvider.status == CallStatus.ringing ||
               callProvider.status == CallStatus.initiating ||
               lobbyProvider.incomingCall != null) {

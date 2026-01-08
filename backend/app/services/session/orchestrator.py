@@ -584,8 +584,8 @@ class CallOrchestrator:
             # Send text info as JSON
             translation_msg = {
                 "type": "translation",
-                "original_text": data.get("transcript", ""),
-                "translated_text": data.get("translation", ""),
+                "transcript": data.get("transcript", ""),
+                "translation": data.get("translation", ""),
                 "source_lang": data.get("source_lang", ""),
                 "target_lang": data.get("target_lang", ""),
                 "speaker_id": speaker_id

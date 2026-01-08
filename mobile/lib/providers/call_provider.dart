@@ -22,7 +22,7 @@ typedef OnCallEndedCallback = void Function(String reason);
 /// - Handles Transcripts
 /// - Handles Participant Updates
 class CallProvider with ChangeNotifier {
-  CallStatus _status = CallStatus.pending;
+  CallStatus _status = CallStatus.idle;
   List<CallParticipant> _participants = [];
   String? _activeSessionId;
   String? _liveTranscription;
@@ -138,7 +138,7 @@ class CallProvider with ChangeNotifier {
     _participants = parts
         .map((p) => CallParticipant.fromJson(Map<String, dynamic>.from(p)))
         .toList();
-    _status = CallStatus.active;
+    _status = CallStatus.ongoing;
     _activeSessionId = sessionId;
 
     debugPrint(
@@ -166,7 +166,7 @@ class CallProvider with ChangeNotifier {
       String sessionId, List<CallParticipant> participants) async {
     _activeSessionId = sessionId;
     _participants = participants;
-    _status = CallStatus.active;
+    _status = CallStatus.ongoing;
 
     await _joinCallSession(sessionId);
     notifyListeners();
@@ -275,19 +275,15 @@ class CallProvider with ChangeNotifier {
     final data = message.data;
     if (data == null) return;
 
-    // --- שלב 1: חילוץ נתונים (Parsing) ---
-    // אנחנו משתמשים במפתחות המדויקים שה-Worker שולח (transcript, translation)
-    // אבל משאירים את ה-fallback לקוד הישן ליתר ביטחון
-    final originalText =
-        data['transcript'] as String? ?? data['original_text'] as String? ?? '';
-    final translatedText = data['translation'] as String? ??
-        data['translated_text'] as String? ??
-        '';
+    // --- Step 1: Parsing ---
+    // API is now standardized: transcript, translation
+    final originalText = data['transcript'] as String? ?? '';
+    final translatedText = data['translation'] as String? ?? '';
     final speakerId = data['speaker_id'] as String? ?? '';
     final sourceLanguage = data['source_lang'] as String? ?? 'auto';
     final targetLanguage = data['target_lang'] as String? ?? 'auto';
 
-    // --- שלב 2: סינון - אם אני הדובר, לא מנגנים לי אודיו ---
+    // --- Step 2: Filtering ---
     if (speakerId.isNotEmpty && speakerId == _currentUserId) {
       debugPrint(
           '[CallProvider] This is my own speech ($speakerId), skipping audio playback');
