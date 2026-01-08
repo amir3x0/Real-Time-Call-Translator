@@ -30,6 +30,7 @@ class CallProvider with ChangeNotifier {
 
   /// Current user ID - set when joining a call
   String? _currentUserId;
+  String? _authToken;
 
   bool _disposed = false;
 
@@ -91,8 +92,9 @@ class CallProvider with ChangeNotifier {
   /// Starts a real call by calling backend API and connecting to WebSocket
   /// [currentUserId] is needed for audio routing (to avoid hearing your own translation)
   Future<void> startCall(List<String> participantUserIds,
-      {String? currentUserId}) async {
+      {required String currentUserId, required String token}) async {
     _currentUserId = currentUserId;
+    _authToken = token;
     _status = CallStatus.initiating;
     notifyListeners();
 
@@ -162,11 +164,13 @@ class CallProvider with ChangeNotifier {
   }
 
   /// Join an existing call session (e.g. accepting an incoming call)
-  Future<void> joinCall(
-      String sessionId, List<CallParticipant> participants) async {
+  Future<void> joinCall(String sessionId, List<CallParticipant> participants,
+      {required String currentUserId, required String token}) async {
     _activeSessionId = sessionId;
     _participants = participants;
     _status = CallStatus.ongoing;
+    _currentUserId = currentUserId;
+    _authToken = token;
 
     await _joinCallSession(sessionId);
     notifyListeners();
@@ -176,7 +180,16 @@ class CallProvider with ChangeNotifier {
     debugPrint(
         '[CallProvider] Joining call session: $sessionId, call_id: $callId');
     await _wsSub?.cancel();
-    final connected = await _wsService.connect(sessionId, callId: callId);
+    if (_currentUserId == null || _authToken == null) {
+      debugPrint('[CallProvider] Missing credentials for WebSocket connection');
+      return;
+    }
+    final connected = await _wsService.connect(
+      sessionId,
+      userId: _currentUserId!,
+      token: _authToken!,
+      callId: callId,
+    );
     if (!connected) {
       debugPrint(
           '[CallProvider] FAILED to connect to call session: $sessionId');

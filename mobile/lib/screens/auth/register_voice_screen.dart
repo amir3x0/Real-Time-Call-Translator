@@ -60,8 +60,9 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
       if (mounted) {
         final token = await authProvider.checkAuthStatus();
         if (!mounted) return;
-        if (token != null) {
-          Provider.of<LobbyProvider>(context, listen: false).connect(token);
+        if (token != null && authProvider.currentUser != null) {
+          Provider.of<LobbyProvider>(context, listen: false)
+              .connect(token, authProvider.currentUser!.id);
         }
       }
       navigator.pushReplacementNamed('/home');
@@ -393,10 +394,26 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
           borderRadius: AppTheme.borderRadiusPill,
           onTap: _isRegistering
               ? null
-              : () {
+              : () async {
                   // If already uploaded and registered, just navigate
                   final authProvider =
                       Provider.of<AuthProvider>(context, listen: false);
+
+                  // Connect to lobby
+                  if (mounted && authProvider.currentUser != null) {
+                    final token = await authProvider.checkAuthStatus();
+                    if (!mounted) return;
+
+                    if (token != null && authProvider.currentUser != null) {
+                      // Use context.read or Provider.of with listen: false
+                      if (context.mounted) {
+                        Provider.of<LobbyProvider>(context, listen: false)
+                            .connect(token, authProvider.currentUser!.id);
+                      }
+                    }
+                  }
+
+                  if (!mounted) return;
                   if (authProvider.isAuthenticated) {
                     Navigator.pushReplacementNamed(context, '/home');
                   } else {

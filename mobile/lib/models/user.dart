@@ -1,3 +1,5 @@
+import '../utils/language_utils.dart';
+
 /// Voice clone quality for the user
 enum UserVoiceCloneQuality {
   excellent('excellent'),
@@ -22,19 +24,19 @@ class User {
   final String id;
   final String phone;
   final String fullName;
-  
+
   /// Primary language (determines call language when user initiates) - IMMUTABLE
   final String primaryLanguage;
-  
+
   // Voice cloning attributes
   final bool hasVoiceSample;
   final bool voiceModelTrained;
   final int? voiceQualityScore;
-  
+
   // Status
   final bool isOnline;
   final DateTime? lastSeen;
-  
+
   // Timestamps
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -67,7 +69,7 @@ class User {
       lastSeen: json['last_seen'] != null
           ? DateTime.parse(json['last_seen'] as String)
           : null,
-      createdAt: json['created_at'] != null 
+      createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
       updatedAt: json['updated_at'] != null
@@ -121,10 +123,10 @@ class User {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
-  
+
   /// Get display phone number
   String get displayPhone => phone;
-  
+
   /// Get voice clone quality
   UserVoiceCloneQuality get voiceCloneQuality {
     if (!voiceModelTrained || voiceQualityScore == null) {
@@ -135,31 +137,18 @@ class User {
     if (voiceQualityScore! > 40) return UserVoiceCloneQuality.fair;
     return UserVoiceCloneQuality.fallback;
   }
-  
+
   /// Check if user can use voice cloning
-  bool get canUseVoiceClone => 
-      voiceModelTrained && 
-      voiceQualityScore != null && 
-      voiceQualityScore! > 60;
-  
+  bool get canUseVoiceClone =>
+      voiceModelTrained && voiceQualityScore != null && voiceQualityScore! > 60;
+
   /// Check if voice quality is good enough for cloning
-  bool get hasGoodVoiceQuality => 
+  bool get hasGoodVoiceQuality =>
       voiceQualityScore != null && voiceQualityScore! > 80;
-  
+
   /// Get language display name
-  String get languageDisplay {
-    switch (primaryLanguage) {
-      case 'he':
-        return 'Hebrew';
-      case 'en':
-        return 'English';
-      case 'ru':
-        return 'Russian';
-      default:
-        return primaryLanguage;
-    }
-  }
-  
+  String get languageDisplay => LanguageUtils.getEnglishName(primaryLanguage);
+
   /// Get voice clone quality display
   String get voiceCloneQualityDisplay {
     switch (voiceCloneQuality) {
@@ -173,21 +162,11 @@ class User {
         return 'Standard TTS';
     }
   }
-  
+
   /// Get avatar letter for display
-  String get avatarLetter => fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
-  
+  String get avatarLetter =>
+      fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
+
   /// Get language flag emoji
-  String get languageFlag {
-    switch (primaryLanguage) {
-      case 'he':
-        return '🇮🇱';
-      case 'en':
-        return '🇺🇸';
-      case 'ru':
-        return '🇷🇺';
-      default:
-        return '🌐';
-    }
-  }
+  String get languageFlag => LanguageUtils.getFlag(primaryLanguage);
 }

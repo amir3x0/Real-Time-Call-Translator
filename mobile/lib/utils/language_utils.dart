@@ -1,5 +1,5 @@
 /// Language utility functions for the Real-Time Call Translator app.
-/// 
+///
 /// Provides helpers for getting language flags, names, and validation.
 /// Uses data from LanguageData but provides a cleaner API.
 class LanguageUtils {
@@ -28,25 +28,33 @@ class LanguageUtils {
   };
 
   /// Get flag emoji for a language code
-  static String getFlag(String code) => _flags[code] ?? '🌐';
+  static String getFlag(String code) {
+    // Normalize: 'en-US' -> 'en'
+    final normalized = code.toLowerCase().split('-').first;
+    return _flags[normalized] ?? '🌐';
+  }
 
   /// Get native name for a language code
-  static String getName(String code) => _nativeNames[code] ?? code.toUpperCase();
+  static String getName(String code) =>
+      _nativeNames[code] ?? code.toUpperCase();
 
   /// Get English name for a language code
-  static String getEnglishName(String code) => _englishNames[code] ?? code.toUpperCase();
+  static String getEnglishName(String code) =>
+      _englishNames[code] ?? code.toUpperCase();
 
   /// Check if a language code is supported
   static bool isSupported(String code) => supportedCodes.contains(code);
 
   /// Get all languages as a list of maps (useful for selectors)
   static List<Map<String, String>> getAllLanguages() {
-    return supportedCodes.map((code) => {
-      'code': code,
-      'flag': getFlag(code),
-      'name': getName(code),
-      'englishName': getEnglishName(code),
-    }).toList();
+    return supportedCodes
+        .map((code) => {
+              'code': code,
+              'flag': getFlag(code),
+              'name': getName(code),
+              'englishName': getEnglishName(code),
+            })
+        .toList();
   }
 
   /// Format language display string (flag + name)

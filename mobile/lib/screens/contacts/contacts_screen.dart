@@ -734,9 +734,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
 
     try {
+      final currentUser = authProvider.currentUser!;
+      final token = await authProvider.checkAuthStatus(); // Get the token
+
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
       await callProvider.startCall(
         [contact.contactUserId],
-        currentUserId: authProvider.currentUser?.id,
+        currentUserId: currentUser.id, // Should pass checked non-null id
+        token: token,
       );
 
       if (!context.mounted) return;

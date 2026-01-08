@@ -572,10 +572,17 @@ class CallConfirmationScreen extends StatelessWidget {
       final participantUserIds =
           selectedContacts.map((contact) => contact.contactUserId).toList();
 
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) throw Exception('User not authenticated');
+
+      final token = await authProvider.checkAuthStatus();
+      if (token == null) throw Exception('Authentication token missing');
+
       // Start the call using CallProvider and WAIT for it
       await callProvider.startCall(
         participantUserIds,
-        currentUserId: authProvider.currentUser?.id,
+        currentUserId: currentUser.id,
+        token: token,
       );
 
       // Clear selection after starting call

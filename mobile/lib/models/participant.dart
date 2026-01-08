@@ -1,3 +1,5 @@
+import '../utils/language_utils.dart';
+
 /// Voice clone quality enum
 enum VoiceCloneQuality {
   excellent('excellent'),
@@ -22,26 +24,26 @@ class CallParticipant {
   final String id;
   final String callId;
   final String userId;
-  
+
   /// Participant's language (from users.primary_language at join time)
   final String participantLanguage;
-  
+
   /// Target language for receiving translations
   final String targetLanguage;
-  
+
   /// Speaking language (what the participant speaks)
   final String speakingLanguage;
-  
+
   /// Whether dubbing/translation is required
   /// TRUE if participant_language != call.call_language
   final bool dubbingRequired;
-  
+
   /// Whether to use voice cloning for this participant
   final bool useVoiceClone;
-  
+
   /// Quality of user's voice clone
   final VoiceCloneQuality voiceCloneQuality;
-  
+
   final bool isMuted;
   final bool isSpeakerOn;
   final DateTime? joinedAt;
@@ -97,29 +99,32 @@ class CallParticipant {
       id: json['id'],
       callId: json['call_id'] ?? '',
       userId: json['user_id'],
-      participantLanguage: json['participant_language'] ?? json['primary_language'] ?? 'he',
+      participantLanguage:
+          json['participant_language'] ?? json['primary_language'] ?? 'he',
       targetLanguage: json['target_language'] ?? 'he',
       speakingLanguage: json['speaking_language'] ?? 'he',
       dubbingRequired: json['dubbing_required'] ?? false,
       useVoiceClone: json['use_voice_clone'] ?? false,
-      voiceCloneQuality: VoiceCloneQuality.fromString(json['voice_clone_quality']),
+      voiceCloneQuality:
+          VoiceCloneQuality.fromString(json['voice_clone_quality']),
       isMuted: json['is_muted'] ?? false,
       isSpeakerOn: json['is_speaker_on'] ?? true,
-      joinedAt: json['joined_at'] != null 
-          ? DateTime.parse(json['joined_at']) 
-          : null,
-      leftAt:
-          json['left_at'] != null ? DateTime.parse(json['left_at']) : null,
+      joinedAt:
+          json['joined_at'] != null ? DateTime.parse(json['joined_at']) : null,
+      leftAt: json['left_at'] != null ? DateTime.parse(json['left_at']) : null,
       durationSeconds: json['duration_seconds'],
       isConnected: json['is_connected'] ?? true,
       connectionQuality: json['connection_quality'],
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at']) 
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
           : null,
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'])
           : null,
-      displayName: json['display_name'] ?? json['full_name'] ?? json['user_name'] ?? 'Participant',
+      displayName: json['display_name'] ??
+          json['full_name'] ??
+          json['user_name'] ??
+          'Participant',
       fullName: json['full_name'],
       phone: json['phone'],
       primaryLanguage: json['primary_language'],
@@ -226,11 +231,10 @@ class CallParticipant {
 
   /// Check if participant needs translation
   bool get needsTranslation => dubbingRequired;
-  
+
   /// Check if voice cloning is available and enabled
-  bool get canUseVoiceClone => 
-      useVoiceClone && 
-      voiceCloneQuality != VoiceCloneQuality.fallback;
+  bool get canUseVoiceClone =>
+      useVoiceClone && voiceCloneQuality != VoiceCloneQuality.fallback;
 
   /// Get connection quality color
   String get connectionColor {
@@ -247,21 +251,11 @@ class CallParticipant {
         return '#9E9E9E'; // Gray
     }
   }
-  
+
   /// Get language display name
-  String get languageDisplay {
-    switch (participantLanguage) {
-      case 'he':
-        return 'Hebrew';
-      case 'en':
-        return 'English';
-      case 'ru':
-        return 'Russian';
-      default:
-        return participantLanguage;
-    }
-  }
-  
+  String get languageDisplay =>
+      LanguageUtils.getEnglishName(participantLanguage);
+
   /// Get voice clone quality display
   String get voiceCloneQualityDisplay {
     switch (voiceCloneQuality) {

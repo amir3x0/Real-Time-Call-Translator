@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/call_provider.dart';
@@ -217,6 +218,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                           final callData =
                               await lobbyProvider.acceptIncomingCall();
 
+                          if (!context.mounted) return;
+
                           if (callData != null &&
                               callData['session_id'] != null) {
                             final sessionId = callData['session_id'];
@@ -229,9 +232,34 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                                     Map<String, dynamic>.from(p)))
                                 .toList();
 
+                            final authProvider = Provider.of<AuthProvider>(
+                                context,
+                                listen: false);
+                            final currentUser = authProvider.currentUser;
+                            // Check if authed
+                            if (currentUser == null) {
+                              // Should not happen if here
+                              if (context.mounted) Navigator.pop(context);
+                              return;
+                            }
                             // 2. Join Session in CallProvider
+                            // We need token, checking directly or assuming persisted if logged in
+                            // Since we are logged in, we can get token. But AuthProvider checkAuthStatus returns it.
+                            // Or we assume we have it. The cleanest is if AuthProvider exposed it, but it doesn't directly publicly property it?
+                            // It returns it in checkAuthStatus.
+                            // However, we can use the one from SharedPreferences slightly dirtily OR add a getter to AuthProvider.
+                            // Ideally AuthProvider should expose the current valid token.
+                            // BUT... AuthProvider has `currentUser`.
+                            // Let's rely on SharedPreferences being available OR checkAuthStatus.
+                            final token = await authProvider.checkAuthStatus();
+                            if (token == null) return;
+
                             await callProvider.joinCall(
-                                sessionId, participants);
+                              sessionId,
+                              participants,
+                              currentUserId: currentUser.id,
+                              token: token,
+                            );
 
                             if (context.mounted) {
                               Navigator.of(context)

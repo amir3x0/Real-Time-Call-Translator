@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../config/app_config.dart';
 
 /// Message types for WebSocket communication
@@ -105,7 +105,7 @@ class WebSocketService {
   StreamController<Uint8List>? _audioController;
   Timer? _heartbeatTimer;
   String? _sessionId;
-  String? _userId;
+  // String? _userId;
   String? _callId;
   bool _isConnected = false;
   bool _intentionalDisconnect = false;
@@ -131,39 +131,28 @@ class WebSocketService {
   ///
   /// Parameters:
   /// - sessionId: Call session ID from startCall response
-  /// - callId: Call ID (optional, for database reference)
+  /// - userId: Current User ID
   /// - token: JWT Token for authentication
-  Future<bool> connect(String sessionId,
-      {String? callId, String? token}) async {
+  /// - callId: Call ID (optional, for database reference)
+  Future<bool> connect(
+    String sessionId, {
+    required String userId,
+    required String token,
+    String? callId,
+  }) async {
     if (_isConnected) {
       await disconnect();
     }
 
     try {
-      // Get user ID and token from storage
-      final prefs = await SharedPreferences.getInstance();
-      _userId = prefs.getString(AppConfig.userIdKey);
-
-      // Use provided token or fallback to storage
-      final authToken = token ?? prefs.getString(AppConfig.userTokenKey);
-
-      if (_userId == null) {
-        debugPrint('[WebSocketService] No user ID found');
-        return false;
-      }
-
-      if (authToken == null) {
-        debugPrint('[WebSocketService] No auth token found');
-        return false;
-      }
-
+      // _userId = userId;
       _sessionId = sessionId;
       _callId = callId;
 
       // Build WebSocket URL with query parameters
       // backend expects /ws/{session_id}?token={token}
       final wsUrl =
-          '${AppConfig.wsUrl}${AppConfig.wsEndpoint}/$sessionId?token=$authToken';
+          '${AppConfig.wsUrl}${AppConfig.wsEndpoint}/$sessionId?token=$token';
 
       if (callId != null) {
         // Add call_id if available (though backend might not check it if not in params explicitly)
@@ -243,7 +232,7 @@ class WebSocketService {
     _isConnected = false;
     _sessionId = null;
     _callId = null;
-    _userId = null;
+    // _userId = null;
 
     debugPrint('[WebSocketService] Disconnected');
   }

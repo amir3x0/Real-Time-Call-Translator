@@ -90,8 +90,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (mounted) {
       if (token != null) {
         debugPrint('[MyApp] User is authenticated, connecting to lobby...');
-        // Connect to lobby with the valid token
-        lobbyProvider.connect(token);
+        // Connect to lobby with the valid token and userId
+        if (authProvider.currentUser != null) {
+          lobbyProvider.connect(token, authProvider.currentUser!.id);
+        }
       } else {
         debugPrint('[MyApp] User is NOT authenticated, waiting for login...');
       }
@@ -147,8 +149,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           // We can get the token from shared prefs or auth provider
           SharedPreferences.getInstance().then((prefs) {
             final token = prefs.getString('user_token');
-            if (token != null) {
-              lobbyProvider.connect(token);
+            final userId = prefs.getString('user_id');
+            if (token != null && userId != null) {
+              lobbyProvider.connect(token, userId);
             }
           });
         }

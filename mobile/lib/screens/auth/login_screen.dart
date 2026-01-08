@@ -397,8 +397,9 @@ class _LoginScreenState extends State<LoginScreen>
       if (mounted) {
         final token = await authProvider.checkAuthStatus();
         if (!mounted) return;
-        if (token != null) {
-          Provider.of<LobbyProvider>(context, listen: false).connect(token);
+        if (token != null && authProvider.currentUser != null) {
+          Provider.of<LobbyProvider>(context, listen: false)
+              .connect(token, authProvider.currentUser!.id);
         }
       }
       navigator.pushReplacementNamed('/home');

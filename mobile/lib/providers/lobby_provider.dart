@@ -45,9 +45,13 @@ class LobbyProvider with ChangeNotifier {
   // === Connection Management ===
 
   /// Connect to the Lobby (Global Namespace)
-  Future<void> connect(String token) async {
+  Future<void> connect(String token, String userId) async {
     debugPrint('[LobbyProvider] Connecting to Lobby...');
-    final success = await _wsService.connect('lobby', token: token);
+    final success = await _wsService.connect(
+      'lobby',
+      userId: userId,
+      token: token,
+    );
 
     if (success) {
       _isConnected = true;
