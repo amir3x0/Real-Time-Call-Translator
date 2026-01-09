@@ -221,16 +221,22 @@ class GCPSpeechPipeline:
         # Let's assume audio_generator yields bytes OR "SILENCE" string.
 
         def request_generator():
+            chunk_count = 0
             for chunk in audio_generator:
+                chunk_count += 1
+                logger.info(f"[GCP Streaming] Received chunk #{chunk_count}, size={len(chunk)} bytes")
                 if chunk == b"SILENCE":
                     # End this stream segment, forcing finalization
+                    logger.info(f"[GCP Streaming] SILENCE marker received after {chunk_count} chunks, ending stream")
                     return
                 yield speech.StreamingRecognizeRequest(audio_content=chunk)
+            logger.info(f"[GCP Streaming] Generator exhausted after {chunk_count} chunks")
 
         while True:
             try:
                 # We create a NEW request generator for each stream, 
                 # but it consumes from the SAME upstream audio_generator
+                logger.info("[GCP Streaming] Creating new request generator and starting streaming_recognize")
                 requests = request_generator()
                 
                 responses = self._speech_client.streaming_recognize(
@@ -238,31 +244,37 @@ class GCPSpeechPipeline:
                     requests=requests,
                 )
 
+                logger.info("[GCP Streaming] Waiting for responses...")
+                response_count = 0
                 for response in responses:
+                    response_count += 1
                     if not response.results:
-                        # logger.info(f"Received response with no results: {response}")
+                        logger.debug(f"[GCP Streaming] Response #{response_count}: no results")
                         continue
 
                     result = response.results[0]
                     if not result.alternatives:
-                        # logger.info("Received result with no alternatives")
+                        logger.debug(f"[GCP Streaming] Response #{response_count}: no alternatives")
                         continue
 
                     if result.is_final:
                         transcript = result.alternatives[0].transcript.strip()
                         if transcript:
+                            logger.info(f"[GCP Streaming] ✅ FINAL transcript: '{transcript}'")
                             yield transcript, True
                     else:
                         transcript = result.alternatives[0].transcript.strip()
                         if transcript:
-                            # logger.info(f"Interim: {transcript}")
+                            logger.info(f"[GCP Streaming] Interim: '{transcript}'")
                             yield transcript, False
+                
+                logger.info(f"[GCP Streaming] Response loop ended after {response_count} responses")
             except Exception as e:
                 # If we run out of audio or hit an error, break. 
                 # For single_utterance=True, it normally closes cleanly.
                 # If it's a real error, we might want to log it.
                 # But to be safe against infinite loops on error:
-                logger.error(f"Stream loop error (restarting?): {e}")
+                logger.error(f"[GCP Streaming] Stream loop error: {e}")
                 # Check if generator is exhausted? 
                 # But we can't easily check for generator exhaustion without consuming.
                 # For now, simplistic loop.
@@ -270,12 +282,15 @@ class GCPSpeechPipeline:
                 # But if it is a real crash, we might loop forever. 
                 # Let's hope single_utterance just finishes the iteration.
                 if "Audio Timeout" in str(e) or "400" in str(e):
-                     break
+                    logger.error("[GCP Streaming] Breaking due to Audio Timeout or 400 error")
+                    break
                 # break # Break on any error for safety for now
                 pass
             
-            # If we are using single_utterance=False (English), we only run once.
+            # For continuous streaming (single_utterance=False), we only run the loop once
+            # because the generator keeps feeding data until exhausted/cancelled
             if not streaming_config.single_utterance:
+                logger.info("[GCP Streaming] single_utterance=False, breaking after one iteration")
                 break
 
 

@@ -262,8 +262,10 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                             );
 
                             if (context.mounted) {
-                              Navigator.of(context)
-                                  .pushReplacementNamed('/call/active');
+                              Navigator.of(context).pushNamedAndRemoveUntil(
+                                '/call/active',
+                                (route) => route.isFirst,
+                              );
                             }
                           } else {
                             if (context.mounted) Navigator.pop(context);

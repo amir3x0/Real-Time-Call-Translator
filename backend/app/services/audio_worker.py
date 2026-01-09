@@ -162,12 +162,18 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
                 # Since we don't know the mic levels well, let's rely on time between chunks? 
                 # No, we get continuous chunks. We need RMS.
                 rms_threshold = 300 
+                chunk_count = 0
+                
+                logger.info(f"[SilenceGenerator] Started for session")
                 
                 while True:
                     try:
                         chunk = input_q.get(timeout=0.2) # Wait for audio
                         if chunk is None:
+                            logger.info(f"[SilenceGenerator] Received None, stopping after {chunk_count} chunks")
                             return
+                        
+                        chunk_count += 1
                         
                         # Calculate RMS
                         try:
@@ -175,6 +181,9 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
                             rms = audioop.rms(chunk, 2)
                         except:
                             rms = 1000 # Fallback
+                        
+                        if chunk_count <= 5 or chunk_count % 50 == 0:
+                            logger.info(f"[SilenceGenerator] Chunk #{chunk_count}: {len(chunk)} bytes, RMS={rms}")
                             
                         now = time.time()
                         if rms > rms_threshold:
@@ -182,7 +191,7 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
                         else:
                             if now - last_voice_time > silence_threshold:
                                 # Detected silence!
-                                # logger.info("Silence detected - forcing finalization")
+                                logger.info(f"[SilenceGenerator] Silence detected after {chunk_count} chunks, forcing finalization")
                                 yield b"SILENCE"
                                 last_voice_time = now # Reset so we don't spam
                         

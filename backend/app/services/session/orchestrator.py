@@ -406,7 +406,7 @@ class CallOrchestrator:
         Delegates to specialized managers following SRP:
         - CallLifecycleManager: participant/call state changes
         - connection_manager: WebSocket connection cleanup
-        - status_service: user online/offline status
+        - status_service: user online/offline status (ONLY for lobby disconnect)
         - Pub/Sub listener cleanup
         """
         logger.info(f"[WebSocket] _handle_disconnect called for user {self.user_id}, session {self.session_id}")
@@ -430,9 +430,13 @@ class CallOrchestrator:
         # Disconnect from connection manager (sends participant_left)
         await connection_manager.disconnect(self.user_id)
         
-        # Mark user as offline
-        async with AsyncSessionLocal() as db:
-            await status_service.set_user_offline(self.user_id, db, connection_manager)
+        # Only mark user as offline when disconnecting from LOBBY
+        # (call session disconnect should NOT affect online status - user still has lobby connection)
+        if self.session_id == "lobby":
+            async with AsyncSessionLocal() as db:
+                await status_service.set_user_offline(self.user_id, db, connection_manager)
+        else:
+            logger.info(f"[WebSocket] User {self.user_id} disconnected from call session {self.session_id}, NOT marking offline (lobby still active)")
     
     def _is_real_call(self) -> bool:
         """Check if this is a real call session (not lobby)."""

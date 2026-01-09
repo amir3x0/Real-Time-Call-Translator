@@ -36,7 +36,7 @@ if (-not $RealIP) {
 Write-Host "🚀 Launching app connecting to Backend at: $RealIP" -ForegroundColor Green
 
 # Navigate to the mobile directory relative to this script
-Set-Location -Path "$PSScriptRoot/../mobile"
+# Set-Location -Path "$PSScriptRoot/../mobile"
 
 # Run Flutter with the detected IP
 flutter run --dart-define=BACKEND_HOST=$RealIP
