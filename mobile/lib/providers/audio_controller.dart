@@ -190,6 +190,12 @@ class AudioController {
             encoder: AudioEncoder.pcm16bits,
             sampleRate: AppConstants.audioSampleRate,
             numChannels: 1,
+            // Enable Acoustic Echo Cancellation to prevent speaker output from being picked up by mic
+            echoCancel: true,
+            // Enable Noise Suppression for better audio quality
+            noiseSuppress: true,
+            // Enable Automatic Gain Control for consistent volume
+            autoGain: true,
           ),
         );
 
@@ -274,6 +280,12 @@ class AudioController {
             ? AVAudioSessionCategoryOptions.defaultToSpeaker
             : AVAudioSessionCategoryOptions.none,
         avAudioSessionMode: AVAudioSessionMode.voiceChat,
+        // Android-specific: Enable voice communication mode for AEC
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          usage: AndroidAudioUsage.voiceCommunication,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
       ));
     }
     _notifyListeners();
