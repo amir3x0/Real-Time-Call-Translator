@@ -29,26 +29,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def subscribe_to_translations():
-    """Background task to listen for translation results from worker."""
-    redis = await get_redis()
-    pubsub = redis.pubsub()
-    await pubsub.psubscribe("channel:translation:*")
-    
-    logger.info("✅ Subscribed to translation channels")
-    
-    try:
-        async for message in pubsub.listen():
-            if message["type"] == "pmessage":
-                try:
-                    data = json.loads(message["data"])
-                    session_id = data.get("session_id")
-                    if session_id:
-                        await connection_manager.broadcast_translation(session_id, data)
-                except Exception as e:
-                    logger.error(f"Error processing translation message: {e}")
-    except Exception as e:
-        logger.error(f"Translation subscription error: {e}")
+
 
 
 @asynccontextmanager
@@ -86,9 +67,8 @@ async def lifespan(app: FastAPI):
     await voice_training_service.start_worker()
     logger.info("✅ Voice training worker started")
     
-    # Start translation subscription
-    asyncio.create_task(subscribe_to_translations())
-    logger.info("✅ Translation subscription started")
+    # NOTE: Translation subscription removed - orchestrator.py handles it per-connection
+    # with proper speaker_id filtering to prevent echo back to speaker
     
     yield  # Application runs here
     

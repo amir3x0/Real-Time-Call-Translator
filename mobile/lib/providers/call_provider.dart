@@ -298,9 +298,16 @@ class CallProvider with ChangeNotifier {
 
     // --- Step 2: Filtering ---
     if (speakerId.isNotEmpty && speakerId == _currentUserId) {
-      debugPrint(
-          '[CallProvider] This is my own speech ($speakerId), skipping audio playback');
-      // עדיין מוסיפים להיסטוריה אבל לא מנגנים
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('[CallProvider] 🚫 BLOCKED: My own translation!');
+      debugPrint('[CallProvider] Speaker ID: $speakerId');
+      debugPrint('[CallProvider] Current User: $_currentUserId');
+      debugPrint('[CallProvider] Original: $originalText');
+      debugPrint('[CallProvider] Translation: $translatedText');
+      debugPrint('[CallProvider] ⚠️ Audio playback SKIPPED');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      // Still add to history but don't play audio
       if (translatedText.isNotEmpty && originalText.isNotEmpty) {
         _addTranslationToHistory(speakerId, originalText, translatedText,
             sourceLanguage, targetLanguage);

@@ -113,6 +113,7 @@ async def handle_audio_stream(
                         "is_final": False
                     }
                 
+                
                 # Publish back to Redis
                 channel = f"channel:translation:{session_id}"
                 logger.info(f"📤 Publishing {payload.get('type')} to {channel}: speaker={speaker_id}, {source_lang}->{target_lang}")
@@ -120,6 +121,26 @@ async def handle_audio_stream(
                     redis.publish(channel, json.dumps(payload)),
                     loop
                 )
+                
+                # Save transcript to database (for call history) - only for final translations
+                if payload.get("type") == "translation":
+                    try:
+                        from app.services.call.worker_helpers import save_transcript_from_worker
+                        asyncio.run_coroutine_threadsafe(
+                            save_transcript_from_worker(
+                                session_id=session_id,
+                                speaker_id=speaker_id,
+                                original_language=source_lang,
+                                original_text=payload["transcript"],
+                                translated_text=payload["translation"],
+                                timestamp_ms=None  # Will be calculated in the function
+                            ),
+                            loop
+                        )
+                        logger.info(f"💾 Saved transcript to DB for session {session_id}")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to save transcript: {e}")
+
 
         await loop.run_in_executor(None, process_stream)
         

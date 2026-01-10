@@ -119,14 +119,19 @@ class AudioController {
 
         chunksReceived++;
 
+        // Debug logging for audio chunks
+        debugPrint(
+            '[AudioController] 🔊 Chunk #$chunksReceived: ${data.length} bytes');
+
         // Log EVERY chunk for debugging TTS audio
         final isWavHeader = data.length > 4 &&
             data[0] == 0x52 &&
             data[1] == 0x49 &&
             data[2] == 0x46 &&
             data[3] == 0x46; // "RIFF"
-        debugPrint(
-            '[AudioController] 🔊 Received chunk #$chunksReceived: ${data.length} bytes${isWavHeader ? " (WAV header detected!)" : ""}');
+        if (isWavHeader) {
+          debugPrint('[AudioController] ⚠️ WAV header detected in chunk!');
+        }
 
         // Add to buffer
         _audioBuffer.add(data);

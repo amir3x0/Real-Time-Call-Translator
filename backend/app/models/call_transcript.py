@@ -31,6 +31,42 @@ class CallTranscript(Base):
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.utcnow(), nullable=False)
     
+    @classmethod
+    def create_transcript(
+        cls,
+        call_id: str,
+        speaker_user_id: str,
+        original_language: str,
+        original_text: str,
+        timestamp_ms: int,
+        translated_text: str = None,
+        **kwargs  # Ignore extra params (target_language, tts_method, etc.)
+    ):
+        """
+        Factory method to create a transcript entry.
+        
+        Args:
+            call_id: ID of the call
+            speaker_user_id: ID of the speaker
+            original_language: Language of original speech
+            original_text: Transcribed text
+            timestamp_ms: Timestamp in milliseconds from call start
+            translated_text: Translated text (optional)
+            **kwargs: Additional parameters (ignored for now)
+            
+        Returns:
+            CallTranscript instance
+        """
+        return cls(
+            call_id=call_id,
+            speaker_user_id=speaker_user_id,
+            original_language=original_language,
+            original_text=original_text,
+            translated_text=translated_text,
+            timestamp_ms=timestamp_ms
+        )
+
+    
     def to_dict(self):
         return {
             "id": self.id,
