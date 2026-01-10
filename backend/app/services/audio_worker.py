@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from typing import Dict, Optional
 import queue
 
@@ -19,6 +20,10 @@ logger = logging.getLogger(__name__)
 # Global state to track active streams
 # Key: f"{session_id}:{speaker_id}" -> Value: queue.Queue (Thread-safe queue)
 active_streams: Dict[str, queue.Queue] = {}
+# Track active async tasks for cleanup
+active_tasks: Dict[str, asyncio.Task] = {}
+# Global shutdown flag for graceful termination
+_shutdown_flag = False
 
 async def handle_audio_stream(
     session_id: str,
@@ -28,106 +33,223 @@ async def handle_audio_stream(
     audio_source: any # queue.Queue or iterator
 ):
     """
-    Background task that consumes audio chunks from a queue and streams them to GCP.
+    Background task that uses pause-based chunking for aggressive real-time translation.
+    
+    Accumulates audio chunks until silence >1 second is detected, then immediately
+    transcribes, translates, and synthesizes the accumulated chunk.
     """
+    import audioop
+    
     stream_key = f"{session_id}:{speaker_id}"
-    logger.info(f"🎙️ Starting streaming task for {stream_key} ({source_lang} -> {target_lang})")
+    logger.info(f"🎙️ Starting pause-based chunking for {stream_key} ({source_lang} -> {target_lang})")
     
     pipeline = _get_pipeline()
     redis = await get_redis()
-    
-    # Generator that yields chunks from the thread-safe queue OR just uses the source if it's already a generator
-    def audio_generator():
-        if hasattr(audio_source, '__iter__') or hasattr(audio_source, '__next__'):
-             yield from audio_source
-        else:
-            # Fallback for raw queue (legacy)
-            while True:
-                chunk = audio_source.get()
-                if chunk is None:
-                    return
-                yield chunk
-
-    # Helper to run the blocking pipeline
-    def run_pipeline():
-        return pipeline.streaming_transcribe(
-            audio_generator(),
-            language_code=source_lang
-        )
-
-    # Start the pipeline in a separate thread
     loop = asyncio.get_running_loop()
     
-    try:
-        def process_stream():
-            for transcript, is_final in run_pipeline():
-                if is_final:
-                    # Got a final transcript!
-                    logger.info(f"📝 Final Transcript: {transcript}")
-                    
-                    # Translate
-                    translation = pipeline._translate_text(
-                        transcript,
-                        source_language_code=source_lang[:2],
-                        target_language_code=target_lang[:2]
-                    )
-                    logger.info(f"🔄 Translation: {translation}")
-                    
-                    # TTS
-                    audio_content = pipeline._synthesize(
-                        translation,
-                        language_code=target_lang,
-                        voice_name=None
-                    )
-                    
-                    # Publish Final
-                    payload = {
-                        "type": "translation",
-                        "session_id": session_id,
-                        "speaker_id": speaker_id,
-                        "transcript": transcript,
-                        "translation": translation,
-                        "audio_content": audio_content.hex() if audio_content else None,
-                        "source_lang": source_lang,
-                        "target_lang": target_lang,
-                        "is_final": True
-                    }
-                else:
-                    # Interim transcript - translate it for real-time feedback
-                    # Note: This increases API usage
-                    translation_interim = pipeline._translate_text(
-                        transcript,
-                        source_language_code=source_lang[:2],
-                        target_language_code=target_lang[:2]
-                    )
-                    
-                    payload = {
-                        "type": "transcription_update", # Different type for interim
-                        "session_id": session_id,
-                        "speaker_id": speaker_id,
-                        "transcript": transcript,
-                        "translation": translation_interim,
-                        "audio_content": None,
-                        "source_lang": source_lang,
-                        "target_lang": target_lang,
-                        "is_final": False
-                    }
+    # Configuration for pause-based chunking
+    SILENCE_THRESHOLD = 0.3  # 0.3 second of silence triggers processing
+    RMS_THRESHOLD = 400   # RMS level below which we consider it silence (400 is a good value)
+    MIN_AUDIO_LENGTH = 0.5  # Minimum 0.5 seconds of audio before processing (reduced from 1s for faster response)
+    MAX_CHUNKS_BEFORE_FORCE = 5  # Force processing after 5 chunks even without pause
+    SAMPLE_RATE = 16000
+    BYTES_PER_SAMPLE = 2  # 16-bit PCM
+    MIN_BYTES = int(MIN_AUDIO_LENGTH * SAMPLE_RATE * BYTES_PER_SAMPLE)  # ~16000 bytes for 0.5s
+    
+    def process_audio_chunks():
+        """Process audio chunks with pause-based chunking"""
+        # Audio buffer to accumulate chunks
+        audio_buffer = bytearray()
+        last_voice_time = time.time()
+        chunk_count = 0  # Track chunks for force processing
+        chunk_timeout = 0.1  # Reduced from 0.2s to 0.1s for faster response (100ms)
+        
+        # Check if audio_source is a queue or iterator
+        is_queue = isinstance(audio_source, queue.Queue)
+        
+        # Helper function to process and reset buffer
+        def process_and_reset(reason: str):
+            nonlocal audio_buffer, chunk_count, last_voice_time
+            if len(audio_buffer) >= MIN_BYTES:
+                current_chunk_count = chunk_count
+                audio_to_process = bytes(audio_buffer)
+                audio_buffer.clear()
+                chunk_count = 0
+                last_voice_time = time.time()
                 
-                # Publish back to Redis
-                channel = f"channel:translation:{session_id}"
+                logger.info(f"🔄 {reason} - processing {len(audio_to_process)} bytes ({current_chunk_count} chunks)")
+                
+                # Process this chunk in async context
                 asyncio.run_coroutine_threadsafe(
-                    redis.publish(channel, json.dumps(payload)),
+                    process_accumulated_audio(audio_to_process, pipeline, redis, loop, session_id, speaker_id, source_lang, target_lang),
                     loop
                 )
-
-        await loop.run_in_executor(None, process_stream)
+                return True
+            return False
         
+        while not _shutdown_flag:
+            try:
+                # Get next chunk
+                if is_queue:
+                    try:
+                        chunk = audio_source.get(timeout=chunk_timeout)
+                        if chunk is None or _shutdown_flag:
+                            # None means end of stream, or shutdown requested
+                            break
+                    except queue.Empty:
+                        # Queue timeout - check if we should process buffer due to silence
+                        if _shutdown_flag:
+                            break
+                            
+                        now = time.time()
+                        silence_duration = now - last_voice_time
+                        
+                        if len(audio_buffer) >= MIN_BYTES and silence_duration >= SILENCE_THRESHOLD:
+                            # Process accumulated buffer after silence
+                            process_and_reset(f"⏸️  Silence detected ({silence_duration:.2f}s)")
+                        # Continue loop to check queue again (with shorter timeout now)
+                        continue
+                else:
+                    # Iterator/generator
+                    try:
+                        chunk = next(audio_source)
+                        if chunk is None or _shutdown_flag:
+                            break
+                    except StopIteration:
+                        break
+                    except TypeError:
+                        # Not iterable
+                        logger.error("Audio source is not iterable or queue")
+                        break
+                
+                # Calculate RMS to detect voice vs silence
+                try:
+                    rms = audioop.rms(chunk, 2)
+                except Exception:
+                    rms = 1000  # Fallback - assume voice
+                
+                now = time.time()
+                
+                # Always add chunk to buffer (even silent ones, as they might be pauses in speech)
+                audio_buffer.extend(chunk)
+                chunk_count += 1
+                
+                # Priority 1: Check max chunks limit (handles continuous speech without pauses)
+                if chunk_count >= MAX_CHUNKS_BEFORE_FORCE:
+                    if process_and_reset(f"⏭️  Max chunks reached ({chunk_count}/{MAX_CHUNKS_BEFORE_FORCE})"):
+                        continue  # Skip rest of iteration
+                
+                if rms > RMS_THRESHOLD:
+                    # Voice detected - reset silence timer
+                    last_voice_time = now
+                else:
+                    # Silence detected - check if we should process
+                    silence_duration = now - last_voice_time
+                    
+                    if len(audio_buffer) >= MIN_BYTES and silence_duration >= SILENCE_THRESHOLD:
+                        # Enough audio accumulated and enough silence - process it!
+                        if process_and_reset(f"⏸️  Pause detected ({silence_duration:.2f}s)"):
+                            continue  # Skip rest of iteration
+                        
+            except Exception as e:
+                logger.error(f"Error processing audio chunks: {e}")
+                import traceback
+                traceback.print_exc()
+                break
+        
+        # Process any remaining audio in buffer when stream ends (only if not shutting down)
+        if not _shutdown_flag and len(audio_buffer) >= MIN_BYTES:
+            logger.info(f"📤 Stream ended - processing remaining {len(audio_buffer)} bytes")
+            audio_to_process = bytes(audio_buffer)
+            asyncio.run_coroutine_threadsafe(
+                process_accumulated_audio(audio_to_process, pipeline, redis, loop, session_id, speaker_id, source_lang, target_lang),
+                loop
+            )
+
+    async def process_accumulated_audio(audio_data: bytes, pipeline, redis, loop, session_id, speaker_id, source_lang, target_lang):
+        """Process accumulated audio chunk: transcribe, translate, TTS, and publish"""
+        try:
+            logger.info(f"🔄 Processing accumulated audio chunk ({len(audio_data)} bytes) after pause")
+            
+            # Run transcription in thread pool (blocking GCP call)
+            def transcribe_chunk():
+                return pipeline._transcribe(audio_data, source_lang)
+            
+            transcript = await loop.run_in_executor(None, transcribe_chunk)
+            
+            if not transcript or len(transcript.strip()) == 0:
+                logger.debug("No transcript generated from audio chunk")
+                return
+            
+            logger.info(f"📝 Transcript: '{transcript}'")
+            
+            # Translate (also blocking, but faster)
+            def translate_chunk():
+                return pipeline._translate_text(
+                    transcript,
+                    source_language_code=source_lang[:2],
+                    target_language_code=target_lang[:2]
+                )
+            
+            translation = await loop.run_in_executor(None, translate_chunk)
+            logger.info(f"🔄 Translation: '{translation}'")
+            
+            # TTS (blocking)
+            def synthesize_chunk():
+                return pipeline._synthesize(
+                    translation,
+                    language_code=target_lang,
+                    voice_name=None
+                )
+            
+            audio_content = await loop.run_in_executor(None, synthesize_chunk)
+            logger.info(f"🔊 Synthesized {len(audio_content)} bytes of TTS audio")
+            
+            # Publish result
+            payload = {
+                "type": "translation",
+                "session_id": session_id,
+                "speaker_id": speaker_id,
+                "transcript": transcript,
+                "translation": translation,
+                "audio_content": audio_content.hex() if audio_content else None,
+                "source_lang": source_lang,
+                "target_lang": target_lang,
+                "is_final": True
+            }
+            
+            channel = f"channel:translation:{session_id}"
+            await redis.publish(channel, json.dumps(payload))
+            logger.info(f"✅ Published translation result to {channel}")
+            
+        except Exception as e:
+            logger.error(f"Error processing accumulated audio: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    try:
+        await loop.run_in_executor(None, process_audio_chunks)
+        
+    except asyncio.CancelledError:
+        logger.info(f"Stream task cancelled for {stream_key}")
+        # Signal shutdown to unblock queue
+        if stream_key in active_streams:
+            try:
+                active_streams[stream_key].put(None)  # Sentinel to unblock queue.get()
+            except:
+                pass
+        raise
     except Exception as e:
         logger.error(f"Error in streaming task for {stream_key}: {e}")
     finally:
         logger.info(f"Streaming task ended for {stream_key}")
+        # Clean up tracking
         if stream_key in active_streams:
             del active_streams[stream_key]
+        if stream_key in active_tasks:
+            # Task cleanup is handled by done callback, but remove here too just in case
+            if stream_key in active_tasks:
+                del active_tasks[stream_key]
 
 async def process_stream_message(redis, stream_key: str, message_id: str, data: dict):
     try:
@@ -146,56 +268,29 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
         
         # Check if we have an active stream
         if key not in active_streams:
-    # Start new stream with a thread-safe Queue
+            # Start new stream with a thread-safe Queue
+            # The new pause-based approach handles silence detection internally
             q = queue.Queue()
             active_streams[key] = q
             
-            # Wrapper to add silence detection
-            def silence_detecting_generator(input_q):
-                import audioop
-                import time
-                
-                last_voice_time = time.time()
-                silence_threshold = 1.5 # Seconds
-                # rms_threshold = 500 # Adjust based on mic. 
-                # Since we don't know the mic levels well, let's rely on time between chunks? 
-                # No, we get continuous chunks. We need RMS.
-                rms_threshold = 300 
-                
-                while True:
-                    try:
-                        chunk = input_q.get(timeout=0.2) # Wait for audio
-                        if chunk is None:
-                            return
-                        
-                        # Calculate RMS
-                        try:
-                            # 2 bytes width for 16-bit audio
-                            rms = audioop.rms(chunk, 2)
-                        except:
-                            rms = 1000 # Fallback
-                            
-                        now = time.time()
-                        if rms > rms_threshold:
-                            last_voice_time = now
-                        else:
-                            if now - last_voice_time > silence_threshold:
-                                # Detected silence!
-                                # logger.info("Silence detected - forcing finalization")
-                                yield b"SILENCE"
-                                last_voice_time = now # Reset so we don't spam
-                        
-                        yield chunk
-                        
-                    except queue.Empty:
-                        continue
-
-            asyncio.create_task(handle_audio_stream(
-                session_id, speaker_id, source_lang, target_lang, silence_detecting_generator(q)
+            # Start the pause-based audio processing task and track it
+            task = asyncio.create_task(handle_audio_stream(
+                session_id, speaker_id, source_lang, target_lang, q
             ))
+            active_tasks[key] = task
+            
+            # Add done callback to clean up tracking
+            def cleanup_task(task_key):
+                def _cleanup(t):
+                    if task_key in active_tasks:
+                        del active_tasks[task_key]
+                return _cleanup
+            
+            task.add_done_callback(cleanup_task(key))
         
-        # Push chunk to queue
-        active_streams[key].put(audio_data)
+        # Push chunk to queue - the handle_audio_stream will process it with pause detection
+        if key in active_streams:
+            active_streams[key].put(audio_data)
             
         # Acknowledge message
         await redis.xack(stream_key, "audio_group", message_id)
@@ -204,6 +299,9 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
         logger.error(f"Error processing message {message_id}: {e}")
 
 async def run_worker():
+    global _shutdown_flag
+    _shutdown_flag = False  # Reset on start
+    
     logger.info("Starting Stateful Streaming Worker...")
     redis = await get_redis()
     
@@ -219,26 +317,82 @@ async def run_worker():
     
     logger.info(f"Listening on {stream_key}...")
     
-    while True:
-        try:
-            streams = await redis.xreadgroup(
-                group_name,
-                consumer_name,
-                {stream_key: ">"},
-                count=10,
-                block=2000
-            )
+    try:
+        while not _shutdown_flag:
+            try:
+                # Reduced block time from 2000ms to 500ms for faster shutdown response
+                streams = await redis.xreadgroup(
+                    group_name,
+                    consumer_name,
+                    {stream_key: ">"},
+                    count=10,
+                    block=500  # Reduced from 2000ms to 500ms for better responsiveness
+                )
+                
+                if _shutdown_flag:
+                    break
+                
+                for stream, messages in streams:
+                    if _shutdown_flag:
+                        break
+                    for message_id, data in messages:
+                        if _shutdown_flag:
+                            break
+                        await process_stream_message(redis, stream, message_id, data)
+                        
+            except Exception as e:
+                if _shutdown_flag:
+                    break
+                logger.error(f"Error in worker loop: {e}")
+                await asyncio.sleep(0.5)  # Reduced from 1s to 0.5s
+    finally:
+        # Signal all active streams to shutdown
+        _shutdown_flag = True
+        logger.info("Shutting down worker - canceling all tasks and signaling streams to stop...")
+        
+        # Put sentinel values in all queues first to unblock them
+        logger.info(f"Unblocking {len(active_streams)} active streams...")
+        for q in list(active_streams.values()):
+            try:
+                q.put(None)  # Sentinel to unblock queue.get()
+            except:
+                pass
+        
+        # Cancel all active tasks
+        tasks_to_cancel = [t for t in active_tasks.values() if not t.done()]
+        if tasks_to_cancel:
+            logger.info(f"Cancelling {len(tasks_to_cancel)} active tasks...")
+            for task in tasks_to_cancel:
+                task.cancel()
             
-            for stream, messages in streams:
-                for message_id, data in messages:
-                    await process_stream_message(redis, stream, message_id, data)
-                    
-        except Exception as e:
-            logger.error(f"Error in worker loop: {e}")
-            await asyncio.sleep(1)
+            # Wait briefly for tasks to cancel (max 0.5s to avoid hanging)
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*tasks_to_cancel, return_exceptions=True),
+                    timeout=0.5
+                )
+            except (asyncio.TimeoutError, Exception):
+                pass  # Don't wait too long - tasks will finish in background
 
 if __name__ == "__main__":
+    import signal
+    
+    def signal_handler(signum, frame):
+        global _shutdown_flag
+        logger.info(f"Received signal {signum} - initiating graceful shutdown...")
+        _shutdown_flag = True
+    
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     try:
         asyncio.run(run_worker())
     except KeyboardInterrupt:
-        logger.info("Worker stopped")
+        logger.info("Worker stopped via KeyboardInterrupt")
+    except Exception as e:
+        logger.error(f"Worker error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        logger.info("Worker cleanup complete")
