@@ -1,7 +1,9 @@
 class AppConstants {
   // Audio Configuration
-  static const int audioSendIntervalMs = 300;
-  static const int audioMinChunkSize = 6400; // ~200ms at 16kHz
+  static const int audioSendIntervalMs =
+      60; // Reduced from 300ms for lower latency
+  static const int audioMinChunkSize =
+      1920; // ~60ms at 16kHz (was 6400 for 200ms)
   static const int audioMaxBufferSize =
       12; // Drop old chunks if buffer grows too large
   static const int audioMinBufferSize =

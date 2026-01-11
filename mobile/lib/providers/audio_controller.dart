@@ -69,7 +69,20 @@ class AudioController {
     try {
       debugPrint('[AudioController] Initializing audio...');
 
-      // 1. Configure Audio Session
+      // 1. Cleanup previous player
+      if (_disposed) throw StateError('Disposed during initialization');
+      await _cleanupAudioPlayer();
+
+      // 2. Create and open flutter_sound player FIRST
+      // (Opening player may set its own audio session, so we configure AFTER)
+      if (_disposed) throw StateError('Disposed during initialization');
+      _audioPlayer = FlutterSoundPlayer();
+      await _audioPlayer!.openPlayer();
+      debugPrint('[AudioController] ✅ FlutterSound player opened');
+      _isPlayerInitialized = true;
+
+      // 3. NOW configure AudioSession to override with voiceCommunication mode
+      // This ensures AEC is properly enabled AFTER player initialization
       if (_disposed) throw StateError('Disposed during initialization');
       _audioSession = await AudioSession.instance;
       await _audioSession!.configure(const AudioSessionConfiguration(
@@ -85,24 +98,13 @@ class AudioController {
         androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
       ));
 
-      // ⭐ Activate AudioSession - CRITICAL for iOS routing!
+      // ⭐ Activate AudioSession - CRITICAL for AEC to work!
       if (_disposed) throw StateError('Disposed during initialization');
       await _audioSession!.setActive(true);
       debugPrint(
-          '[AudioController] ✅ AudioSession activated with earpiece mode');
+          '[AudioController] ✅ AudioSession configured with voiceCommunication (AEC enabled)');
 
       _isSpeakerOn = false;
-
-      // 2. Cleanup previous player
-      if (_disposed) throw StateError('Disposed during initialization');
-      await _cleanupAudioPlayer();
-
-      // 3. Create and initialize flutter_sound player
-      if (_disposed) throw StateError('Disposed during initialization');
-      _audioPlayer = FlutterSoundPlayer();
-      await _audioPlayer!.openPlayer();
-      debugPrint('[AudioController] ✅ FlutterSound player opened');
-      _isPlayerInitialized = true;
 
       // 4. Start player in stream mode
       if (_disposed) throw StateError('Disposed during initialization');
@@ -123,7 +125,7 @@ class AudioController {
       if (_disposed) throw StateError('Disposed during initialization');
       await _setupIncomingAudioListener();
 
-      // 7. Initialize Microphone
+      // 7. Initialize Microphone (recorder also uses voiceCommunication via echoCancel flag)
       if (_disposed) throw StateError('Disposed during initialization');
       await _setupMicrophone();
 

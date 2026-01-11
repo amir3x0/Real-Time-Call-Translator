@@ -172,8 +172,11 @@ class CallProvider with ChangeNotifier {
     _currentUserId = currentUserId;
     _authToken = token;
 
-    await _joinCallSession(sessionId);
+    // ⭐ Notify immediately to update UI state BEFORE async operations
+    // This prevents race condition where UI sees null incomingCall but status not yet ongoing
     notifyListeners();
+
+    await _joinCallSession(sessionId);
   }
 
   Future<void> _joinCallSession(String sessionId, {String? callId}) async {

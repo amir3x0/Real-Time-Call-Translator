@@ -178,7 +178,7 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
                 import time
                 
                 last_voice_time = time.time()
-                silence_threshold = 1.5 # Seconds
+                silence_threshold = 0.5 # Seconds
                 # rms_threshold = 500 # Adjust based on mic. 
                 # Since we don't know the mic levels well, let's rely on time between chunks? 
                 # No, we get continuous chunks. We need RMS.

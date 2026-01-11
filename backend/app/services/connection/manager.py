@@ -19,10 +19,6 @@ from .notifications import (
     notify_contact_request as _notify_contact_request,
     notify_incoming_call as _notify_incoming_call,
 )
-from .audio_router import (
-    broadcast_audio as _broadcast_audio,
-    broadcast_translation as _broadcast_translation,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -159,14 +155,6 @@ class ConnectionManager:
     
     async def notify_incoming_call(self, user_id: str, call_id: str, caller_id: str, caller_name: str, caller_language: str) -> bool:
         return await _notify_incoming_call(self._sessions, user_id, call_id, caller_id, caller_name, caller_language)
-    
-    # === Audio Methods (delegates to audio_router module) ===
-    
-    async def broadcast_audio(self, session_id: str, speaker_id: str, audio_data: bytes, timestamp_ms: int = 0) -> Dict[str, Any]:
-        return await _broadcast_audio(self._sessions, session_id, speaker_id, audio_data, timestamp_ms)
-    
-    async def broadcast_translation(self, session_id: str, translation_data: Dict[str, Any]) -> int:
-        return await _broadcast_translation(self._sessions, session_id, translation_data)
     
     # === Mute Control ===
     
