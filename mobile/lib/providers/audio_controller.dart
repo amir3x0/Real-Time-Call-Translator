@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter_audio_output/flutter_audio_output.dart';
 
 import '../data/websocket/websocket_service.dart';
 import '../config/constants.dart';
@@ -114,11 +115,15 @@ class AudioController {
       );
       debugPrint('[AudioController] Player started in stream mode');
 
-      // 5. Listen to incoming audio
+      // 5. Switch to earpiece (receiver) by default for calls
+      if (_disposed) throw StateError('Disposed during initialization');
+      await _switchToEarpiece();
+
+      // 6. Listen to incoming audio
       if (_disposed) throw StateError('Disposed during initialization');
       await _setupIncomingAudioListener();
 
-      // 6. Initialize Microphone
+      // 7. Initialize Microphone
       if (_disposed) throw StateError('Disposed during initialization');
       await _setupMicrophone();
 
@@ -351,38 +356,47 @@ class AudioController {
     _notifyListeners();
   }
 
-  /// Toggle speaker/earpiece
+  /// Switch audio output to earpiece (receiver)
+  Future<void> _switchToEarpiece() async {
+    try {
+      final success = await FlutterAudioOutput.changeToReceiver();
+      if (success) {
+        _isSpeakerOn = false;
+        debugPrint('[AudioController] ✅ Switched to earpiece (receiver)');
+      } else {
+        debugPrint('[AudioController] ⚠️ changeToReceiver returned false');
+      }
+    } catch (e) {
+      debugPrint('[AudioController] ⚠️ Could not switch to earpiece: $e');
+      // Fall back - audio will play through default route
+    }
+  }
+
+  /// Toggle speaker/earpiece using flutter_audio_output
   Future<void> toggleSpeaker() async {
     final newState = !_isSpeakerOn;
     debugPrint('[AudioController] Toggling speaker to: $newState');
 
-    if (_audioSession != null) {
-      try {
-        await _audioSession!.configure(AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-          avAudioSessionCategoryOptions: newState
-              ? AVAudioSessionCategoryOptions.defaultToSpeaker
-              : AVAudioSessionCategoryOptions.none,
-          avAudioSessionMode: AVAudioSessionMode.voiceChat,
-          // Android-specific: Enable voice communication mode for AEC
-          androidAudioAttributes: const AndroidAudioAttributes(
-            contentType: AndroidAudioContentType.speech,
-            usage: AndroidAudioUsage.voiceCommunication,
-          ),
-          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-        ));
+    try {
+      bool success;
+      if (newState) {
+        // Switch to external speaker
+        success = await FlutterAudioOutput.changeToSpeaker();
+      } else {
+        // Switch to earpiece (receiver)
+        success = await FlutterAudioOutput.changeToReceiver();
+      }
 
-        // ⭐ Re-activate after configuration change
-        await _audioSession!.setActive(true);
-
-        // ⭐ Only update state if successful
+      if (success) {
         _isSpeakerOn = newState;
         _notifyListeners();
-        debugPrint('[AudioController] ✅ Speaker toggled successfully');
-      } catch (e) {
-        debugPrint('[AudioController] ❌ Failed to toggle speaker: $e');
-        // State unchanged - UI won't update
+        debugPrint('[AudioController] ✅ Audio route changed successfully');
+      } else {
+        debugPrint('[AudioController] ⚠️ Failed to change audio route');
       }
+    } catch (e) {
+      debugPrint('[AudioController] ❌ Error toggling speaker: $e');
+      // State unchanged - UI won't update
     }
   }
 

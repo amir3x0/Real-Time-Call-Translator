@@ -118,6 +118,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.5.2"
+  flutter_audio_output:
+    dependency: "direct main"
+    description:
+      name: flutter_audio_output
+      sha256: "742eb8ac95466daa972dc18b4166059c6da8a1b43a5a71066483b2c91734a7b7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.4"
   flutter_lints:
     dependency: "direct dev"
     description:

@@ -31,6 +31,7 @@ dependencies:
   just_audio: ^0.10.5
   flutter_sound: ^9.2.13
   audio_session: ^0.1.21
+  flutter_audio_output: ^0.0.4
   
   # Permissions
   permission_handler: ^12.0.1
