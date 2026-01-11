@@ -32,8 +32,12 @@ class AppConfig {
 
     // 2. Default behavior based on build mode
     if (kDebugMode) {
-      // Default to Android Emulator loopback if not specified
-      return '10.0.2.2';
+      // Android Emulator uses 10.0.2.2 to access host localhost
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        return '10.0.2.2';
+      }
+      // Windows/macOS/Linux/iOS Simulator use standard localhost
+      return '127.0.0.1';
     }
 
     // 3. Production fallback

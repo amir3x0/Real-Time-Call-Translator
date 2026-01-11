@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import asyncio
 import functools
 from dataclasses import dataclass
@@ -29,30 +30,58 @@ class GCPSpeechPipeline:
     """Thin wrapper around Google Cloud Speech/Translate/TTS services."""
 
     def __init__(self, project_id: Optional[str] = None, location: str = "global"):
-        # Ensure GOOGLE_APPLICATION_CREDENTIALS is set for client libraries
-        if settings.GOOGLE_APPLICATION_CREDENTIALS and "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
-            creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
-            # Handle Docker path when running locally
-            if creds_path.startswith("/app/") and not os.path.exists(creds_path):
-                # Common local paths to check
-                possible_paths = [
-                    creds_path.replace("/app/", ""),  # Strip /app/ prefix safely
-                    creds_path.replace("/app/", "app/"), # Map /app/ to app/
-                    os.path.join("app", "config", os.path.basename(creds_path)), # Hardcoded common location
-                    os.path.join(os.getcwd(), "app", "config", os.path.basename(creds_path))
-                ]
-                
-                for path in possible_paths:
-                    if os.path.exists(path):
-                        creds_path = path
-                        break
+        # Find and set GOOGLE_APPLICATION_CREDENTIALS path
+        creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or settings.GOOGLE_APPLICATION_CREDENTIALS
+        
+        # If not set or path doesn't exist, try to find credentials file
+        if not creds_path or not os.path.exists(creds_path):
+            possible_paths = [
+                "config/google-credentials.json",  # Local relative path
+                os.path.join(os.getcwd(), "config", "google-credentials.json"),
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "google-credentials.json"),  # From app/services/ -> backend/config/
+                "app/config/google-credentials.json",
+                "/app/config/google-credentials.json",  # Docker path
+            ]
             
+            # If we had a path from settings but it was wrong, try to fix it
+            if settings.GOOGLE_APPLICATION_CREDENTIALS:
+                basename = os.path.basename(settings.GOOGLE_APPLICATION_CREDENTIALS)
+                possible_paths.extend([
+                    os.path.join("config", basename),
+                    os.path.join(os.getcwd(), "config", basename),
+                    settings.GOOGLE_APPLICATION_CREDENTIALS.replace("/app/", ""),
+                    settings.GOOGLE_APPLICATION_CREDENTIALS.replace("/app/", "app/"),
+                ])
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    creds_path = os.path.abspath(path)
+                    logger.info(f"Found credentials file at: {creds_path}")
+                    break
+        
+        # Set environment variable if we found a valid path
+        if creds_path and os.path.exists(creds_path):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+        else:
+            logger.warning("GOOGLE_APPLICATION_CREDENTIALS not found. GCP services may fail.")
 
+        # Try to get project_id from: parameter, environment variable, or credentials file
         self.project_id = project_id or settings.GOOGLE_PROJECT_ID
+        
+        # If still not set, try to read from credentials JSON file
+        if not self.project_id and creds_path and os.path.exists(creds_path):
+            try:
+                with open(creds_path, 'r') as f:
+                    creds_data = json.load(f)
+                    self.project_id = creds_data.get('project_id')
+                    if self.project_id:
+                        logger.info(f"Read project_id '{self.project_id}' from credentials file")
+            except Exception as e:
+                logger.warning(f"Could not read project_id from credentials file: {e}")
+        
         if not self.project_id:
             raise RuntimeError(
-                "GOOGLE_PROJECT_ID is not set. Please update backend/.env accordingly."
+                "GOOGLE_PROJECT_ID is not set. Please set it in environment variable, .env file, or ensure it's in google-credentials.json"
             )
 
         self.location = location
@@ -220,6 +249,11 @@ class GCPSpeechPipeline:
         # We need to peek at the audio_generator or handle special values.
         # Let's assume audio_generator yields bytes OR "SILENCE" string.
 
+        # Track last interim transcript to avoid duplicates
+        # Google sends the FULL transcript so far in each interim update,
+        # so we need to deduplicate to avoid showing the same text multiple times
+        last_interim_transcript = ""
+        
         def request_generator():
             chunk_count = 0
             for chunk in audio_generator:
@@ -232,17 +266,15 @@ class GCPSpeechPipeline:
                 yield speech.StreamingRecognizeRequest(audio_content=chunk)
             logger.info(f"[GCP Streaming] Generator exhausted after {chunk_count} chunks")
 
-        while True:
-            try:
-                # We create a NEW request generator for each stream, 
-                # but it consumes from the SAME upstream audio_generator
-                logger.info("[GCP Streaming] Creating new request generator and starting streaming_recognize")
-                requests = request_generator()
-                
-                responses = self._speech_client.streaming_recognize(
-                    config=streaming_config,
-                    requests=requests,
-                )
+        # Process streaming recognition - run once per stream
+        # The while loop was causing issues by recreating request_generator multiple times
+        try:
+            requests = request_generator()
+            
+            responses = self._speech_client.streaming_recognize(
+                config=streaming_config,
+                requests=requests,
+            )
 
                 logger.info("[GCP Streaming] Waiting for responses...")
                 response_count = 0
@@ -252,46 +284,33 @@ class GCPSpeechPipeline:
                         logger.debug(f"[GCP Streaming] Response #{response_count}: no results")
                         continue
 
-                    result = response.results[0]
-                    if not result.alternatives:
-                        logger.debug(f"[GCP Streaming] Response #{response_count}: no alternatives")
-                        continue
+                result = response.results[0]
+                if not result.alternatives:
+                    continue
 
-                    if result.is_final:
-                        transcript = result.alternatives[0].transcript.strip()
-                        if transcript:
-                            logger.info(f"[GCP Streaming] ✅ FINAL transcript: '{transcript}'")
-                            yield transcript, True
-                    else:
-                        transcript = result.alternatives[0].transcript.strip()
-                        if transcript:
-                            logger.info(f"[GCP Streaming] Interim: '{transcript}'")
-                            yield transcript, False
+                transcript = result.alternatives[0].transcript.strip()
                 
-                logger.info(f"[GCP Streaming] Response loop ended after {response_count} responses")
-            except Exception as e:
-                # If we run out of audio or hit an error, break. 
-                # For single_utterance=True, it normally closes cleanly.
-                # If it's a real error, we might want to log it.
-                # But to be safe against infinite loops on error:
-                logger.error(f"[GCP Streaming] Stream loop error: {e}")
-                # Check if generator is exhausted? 
-                # But we can't easily check for generator exhaustion without consuming.
-                # For now, simplistic loop.
-                # If it is just "Out of range" or forceful close, we continue.
-                # But if it is a real crash, we might loop forever. 
-                # Let's hope single_utterance just finishes the iteration.
-                if "Audio Timeout" in str(e) or "400" in str(e):
-                    logger.error("[GCP Streaming] Breaking due to Audio Timeout or 400 error")
-                    break
-                # break # Break on any error for safety for now
-                pass
-            
-            # For continuous streaming (single_utterance=False), we only run the loop once
-            # because the generator keeps feeding data until exhausted/cancelled
-            if not streaming_config.single_utterance:
-                logger.info("[GCP Streaming] single_utterance=False, breaking after one iteration")
-                break
+                if result.is_final:
+                    if transcript:
+                        # Reset interim tracking on final result
+                        last_interim_transcript = ""
+                        yield transcript, True
+                else:
+                    # Interim result - only yield if it's different from the last one
+                    # This prevents duplicate interim results when Google sends the same
+                    # full transcript multiple times as the user continues speaking
+                    if transcript and transcript != last_interim_transcript:
+                        last_interim_transcript = transcript
+                        yield transcript, False
+                        
+        except Exception as e:
+            # Audio timeout is expected when the stream ends - don't log as error
+            # Other errors should be logged
+            if "Audio Timeout" not in str(e):
+                logger.error(f"Stream loop error: {e}")
+            # Break on any error - the stream is done
+            # Don't retry in a loop as this causes duplicate processing
+            pass
 
 
 @functools.lru_cache(maxsize=1)
