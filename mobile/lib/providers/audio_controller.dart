@@ -37,6 +37,7 @@ class AudioController {
   bool _isMuted = false;
   bool _isSpeakerOn = false;
   bool _audioInitializing = false;
+  bool _disposed = false; // ⭐ Prevents race conditions and resource leaks
 
   // Audio chunk accumulation for better STT results
   final List<int> _accumulatedChunks = [];
@@ -51,36 +52,59 @@ class AudioController {
 
   /// Initialize audio for a call session
   Future<void> initAudio() async {
+    // ⭐ Reset disposed state - AudioController is reused across calls
+    if (_disposed) {
+      debugPrint('[AudioController] ⚠️ Was disposed - resetting for new call');
+      _disposed = false;
+    }
+
     if (_audioInitializing) {
       debugPrint('[AudioController] Audio initialization already in progress');
       return;
     }
+
     _audioInitializing = true;
 
     try {
       debugPrint('[AudioController] Initializing audio...');
 
       // 1. Configure Audio Session
+      if (_disposed) throw StateError('Disposed during initialization');
       _audioSession = await AudioSession.instance;
-      await _audioSession!.configure(AudioSessionConfiguration(
+      await _audioSession!.configure(const AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
         avAudioSessionCategoryOptions:
-            AVAudioSessionCategoryOptions.allowBluetooth |
-                AVAudioSessionCategoryOptions.defaultToSpeaker,
+            AVAudioSessionCategoryOptions.allowBluetooth,
         avAudioSessionMode: AVAudioSessionMode.voiceChat,
+        // Android-specific: Enable voice communication mode for AEC
+        androidAudioAttributes: AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          usage: AndroidAudioUsage.voiceCommunication,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
       ));
 
-      _isSpeakerOn = true;
+      // ⭐ Activate AudioSession - CRITICAL for iOS routing!
+      if (_disposed) throw StateError('Disposed during initialization');
+      await _audioSession!.setActive(true);
+      debugPrint(
+          '[AudioController] ✅ AudioSession activated with earpiece mode');
+
+      _isSpeakerOn = false;
 
       // 2. Cleanup previous player
+      if (_disposed) throw StateError('Disposed during initialization');
       await _cleanupAudioPlayer();
 
       // 3. Create and initialize flutter_sound player
+      if (_disposed) throw StateError('Disposed during initialization');
       _audioPlayer = FlutterSoundPlayer();
       await _audioPlayer!.openPlayer();
+      debugPrint('[AudioController] ✅ FlutterSound player opened');
       _isPlayerInitialized = true;
 
       // 4. Start player in stream mode
+      if (_disposed) throw StateError('Disposed during initialization');
       await _audioPlayer!.startPlayerFromStream(
         codec: Codec.pcm16,
         numChannels: 1,
@@ -91,14 +115,26 @@ class AudioController {
       debugPrint('[AudioController] Player started in stream mode');
 
       // 5. Listen to incoming audio
+      if (_disposed) throw StateError('Disposed during initialization');
       await _setupIncomingAudioListener();
 
       // 6. Initialize Microphone
+      if (_disposed) throw StateError('Disposed during initialization');
       await _setupMicrophone();
 
-      debugPrint('[AudioController] Audio initialized successfully');
+      debugPrint('[AudioController] ✅ Audio initialized successfully');
     } catch (e) {
-      debugPrint('[AudioController] Error initializing audio: $e');
+      debugPrint('[AudioController] ❌ Initialization failed: $e');
+
+      // Cleanup partial state (only if not already disposing)
+      if (!_disposed) {
+        try {
+          await dispose();
+        } catch (disposeError) {
+          debugPrint('[AudioController] Cleanup also failed: $disposeError');
+        }
+      }
+      rethrow;
     } finally {
       _audioInitializing = false;
     }
@@ -115,13 +151,14 @@ class AudioController {
 
     _incomingAudioSub = _wsService.audioStream.listen(
       (data) {
+        if (_disposed) return; // ⭐ Guard against disposed state
         if (data.isEmpty) return;
 
         chunksReceived++;
 
         // Debug logging for audio chunks
         debugPrint(
-            '[AudioController] 🔊 Chunk #$chunksReceived: ${data.length} bytes');
+            '[AudioController] 🎵 Received audio chunk #$chunksReceived: ${data.length} bytes');
 
         // Log EVERY chunk for debugging TTS audio
         final isWavHeader = data.length > 4 &&
@@ -155,14 +192,25 @@ class AudioController {
   }
 
   void _startBufferedPlayback() {
+    // ⭐ Guard against disposed state
+    if (_disposed || _audioPlayer == null || !_isPlayerInitialized) {
+      debugPrint('[AudioController] Skipping playback - disposed or not ready');
+      return;
+    }
+
     _playbackTimer?.cancel();
 
     // Play chunks at regular intervals to smooth out jitter
     int playedChunks = 0;
     _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (_audioBuffer.isNotEmpty &&
-          _audioPlayer != null &&
-          _isPlayerInitialized) {
+      // ⭐ Check disposed state inside timer
+      if (_disposed || _audioPlayer == null || !_isPlayerInitialized) {
+        _playbackTimer?.cancel();
+        _playbackTimer = null;
+        return;
+      }
+
+      if (_audioBuffer.isNotEmpty) {
         final chunk = _audioBuffer.removeFirst();
         playedChunks++;
         debugPrint(
@@ -182,9 +230,23 @@ class AudioController {
 
   Future<void> _setupMicrophone() async {
     _audioRecorder ??= AudioRecorder();
-    if (await _audioRecorder!.hasPermission()) {
-      final isRecording = await _audioRecorder!.isRecording();
-      if (!isRecording) {
+
+    // Check permission status - permission should have been requested at app launch
+    final hasPermission = await _audioRecorder!.hasPermission();
+
+    if (!hasPermission) {
+      debugPrint(
+          '[AudioController] ⚠️ No microphone permission - call will be receive-only');
+      debugPrint(
+          '[AudioController] Permission should have been requested at app launch');
+      // Don't try to start recording - user needs to grant permission in Settings
+      return;
+    }
+
+    // Proceed with recording
+    final isRecording = await _audioRecorder!.isRecording();
+    if (!isRecording) {
+      try {
         final stream = await _audioRecorder!.startStream(
           const RecordConfig(
             encoder: AudioEncoder.pcm16bits,
@@ -225,10 +287,11 @@ class AudioController {
         );
 
         debugPrint(
-            '[AudioController] Microphone started with chunk accumulation');
+            '[AudioController] ✅ Microphone started with chunk accumulation');
+      } catch (e) {
+        debugPrint('[AudioController] ❌ Failed to start microphone: $e');
+        // Don't rethrow - call can continue without microphone (receive-only)
       }
-    } else {
-      debugPrint('[AudioController] No microphone permission');
     }
   }
 
@@ -266,57 +329,115 @@ class AudioController {
   /// Toggle mute state
   void toggleMute() {
     _isMuted = !_isMuted;
+    debugPrint('[AudioController] Toggling mute: $_isMuted');
+
+    if (_isMuted) {
+      // Stop timer when muted
+      _sendTimer?.cancel();
+      _sendTimer = null;
+      // Clear accumulated chunks to prevent memory buildup
+      _accumulatedChunks.clear();
+      debugPrint('[AudioController] 🔴 Muted - stopped send timer');
+    } else {
+      // Restart timer when unmuted
+      _sendTimer = Timer.periodic(
+        const Duration(milliseconds: _sendIntervalMs),
+        (_) => _sendAccumulatedAudio(),
+      );
+      debugPrint('[AudioController] 🟢 Unmuted - restarted send timer');
+    }
+
     _wsService.setMuted(_isMuted);
     _notifyListeners();
   }
 
   /// Toggle speaker/earpiece
   Future<void> toggleSpeaker() async {
-    _isSpeakerOn = !_isSpeakerOn;
+    final newState = !_isSpeakerOn;
+    debugPrint('[AudioController] Toggling speaker to: $newState');
+
     if (_audioSession != null) {
-      await _audioSession!.configure(AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-        avAudioSessionCategoryOptions: _isSpeakerOn
-            ? AVAudioSessionCategoryOptions.defaultToSpeaker
-            : AVAudioSessionCategoryOptions.none,
-        avAudioSessionMode: AVAudioSessionMode.voiceChat,
-        // Android-specific: Enable voice communication mode for AEC
-        androidAudioAttributes: const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.speech,
-          usage: AndroidAudioUsage.voiceCommunication,
-        ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-      ));
+      try {
+        await _audioSession!.configure(AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+          avAudioSessionCategoryOptions: newState
+              ? AVAudioSessionCategoryOptions.defaultToSpeaker
+              : AVAudioSessionCategoryOptions.none,
+          avAudioSessionMode: AVAudioSessionMode.voiceChat,
+          // Android-specific: Enable voice communication mode for AEC
+          androidAudioAttributes: const AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.speech,
+            usage: AndroidAudioUsage.voiceCommunication,
+          ),
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        ));
+
+        // ⭐ Re-activate after configuration change
+        await _audioSession!.setActive(true);
+
+        // ⭐ Only update state if successful
+        _isSpeakerOn = newState;
+        _notifyListeners();
+        debugPrint('[AudioController] ✅ Speaker toggled successfully');
+      } catch (e) {
+        debugPrint('[AudioController] ❌ Failed to toggle speaker: $e');
+        // State unchanged - UI won't update
+      }
     }
-    _notifyListeners();
   }
 
   /// Dispose all audio resources
   Future<void> dispose() async {
+    if (_disposed) {
+      debugPrint('[AudioController] Already disposed');
+      return;
+    }
+    _disposed = true;
     debugPrint('[AudioController] Disposing...');
 
+    // 1. Cancel subscriptions first (stop new data)
+    await _incomingAudioSub?.cancel();
+    _incomingAudioSub = null;
+    await _micStreamSub?.cancel();
+    _micStreamSub = null;
+
+    // 2. Stop recorder
+    try {
+      if (_audioRecorder != null) {
+        await _audioRecorder!.stop();
+        _audioRecorder!.dispose();
+        _audioRecorder = null;
+      }
+    } catch (e) {
+      debugPrint('[AudioController] Error stopping recorder: $e');
+    }
+
+    // 3. Cancel timers
     _sendTimer?.cancel();
     _sendTimer = null;
     _playbackTimer?.cancel();
     _playbackTimer = null;
 
-    await _micStreamSub?.cancel();
-    _micStreamSub = null;
-
+    // 4. Cleanup player
     await _cleanupAudioPlayer();
 
+    // 5. ⭐ Deactivate AudioSession (release audio focus)
     try {
-      if (_audioRecorder != null) {
-        await _audioRecorder!.stop();
-        _audioRecorder!.dispose();
+      if (_audioSession != null) {
+        await _audioSession!.setActive(false);
+        debugPrint('[AudioController] ✅ AudioSession deactivated');
       }
     } catch (e) {
-      debugPrint('[AudioController] Error stopping recorder: $e');
+      debugPrint('[AudioController] ⚠️ Error deactivating session: $e');
+      // Don't rethrow - best effort cleanup
     }
-    _audioRecorder = null;
-    _audioSession = null;
+
+    // 6. Clear buffers
     _audioBuffer.clear();
     _accumulatedChunks.clear();
+
+    // 7. Null references last
+    _audioSession = null;
 
     debugPrint('[AudioController] Disposed');
   }

@@ -23,6 +23,7 @@ import 'data/services/auth_service.dart';
 import 'data/services/contact_service.dart';
 import 'data/services/call_api_service.dart';
 import 'data/websocket/websocket_service.dart';
+import 'services/permission_service.dart';
 
 void main() {
   final authService = AuthService();
@@ -82,6 +83,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   /// Check authentication status on startup
   Future<void> _initAuth() async {
+    // Request microphone permission on first launch (before any call)
+    await _requestInitialPermissions();
+
+    if (!mounted) return;
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final lobbyProvider = Provider.of<LobbyProvider>(context, listen: false);
 
@@ -112,6 +118,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     authProvider.setOnLogoutCallback(() {
       lobbyProvider.disconnect();
     });
+  }
+
+  /// Request permissions on first app launch
+  Future<void> _requestInitialPermissions() async {
+    if (await PermissionService.shouldRequestMicrophonePermission()) {
+      debugPrint('[MyApp] First launch - requesting microphone permission...');
+      final granted = await PermissionService.requestMicrophonePermission();
+      debugPrint(
+          '[MyApp] Microphone permission ${granted ? 'granted' : 'denied'}');
+    }
   }
 
   @override
