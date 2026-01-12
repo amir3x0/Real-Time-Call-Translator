@@ -9,6 +9,13 @@ import queue
 from app.config.redis import get_redis
 from app.services.gcp_pipeline import _get_pipeline
 from app.config.settings import settings
+from app.services.metrics import (
+    audio_processing_latency,
+    segments_processed,
+    active_streams_gauge,
+    silence_triggers,
+    start_metrics_server
+)
 
 # Configure logging
 logging.basicConfig(
@@ -48,13 +55,55 @@ async def handle_audio_stream(
     loop = asyncio.get_running_loop()
     
     # Configuration for pause-based chunking
-    SILENCE_THRESHOLD = 0.3  # 0.3 second of silence triggers processing
-    RMS_THRESHOLD = 400   # RMS level below which we consider it silence (400 is a good value)
+    SILENCE_THRESHOLD = 0.4  # 0.4 second of silence triggers processing (reduced over-segmentation)
+    RMS_THRESHOLD = 300   # RMS level below which we consider it silence (lowered to catch quiet speakers)
     MIN_AUDIO_LENGTH = 0.5  # Minimum 0.5 seconds of audio before processing (reduced from 1s for faster response)
-    MAX_CHUNKS_BEFORE_FORCE = 5  # Force processing after 5 chunks even without pause
+    MAX_CHUNKS_BEFORE_FORCE = 5  # Force processing after 5 chunks (500ms at 100ms/chunk)
     SAMPLE_RATE = 16000
     BYTES_PER_SAMPLE = 2  # 16-bit PCM
     MIN_BYTES = int(MIN_AUDIO_LENGTH * SAMPLE_RATE * BYTES_PER_SAMPLE)  # ~16000 bytes for 0.5s
+    
+    def is_likely_speech(chunk: bytes) -> bool:
+        """
+        Detect speech using frequency analysis, not just RMS.
+        Reduces false positives from keyboard taps, mouse clicks, etc.
+        
+        Args:
+            chunk: PCM16 audio bytes
+            
+        Returns:
+            True if chunk likely contains speech, False otherwise
+        """
+        import numpy as np
+        
+        # Quick RMS check first (fast path)
+        rms = audioop.rms(chunk, 2)
+        if rms < RMS_THRESHOLD:
+            return False  # Too quiet to be speech
+        
+        # FFT analysis for frequency content
+        try:
+            audio = np.frombuffer(chunk, dtype=np.int16)
+            fft = np.fft.rfft(audio)
+            fft_magnitude = np.abs(fft)
+            
+            # Speech energy: 80-4000 Hz (bins 10-500 at 16kHz sample rate)
+            # Calculation: bin_index = frequency * fft_size / sample_rate
+            # For 16kHz with typical chunk of 1600 samples:
+            #   80 Hz  → bin 10
+            #   4000 Hz → bin 500
+            speech_band = fft_magnitude[10:500].sum()
+            
+            # Noise energy: >5000 Hz (bins 600+)
+            #   5000 Hz → bin 600
+            noise_band = fft_magnitude[600:].sum()
+            
+            # Speech should have dominant energy in speech frequencies
+            # Ratio 2.0 = speech band must be 2x larger than high-freq noise
+            return speech_band > 2.0 * noise_band
+        except Exception as e:
+            logger.warning(f"Spectral analysis failed: {e}, falling back to RMS")
+            return True  # Fallback: assume speech if analysis fails
     
     def process_audio_chunks():
         """Process audio chunks with pause-based chunking"""
@@ -78,6 +127,14 @@ async def handle_audio_stream(
                 last_voice_time = time.time()
                 
                 logger.info(f"🔄 {reason} - processing {len(audio_to_process)} bytes ({current_chunk_count} chunks)")
+                
+                # Track what triggered processing
+                if "Silence" in reason or "Pause" in reason:
+                    silence_triggers.labels(trigger_type='pause').inc()
+                elif "Max chunks" in reason:
+                    silence_triggers.labels(trigger_type='max_chunks').inc()
+                else:
+                    silence_triggers.labels(trigger_type='end_stream').inc()
                 
                 # Process this chunk in async context
                 asyncio.run_coroutine_threadsafe(
@@ -122,11 +179,9 @@ async def handle_audio_stream(
                         logger.error("Audio source is not iterable or queue")
                         break
                 
-                # Calculate RMS to detect voice vs silence
-                try:
-                    rms = audioop.rms(chunk, 2)
-                except Exception:
-                    rms = 1000  # Fallback - assume voice
+                
+                # Use spectral analysis instead of simple RMS
+                is_voice = is_likely_speech(chunk)
                 
                 now = time.time()
                 
@@ -139,7 +194,7 @@ async def handle_audio_stream(
                     if process_and_reset(f"⏭️  Max chunks reached ({chunk_count}/{MAX_CHUNKS_BEFORE_FORCE})"):
                         continue  # Skip rest of iteration
                 
-                if rms > RMS_THRESHOLD:
+                if is_voice:
                     # Voice detected - reset silence timer
                     last_voice_time = now
                 else:
@@ -168,6 +223,10 @@ async def handle_audio_stream(
 
     async def process_accumulated_audio(audio_data: bytes, pipeline, redis, loop, session_id, speaker_id, source_lang, target_lang):
         """Process accumulated audio chunk: transcribe, translate, TTS, and publish"""
+        import time
+        start_time = time.time()
+        lang_pair = f"{source_lang}_{target_lang}"
+        
         try:
             logger.info(f"🔄 Processing accumulated audio chunk ({len(audio_data)} bytes) after pause")
             
@@ -175,10 +234,15 @@ async def handle_audio_stream(
             def transcribe_chunk():
                 return pipeline._transcribe(audio_data, source_lang)
             
+            stt_start = time.time()
             transcript = await loop.run_in_executor(None, transcribe_chunk)
+            audio_processing_latency.labels(
+                component='stt', language_pair=lang_pair
+            ).observe(time.time() - stt_start)
             
             if not transcript or len(transcript.strip()) == 0:
                 logger.debug("No transcript generated from audio chunk")
+                segments_processed.labels(status='empty', language_pair=lang_pair).inc()
                 return
             
             logger.info(f"📝 Transcript: '{transcript}'")
@@ -191,7 +255,11 @@ async def handle_audio_stream(
                     target_language_code=target_lang[:2]
                 )
             
+            translate_start = time.time()
             translation = await loop.run_in_executor(None, translate_chunk)
+            audio_processing_latency.labels(
+                component='translate', language_pair=lang_pair
+            ).observe(time.time() - translate_start)
             logger.info(f"🔄 Translation: '{translation}'")
             
             # TTS (blocking)
@@ -202,8 +270,20 @@ async def handle_audio_stream(
                     voice_name=None
                 )
             
+            tts_start = time.time()
             audio_content = await loop.run_in_executor(None, synthesize_chunk)
+            audio_processing_latency.labels(
+                component='tts', language_pair=lang_pair
+            ).observe(time.time() - tts_start)
             logger.info(f"🔊 Synthesized {len(audio_content)} bytes of TTS audio")
+            
+            # Track total latency
+            audio_processing_latency.labels(
+                component='total', language_pair=lang_pair
+            ).observe(time.time() - start_time)
+            
+            # Success counter
+            segments_processed.labels(status='success', language_pair=lang_pair).inc()
             
             # Publish result
             payload = {
@@ -224,6 +304,7 @@ async def handle_audio_stream(
             
         except Exception as e:
             logger.error(f"Error processing accumulated audio: {e}")
+            segments_processed.labels(status='error', language_pair=lang_pair).inc()
             import traceback
             traceback.print_exc()
     
@@ -246,6 +327,7 @@ async def handle_audio_stream(
         # Clean up tracking
         if stream_key in active_streams:
             del active_streams[stream_key]
+            active_streams_gauge.set(len(active_streams))  # Update gauge
         if stream_key in active_tasks:
             # Task cleanup is handled by done callback, but remove here too just in case
             if stream_key in active_tasks:
@@ -272,6 +354,7 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
             # The new pause-based approach handles silence detection internally
             q = queue.Queue()
             active_streams[key] = q
+            active_streams_gauge.set(len(active_streams))  # Update gauge
             
             # Start the pause-based audio processing task and track it
             task = asyncio.create_task(handle_audio_stream(
@@ -301,6 +384,9 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
 async def run_worker():
     global _shutdown_flag
     _shutdown_flag = False  # Reset on start
+    
+    # Start metrics server
+    start_metrics_server(port=8001)
     
     logger.info("Starting Stateful Streaming Worker...")
     redis = await get_redis()

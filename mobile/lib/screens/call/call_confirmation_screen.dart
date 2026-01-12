@@ -560,12 +560,18 @@ class CallConfirmationScreen extends StatelessWidget {
 
   /// Start the call with selected participants
   Future<void> _startCall(BuildContext context) async {
+    debugPrint('[CallConfirmation] _startCall button pressed!');
     final contactsProvider = context.read<ContactsProvider>();
     final callProvider = context.read<CallProvider>();
     final authProvider = context.read<AuthProvider>();
     final selectedContacts = contactsProvider.selectedContacts;
 
-    if (selectedContacts.isEmpty) return;
+    debugPrint(
+        '[CallConfirmation] Selected contacts: ${selectedContacts.length}');
+    if (selectedContacts.isEmpty) {
+      debugPrint('[CallConfirmation] No contacts selected - returning early');
+      return;
+    }
 
     try {
       // Extract user IDs from selected contacts for the API call

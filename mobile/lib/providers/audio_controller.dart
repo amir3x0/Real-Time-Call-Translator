@@ -280,13 +280,8 @@ class AudioController {
         _micStreamSub = stream.listen(
           (data) {
             if (!_isMuted) {
-              // Accumulate chunks instead of sending immediately
+              // Accumulate chunks - timer-only sends for predictable 100ms intervals
               _accumulatedChunks.addAll(data);
-
-              // If we have enough data, send immediately
-              if (_accumulatedChunks.length >= _minChunkSize * 2) {
-                _sendAccumulatedAudio();
-              }
             }
           },
           onError: (e) => debugPrint('[AudioController] Mic stream error: $e'),
@@ -308,9 +303,15 @@ class AudioController {
     // Only send if we have minimum chunk size
     if (_accumulatedChunks.length >= _minChunkSize) {
       final audioData = Uint8List.fromList(_accumulatedChunks);
+
+      // Calculate audio duration for verification
+      final durationMs =
+          (audioData.length / (AppConstants.audioSampleRate * 2) * 1000)
+              .round();
+
       _wsService.sendAudio(audioData);
       debugPrint(
-          '[AudioController] Sent accumulated audio: ${audioData.length} bytes');
+          '[AudioController] Sent ${audioData.length} bytes (~${durationMs}ms worth)');
       _accumulatedChunks.clear();
     }
   }

@@ -276,13 +276,13 @@ class GCPSpeechPipeline:
                 requests=requests,
             )
 
-                logger.info("[GCP Streaming] Waiting for responses...")
-                response_count = 0
-                for response in responses:
-                    response_count += 1
-                    if not response.results:
-                        logger.debug(f"[GCP Streaming] Response #{response_count}: no results")
-                        continue
+            logger.info("[GCP Streaming] Waiting for responses...")
+            response_count = 0
+            for response in responses:
+                response_count += 1
+                if not response.results:
+                    logger.debug(f"[GCP Streaming] Response #{response_count}: no results")
+                    continue
 
                 result = response.results[0]
                 if not result.alternatives:
