@@ -214,6 +214,12 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                         color: Colors.green,
                         onPressed: () async {
                           _countdownTimer?.cancel();
+
+                          // ⭐ FIX: Set CallProvider status BEFORE accepting
+                          // This prevents the race condition where incomingCall becomes null
+                          // but status isn't yet 'ongoing', causing premature pop.
+                          callProvider.prepareForIncomingCall();
+
                           // 1. Accept in Lobby -> Get Session Data
                           final callData =
                               await lobbyProvider.acceptIncomingCall();
@@ -223,6 +229,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                           if (callData != null &&
                               callData['session_id'] != null) {
                             final sessionId = callData['session_id'];
+                            final callId =
+                                callData['call_id']; // ⭐ Extract call_id
                             final participantsData =
                                 callData['participants'] as List<dynamic>? ??
                                     [];
@@ -259,6 +267,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                               participants,
                               currentUserId: currentUser.id,
                               token: token,
+                              callId:
+                                  callId, // ⭐ Pass call_id to properly register participant
                             );
 
                             if (context.mounted) {

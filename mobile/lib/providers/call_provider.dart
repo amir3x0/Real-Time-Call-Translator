@@ -88,6 +88,14 @@ class CallProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Prepare the provider state for an incoming call acceptance.
+  /// This should be called BEFORE the API accept call to prevent race conditions
+  /// where the IncomingCallScreen pops due to null incomingCall but status not yet ongoing.
+  void prepareForIncomingCall() {
+    _status = CallStatus.ongoing;
+    notifyListeners();
+  }
+
   // === Call Lifecycle ===
 
   /// Starts a real call by calling backend API and connecting to WebSocket
@@ -166,7 +174,9 @@ class CallProvider with ChangeNotifier {
 
   /// Join an existing call session (e.g. accepting an incoming call)
   Future<void> joinCall(String sessionId, List<CallParticipant> participants,
-      {required String currentUserId, required String token}) async {
+      {required String currentUserId,
+      required String token,
+      String? callId}) async {
     _activeSessionId = sessionId;
     _participants = participants;
     _status = CallStatus.ongoing;
@@ -177,7 +187,7 @@ class CallProvider with ChangeNotifier {
     // This prevents race condition where UI sees null incomingCall but status not yet ongoing
     notifyListeners();
 
-    await _joinCallSession(sessionId);
+    await _joinCallSession(sessionId, callId: callId);
   }
 
   Future<void> _joinCallSession(String sessionId, {String? callId}) async {

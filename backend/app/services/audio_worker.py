@@ -181,26 +181,28 @@ async def handle_audio_stream(
     session_id: str,
     speaker_id: str,
     source_lang: str,
-    target_lang: str,
     audio_source: any # queue.Queue or iterator
 ):
     """
     Background task that uses pause-based chunking for aggressive real-time translation.
-    
-    Accumulates audio chunks until silence >1 second is detected, then immediately
-    transcribes, translates, and synthesizes the accumulated chunk.
+
+    Phase 3: Now supports multi-party calls. Target languages determined from database
+    per audio chunk, allowing dynamic participant changes.
+
+    Accumulates audio chunks until silence is detected, then immediately
+    transcribes, translates to all target languages, and synthesizes.
     """
     import audioop
-    
+
     stream_key = f"{session_id}:{speaker_id}"
-    logger.info(f"🎙️ Starting pause-based chunking for {stream_key} ({source_lang} -> {target_lang})")
+    logger.info(f"🎙️ Starting pause-based chunking for {stream_key} (source: {source_lang}, multiparty mode)")
     
     pipeline = _get_pipeline()
     redis = await get_redis()
     loop = asyncio.get_running_loop()
     
     # Configuration for pause-based chunking
-    SILENCE_THRESHOLD = 0.4  # 0.4 second of silence triggers processing (reduced over-segmentation)
+    SILENCE_THRESHOLD = 0.25  # 0.25 second of silence triggers processing (reduced from 0.4s for lower latency)
     RMS_THRESHOLD = 300   # RMS level below which we consider it silence (lowered to catch quiet speakers)
     MIN_AUDIO_LENGTH = 0.5  # Minimum 0.5 seconds of audio before processing (reduced from 1s for faster response)
     # MAX_CHUNKS_BEFORE_FORCE removed - now using time-based forcing in process_audio_chunks()
@@ -284,10 +286,10 @@ async def handle_audio_stream(
         last_voice_time = time.time()
         last_process_time = time.time()  # NEW: Track when we last processed
         chunk_count = 0  # Keep for logging only
-        chunk_timeout = 0.1  # 100ms timeout for queue reads
+        chunk_timeout = 0.15  # 150ms timeout for queue reads (aligned with client send interval)
         
         # TIME-BASED constants (more reliable than chunk counting)
-        MAX_ACCUMULATED_TIME = 0.5  # Force process after 500ms of audio (replaces chunk counting)
+        MAX_ACCUMULATED_TIME = 0.75  # Force process after 750ms of audio (5 chunks at 150ms)
         
         # Check if audio_source is a queue or iterator
         is_queue = isinstance(audio_source, queue.Queue)
@@ -314,9 +316,9 @@ async def handle_audio_stream(
                 else:
                     silence_triggers.labels(trigger_type='end_stream').inc()
                 
-                # Process this chunk in async context
+                # Process this chunk in async context (Phase 3: using multiparty function)
                 asyncio.run_coroutine_threadsafe(
-                    process_accumulated_audio(audio_to_process, pipeline, redis, loop, session_id, speaker_id, source_lang, target_lang),
+                    process_accumulated_audio_multiparty(audio_to_process, pipeline, redis, loop, session_id, speaker_id, source_lang),
                     loop
                 )
                 return True
@@ -397,7 +399,7 @@ async def handle_audio_stream(
             logger.info(f"📤 Stream ended - processing remaining {len(audio_buffer)} bytes")
             audio_to_process = bytes(audio_buffer)
             asyncio.run_coroutine_threadsafe(
-                process_accumulated_audio(audio_to_process, pipeline, redis, loop, session_id, speaker_id, source_lang, target_lang),
+                process_accumulated_audio_multiparty(audio_to_process, pipeline, redis, loop, session_id, speaker_id, source_lang),
                 loop
             )
 
@@ -538,7 +540,216 @@ async def handle_audio_stream(
             segments_processed.labels(status='error', language_pair=lang_pair).inc()
             import traceback
             traceback.print_exc()
-    
+
+    async def process_accumulated_audio_multiparty(audio_data: bytes, pipeline, redis, loop, session_id, speaker_id, source_lang):
+        """
+        Phase 3: Process audio for multiple recipients with translation deduplication.
+
+        Flow:
+        1. Query database for target language map (all recipients except speaker)
+        2. STT once (source_lang)
+        3. Translate once per unique target language (parallel)
+        4. TTS once per unique target language (parallel)
+        5. Publish each translation with recipient_ids for routing
+        """
+        import time
+        start_time = time.time()
+
+        # Get or create segment buffer for this stream
+        if stream_key not in _segment_buffers:
+            _segment_buffers[stream_key] = SegmentBuffer()
+        segment_buffer = _segment_buffers[stream_key]
+
+        try:
+            logger.info(f"🔄 [Multiparty] Processing audio chunk ({len(audio_data)} bytes) for session {session_id}")
+
+            # === STEP 1: Query target languages from database ===
+            from app.models.database import AsyncSessionLocal
+            from app.models.call_participant import CallParticipant
+            from app.models.call import Call
+            from sqlalchemy import select, and_
+
+            target_langs_map = {}
+            try:
+                async with AsyncSessionLocal() as db:
+                    # Get call_id from session_id
+                    call_result = await db.execute(
+                        select(Call).where(Call.session_id == session_id)
+                    )
+                    call = call_result.scalar_one_or_none()
+
+                    if not call:
+                        logger.warning(f"No call found for session {session_id}")
+                        return
+
+                    # Get all participants except speaker who are connected
+                    participants_result = await db.execute(
+                        select(CallParticipant).where(
+                            and_(
+                                CallParticipant.call_id == call.id,
+                                CallParticipant.user_id != speaker_id,
+                                CallParticipant.is_connected == True
+                            )
+                        )
+                    )
+                    participants = participants_result.scalars().all()
+
+                    # Build language map: {language: [user_ids]}
+                    for p in participants:
+                        lang = p.participant_language or "en-US"
+                        if lang not in target_langs_map:
+                            target_langs_map[lang] = []
+                        target_langs_map[lang].append(p.user_id)
+
+            except Exception as e:
+                logger.error(f"Error querying participants: {e}")
+                import traceback
+                traceback.print_exc()
+                return
+
+            if not target_langs_map:
+                logger.info(f"No recipients for speaker {speaker_id} in session {session_id}")
+                return
+
+            logger.info(f"🎯 Target language map: {target_langs_map}")
+
+            # === STEP 2: STT (once) ===
+            def transcribe_chunk():
+                return pipeline._transcribe(audio_data, source_lang)
+
+            stt_start = time.time()
+            transcript = await loop.run_in_executor(None, transcribe_chunk)
+            stt_latency = time.time() - stt_start
+
+            if not transcript or len(transcript.strip()) == 0:
+                logger.debug("No transcript generated")
+                return
+
+            logger.info(f"📝 Transcript: '{transcript}' (STT: {stt_latency:.2f}s)")
+
+            # Get context for translation
+            context = segment_buffer.get_context_for_translation()
+
+            # === STEP 3 & 4: Translate + TTS per language (parallel) ===
+            async def process_language(tgt_lang, recipients):
+                """Process translation and TTS for one target language."""
+                try:
+                    lang_pair = f"{source_lang}_{tgt_lang}"
+
+                    # Translate
+                    def translate():
+                        return pipeline._translate_text_with_context(
+                            transcript,
+                            context,
+                            source_language_code=source_lang[:2],
+                            target_language_code=tgt_lang[:2]
+                        )
+
+                    translate_start = time.time()
+                    translation = await loop.run_in_executor(None, translate)
+                    translate_latency = time.time() - translate_start
+
+                    logger.info(f"🔄 Translation to {tgt_lang}: '{translation}' ({translate_latency:.2f}s)")
+                    audio_processing_latency.labels(
+                        component='translate', language_pair=lang_pair
+                    ).observe(translate_latency)
+
+                    # TTS with caching (Phase 3: cost optimization)
+                    from app.services.tts_cache import get_tts_cache
+
+                    cache = get_tts_cache()
+                    cached_audio = cache.get(translation, tgt_lang)
+
+                    if cached_audio:
+                        logger.info(f"✅ TTS cache HIT for {tgt_lang}: '{translation[:30]}...'")
+                        audio_content = cached_audio
+                        tts_latency = 0.0  # Cache hit, no actual TTS call
+                    else:
+                        def synthesize():
+                            return pipeline._synthesize(translation, language_code=tgt_lang, voice_name=None)
+
+                        tts_start = time.time()
+                        audio_content = await loop.run_in_executor(None, synthesize)
+                        tts_latency = time.time() - tts_start
+
+                        # Cache for future use
+                        cache.put(translation, tgt_lang, audio_content)
+                        logger.info(f"🔊 TTS for {tgt_lang}: {len(audio_content)} bytes ({tts_latency:.2f}s) - CACHED")
+
+                    audio_processing_latency.labels(
+                        component='tts', language_pair=lang_pair
+                    ).observe(tts_latency)
+
+                    return {
+                        "target_lang": tgt_lang,
+                        "recipient_ids": recipients,
+                        "translation": translation,
+                        "audio_content": audio_content,
+                        "lang_pair": lang_pair
+                    }
+
+                except Exception as e:
+                    logger.error(f"Error processing language {tgt_lang}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return None
+
+            # Execute all translations in parallel
+            translation_tasks = [
+                process_language(target_lang, recipient_ids)
+                for target_lang, recipient_ids in target_langs_map.items()
+            ]
+
+            results = await asyncio.gather(*translation_tasks, return_exceptions=True)
+
+            # === STEP 5: Publish results ===
+            successful_count = 0
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.error(f"Translation task failed: {result}")
+                    continue
+                if result is None:
+                    continue
+
+                payload = {
+                    "type": "translation",
+                    "session_id": session_id,
+                    "speaker_id": speaker_id,
+                    "recipient_ids": result["recipient_ids"],  # Phase 3: NEW!
+                    "transcript": transcript,
+                    "translation": result["translation"],
+                    "audio_content": result["audio_content"].hex() if result["audio_content"] else None,
+                    "source_lang": source_lang,
+                    "target_lang": result["target_lang"],
+                    "is_final": True,
+                    "has_context": bool(context)
+                }
+
+                channel = f"channel:translation:{session_id}"
+                await redis.publish(channel, json.dumps(payload))
+                logger.info(f"✅ Published translation to {result['target_lang']} for {len(result['recipient_ids'])} recipients")
+
+                segments_processed.labels(status='success', language_pair=result["lang_pair"]).inc()
+                successful_count += 1
+
+            # Update segment buffer (use first translation for context)
+            if results and not isinstance(results[0], Exception) and results[0] is not None:
+                segment_buffer.add_segment(transcript, results[0]["translation"], start_time)
+
+            total_latency = time.time() - start_time
+            logger.info(f"⏱️ Total multiparty processing time: {total_latency:.2f}s ({successful_count} languages)")
+
+            # Track total latency for first language (representative)
+            if results and not isinstance(results[0], Exception) and results[0] is not None:
+                audio_processing_latency.labels(
+                    component='total', language_pair=results[0]["lang_pair"]
+                ).observe(total_latency)
+
+        except Exception as e:
+            logger.error(f"Error in multiparty audio processing: {e}")
+            import traceback
+            traceback.print_exc()
+
     try:
         await loop.run_in_executor(None, process_audio_chunks)
         
@@ -595,12 +806,12 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
 
         # Get metadata
         source_lang = data.get(b"source_lang", b"he-IL").decode("utf-8")
-        target_lang = data.get(b"target_lang", b"en-US").decode("utf-8")
+        # Phase 3: target_lang removed - determined by worker from database
         speaker_id = data.get(b"speaker_id", b"unknown").decode("utf-8")
         session_id = data.get(b"session_id", b"unknown").decode("utf-8")
-        
+
         key = f"{session_id}:{speaker_id}"
-        
+
         # Check if we have an active stream
         if key not in active_streams:
             # Start new stream with a thread-safe Queue
@@ -608,10 +819,10 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
             q = queue.Queue()
             active_streams[key] = q
             active_streams_gauge.set(len(active_streams))  # Update gauge
-            
+
             # Start the pause-based audio processing task and track it
             task = asyncio.create_task(handle_audio_stream(
-                session_id, speaker_id, source_lang, target_lang, q
+                session_id, speaker_id, source_lang, q
             ))
             active_tasks[key] = task
             

@@ -379,26 +379,20 @@ class CallOrchestrator:
             return
             
         logger.info(f"[WebSocket] Received {len(audio_data)} bytes from {self.user_id} in session {self.session_id}")
-        
+
         # Get source language from participant info
         source_lang = self.participant_info.get("participant_language", "he")
         source_lang = _normalize_language_code(source_lang)
-        
-        # Get target language - CACHED to avoid DB query per chunk (Issue #10 fix)
-        if not hasattr(self, '_cached_target_language') or self._cached_target_language is None:
-            self._cached_target_language = await self._get_target_language()
-            logger.info(f"[WebSocket] Cached target language: {self._cached_target_language}")
-        target_lang = _normalize_language_code(self._cached_target_language)
-        
-        logger.info(f"[WebSocket] 🎙️ Publishing audio: user={self.user_id}, session={self.session_id}, {source_lang} -> {target_lang}, {len(audio_data)} bytes")
-        
+
+        logger.info(f"[WebSocket] 🎙️ Publishing audio: user={self.user_id}, session={self.session_id}, source={source_lang}, {len(audio_data)} bytes")
+
         # Publish to Redis Stream for Worker processing
+        # Phase 3: Worker determines target languages from database for multi-party support
         try:
             result = await publish_audio_chunk(
                 session_id=self.session_id,
                 chunk=audio_data,
                 source_lang=source_lang,
-                target_lang=target_lang,
                 speaker_id=self.user_id
             )
             logger.debug(f"[WebSocket] Audio published to stream: {result}")
@@ -569,14 +563,20 @@ class CallOrchestrator:
         """
         msg_type = data.get("type")
         speaker_id = data.get("speaker_id")
-        
+        recipient_ids = data.get("recipient_ids", [])  # Phase 3: NEW!
+
         logger.info(f"[WebSocket][{self.user_id}] Processing {msg_type} from speaker {speaker_id}")
-        
+
         # Don't send back to the speaker
         if speaker_id == self.user_id:
             logger.info(f"[WebSocket][{self.user_id}] Skipping - this is from myself")
             return
-        
+
+        # Phase 3: Only send if this user is in recipient list
+        if recipient_ids and self.user_id not in recipient_ids:
+            logger.info(f"[WebSocket][{self.user_id}] Skipping - not in recipient list {recipient_ids}")
+            return
+
         logger.info(f"[WebSocket][{self.user_id}] ✅ Forwarding {msg_type} to client")
         
         if msg_type == "transcription_update":

@@ -263,6 +263,21 @@ class GCPSpeechPipeline:
         language_code: str,
         voice_name: Optional[str],
     ) -> bytes:
+        # Normalize language code to full format (e.g., "en" -> "en-US")
+        if "-" not in language_code:
+            lang_map = {
+                "en": "en-US",
+                "he": "he-IL",
+                "ru": "ru-RU",
+                "es": "es-ES",
+                "fr": "fr-FR",
+                "de": "de-DE",
+                "ar": "ar-XA",
+                "zh": "zh-CN",
+                "ja": "ja-JP",
+            }
+            language_code = lang_map.get(language_code.lower(), f"{language_code}-{language_code.upper()}")
+        
         voice_params = texttospeech.VoiceSelectionParams(
             language_code=language_code,
             name=voice_name or f"{language_code}-Standard-A",

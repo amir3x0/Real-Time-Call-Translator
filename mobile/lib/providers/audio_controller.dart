@@ -44,7 +44,7 @@ class AudioController {
   final List<int> _accumulatedChunks = [];
   Timer? _sendTimer;
   static const int _sendIntervalMs = AppConstants.audioSendIntervalMs;
-  // Note: _minChunkSize removed - now sending whatever is accumulated every 100ms
+  // Note: _minChunkSize removed - now sending whatever is accumulated every 150ms
 
   AudioController(this._wsService, this._notifyListeners);
 
@@ -212,7 +212,7 @@ class AudioController {
 
     debugPrint('[AudioController] 🟢 Starting persistent playback timer');
 
-    _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+    _playbackTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
       if (_disposed || _audioPlayer == null || !_isPlayerInitialized) {
         _playbackTimer?.cancel();
         return;
@@ -237,7 +237,18 @@ class AudioController {
   }
 
   Future<void> _setupMicrophone() async {
-    _audioRecorder ??= AudioRecorder();
+    // ⭐ CRITICAL FIX: Always create fresh AudioRecorder for each call
+    // Reusing recorder causes state corruption where isRecording() returns true
+    // even after disposal, causing microphone to silently fail on subsequent calls
+    if (_audioRecorder != null) {
+      try {
+        await _audioRecorder!.stop();
+        _audioRecorder!.dispose();
+      } catch (e) {
+        debugPrint('[AudioController] Error cleaning up old recorder: $e');
+      }
+    }
+    _audioRecorder = AudioRecorder();
 
     // Check permission status - permission should have been requested at app launch
     final hasPermission = await _audioRecorder!.hasPermission();
@@ -251,58 +262,67 @@ class AudioController {
       return;
     }
 
-    // Proceed with recording
-    final isRecording = await _audioRecorder!.isRecording();
-    if (!isRecording) {
-      try {
-        final stream = await _audioRecorder!.startStream(
-          const RecordConfig(
-            encoder: AudioEncoder.pcm16bits,
-            sampleRate: AppConstants.audioSampleRate,
-            numChannels: 1,
-            // Enable Acoustic Echo Cancellation to prevent speaker output from being picked up by mic
-            echoCancel: true,
-            // Enable Noise Suppression for better audio quality
-            noiseSuppress: true,
-            // Enable Automatic Gain Control for consistent volume
-            autoGain: true,
-          ),
-        );
-
-        _micStreamSub?.cancel();
-
-        // Start periodic sender for accumulated audio
-        _sendTimer?.cancel();
-        _sendTimer = Timer.periodic(
-          const Duration(milliseconds: _sendIntervalMs),
-          (_) => _sendAccumulatedAudio(),
-        );
-
-        _micStreamSub = stream.listen(
-          (data) {
-            if (!_isMuted) {
-              // Accumulate chunks - timer-only sends for predictable 100ms intervals
-              _accumulatedChunks.addAll(data);
-            }
-          },
-          onError: (e) => debugPrint('[AudioController] Mic stream error: $e'),
-          cancelOnError: false,
-        );
-
-        debugPrint(
-            '[AudioController] ✅ Microphone started with chunk accumulation');
-      } catch (e) {
-        debugPrint('[AudioController] ❌ Failed to start microphone: $e');
-        // Don't rethrow - call can continue without microphone (receive-only)
+    // ⭐ Always force stop before starting new stream to prevent state issues
+    try {
+      final isRecording = await _audioRecorder!.isRecording();
+      if (isRecording) {
+        debugPrint('[AudioController] ⚠️ Recorder was still recording, forcing stop...');
+        await _audioRecorder!.stop();
       }
+    } catch (e) {
+      debugPrint('[AudioController] Note: Could not check/stop recorder state: $e');
+      // Continue anyway - will try to start fresh
+    }
+
+    // Proceed with recording
+    try {
+      final stream = await _audioRecorder!.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: AppConstants.audioSampleRate,
+          numChannels: 1,
+          // Enable Acoustic Echo Cancellation to prevent speaker output from being picked up by mic
+          echoCancel: true,
+          // Enable Noise Suppression for better audio quality
+          noiseSuppress: true,
+          // Enable Automatic Gain Control for consistent volume
+          autoGain: true,
+        ),
+      );
+
+      _micStreamSub?.cancel();
+
+      // Start periodic sender for accumulated audio
+      _sendTimer?.cancel();
+      _sendTimer = Timer.periodic(
+        const Duration(milliseconds: _sendIntervalMs),
+        (_) => _sendAccumulatedAudio(),
+      );
+
+      _micStreamSub = stream.listen(
+        (data) {
+          if (!_isMuted) {
+            // Accumulate chunks - timer-only sends for predictable 150ms intervals
+            _accumulatedChunks.addAll(data);
+          }
+        },
+        onError: (e) => debugPrint('[AudioController] Mic stream error: $e'),
+        cancelOnError: false,
+      );
+
+      debugPrint(
+          '[AudioController] ✅ Microphone started with chunk accumulation');
+    } catch (e) {
+      debugPrint('[AudioController] ❌ Failed to start microphone: $e');
+      // Don't rethrow - call can continue without microphone (receive-only)
     }
   }
 
   void _sendAccumulatedAudio() {
     if (_accumulatedChunks.isEmpty || _isMuted) return;
 
-    // FIXED: Send whatever is accumulated - guarantees 100ms intervals
-    // Previously had minimum chunk size gate which caused jittery 150-200ms sends
+    // FIXED: Send whatever is accumulated - guarantees 150ms intervals
+    // Previously had minimum chunk size gate which caused jittery sends
     final audioData = Uint8List.fromList(_accumulatedChunks);
 
     // Calculate audio duration for verification
