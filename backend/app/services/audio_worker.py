@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 # Global state to track active streams
 # Key: f"{session_id}:{speaker_id}" -> Value: queue.Queue (Thread-safe queue)
 active_streams: Dict[str, queue.Queue] = {}
+
+# Spectral analysis history buffers for sliding window FFT
+# Key: stream_key -> Value: bytearray of recent audio for FFT
+_spectral_history: Dict[str, bytearray] = {}
 # Track active async tasks for cleanup
 active_tasks: Dict[str, asyncio.Task] = {}
 # Global shutdown flag for graceful termination
@@ -58,15 +62,20 @@ async def handle_audio_stream(
     SILENCE_THRESHOLD = 0.4  # 0.4 second of silence triggers processing (reduced over-segmentation)
     RMS_THRESHOLD = 300   # RMS level below which we consider it silence (lowered to catch quiet speakers)
     MIN_AUDIO_LENGTH = 0.5  # Minimum 0.5 seconds of audio before processing (reduced from 1s for faster response)
-    MAX_CHUNKS_BEFORE_FORCE = 5  # Force processing after 5 chunks (500ms at 100ms/chunk)
+    # MAX_CHUNKS_BEFORE_FORCE removed - now using time-based forcing in process_audio_chunks()
     SAMPLE_RATE = 16000
     BYTES_PER_SAMPLE = 2  # 16-bit PCM
     MIN_BYTES = int(MIN_AUDIO_LENGTH * SAMPLE_RATE * BYTES_PER_SAMPLE)  # ~16000 bytes for 0.5s
     
     def is_likely_speech(chunk: bytes) -> bool:
         """
-        Detect speech using frequency analysis, not just RMS.
-        Reduces false positives from keyboard taps, mouse clicks, etc.
+        Detect speech using FFT on a SLIDING 400ms WINDOW.
+        This reduces false negatives on speech starts compared to per-chunk analysis.
+        
+        Improvements over original:
+        - 400ms window provides stable frequency content for FFT
+        - Reduces false negatives at speech onset (first 100ms looks like noise)
+        - Still uses quick RMS check as fast path
         
         Args:
             chunk: PCM16 audio bytes
@@ -76,62 +85,90 @@ async def handle_audio_stream(
         """
         import numpy as np
         
-        # Quick RMS check first (fast path)
-        rms = audioop.rms(chunk, 2)
-        if rms < RMS_THRESHOLD:
-            return False  # Too quiet to be speech
+        # Get or create history buffer for this stream
+        if stream_key not in _spectral_history:
+            _spectral_history[stream_key] = bytearray()
         
-        # FFT analysis for frequency content
+        history = _spectral_history[stream_key]
+        history.extend(chunk)
+        
+        # Keep only last 400ms (16kHz × 2 bytes × 0.4s = 12800 bytes)
+        MAX_HISTORY = 12800
+        if len(history) > MAX_HISTORY:
+            _spectral_history[stream_key] = history[-MAX_HISTORY:]
+            history = _spectral_history[stream_key]
+        
+        # Need at least 100ms for meaningful analysis
+        MIN_ANALYSIS_BYTES = 3200  # 100ms at 16kHz mono 16-bit
+        if len(history) < MIN_ANALYSIS_BYTES:
+            return True  # Not enough data, assume speech to avoid false negatives
+        
+        # FFT on accumulated history, not just single chunk
         try:
-            audio = np.frombuffer(chunk, dtype=np.int16)
+            audio = np.frombuffer(bytes(history), dtype=np.int16)
+            rms = np.sqrt(np.mean(audio.astype(np.float64)**2))
+            
+            if rms < RMS_THRESHOLD:
+                return False  # Too quiet to be speech
+            
+            # FFT for spectral content
             fft = np.fft.rfft(audio)
             fft_magnitude = np.abs(fft)
             
-            # Speech energy: 80-4000 Hz (bins 10-500 at 16kHz sample rate)
-            # Calculation: bin_index = frequency * fft_size / sample_rate
-            # For 16kHz with typical chunk of 1600 samples:
-            #   80 Hz  → bin 10
-            #   4000 Hz → bin 500
-            speech_band = fft_magnitude[10:500].sum()
+            # Calculate bin indices based on actual FFT size
+            # bin_index = frequency * fft_size / sample_rate
+            fft_size = len(audio)
+            bin_80hz = int(80 * fft_size / SAMPLE_RATE)
+            bin_4000hz = int(4000 * fft_size / SAMPLE_RATE)
+            bin_5000hz = int(5000 * fft_size / SAMPLE_RATE)
             
-            # Noise energy: >5000 Hz (bins 600+)
-            #   5000 Hz → bin 600
-            noise_band = fft_magnitude[600:].sum()
+            # Speech energy: 80-4000 Hz
+            speech_band = fft_magnitude[bin_80hz:bin_4000hz].sum()
+            
+            # Noise energy: >5000 Hz
+            noise_band = fft_magnitude[bin_5000hz:].sum()
             
             # Speech should have dominant energy in speech frequencies
             # Ratio 2.0 = speech band must be 2x larger than high-freq noise
             return speech_band > 2.0 * noise_band
+            
         except Exception as e:
             logger.warning(f"Spectral analysis failed: {e}, falling back to RMS")
             return True  # Fallback: assume speech if analysis fails
     
     def process_audio_chunks():
-        """Process audio chunks with pause-based chunking"""
+        """Process audio chunks with pause-based chunking using TIME-BASED forcing."""
         # Audio buffer to accumulate chunks
         audio_buffer = bytearray()
         last_voice_time = time.time()
-        chunk_count = 0  # Track chunks for force processing
-        chunk_timeout = 0.1  # Reduced from 0.2s to 0.1s for faster response (100ms)
+        last_process_time = time.time()  # NEW: Track when we last processed
+        chunk_count = 0  # Keep for logging only
+        chunk_timeout = 0.1  # 100ms timeout for queue reads
+        
+        # TIME-BASED constants (more reliable than chunk counting)
+        MAX_ACCUMULATED_TIME = 0.5  # Force process after 500ms of audio (replaces chunk counting)
         
         # Check if audio_source is a queue or iterator
         is_queue = isinstance(audio_source, queue.Queue)
         
         # Helper function to process and reset buffer
         def process_and_reset(reason: str):
-            nonlocal audio_buffer, chunk_count, last_voice_time
+            nonlocal audio_buffer, chunk_count, last_voice_time, last_process_time
             if len(audio_buffer) >= MIN_BYTES:
                 current_chunk_count = chunk_count
                 audio_to_process = bytes(audio_buffer)
                 audio_buffer.clear()
                 chunk_count = 0
-                last_voice_time = time.time()
+                now = time.time()
+                last_voice_time = now
+                last_process_time = now  # Reset accumulation timer
                 
                 logger.info(f"🔄 {reason} - processing {len(audio_to_process)} bytes ({current_chunk_count} chunks)")
                 
                 # Track what triggered processing
                 if "Silence" in reason or "Pause" in reason:
                     silence_triggers.labels(trigger_type='pause').inc()
-                elif "Max chunks" in reason:
+                elif "Max" in reason or "accumulation" in reason:
                     silence_triggers.labels(trigger_type='max_chunks').inc()
                 else:
                     silence_triggers.labels(trigger_type='end_stream').inc()
@@ -189,9 +226,11 @@ async def handle_audio_stream(
                 audio_buffer.extend(chunk)
                 chunk_count += 1
                 
-                # Priority 1: Check max chunks limit (handles continuous speech without pauses)
-                if chunk_count >= MAX_CHUNKS_BEFORE_FORCE:
-                    if process_and_reset(f"⏭️  Max chunks reached ({chunk_count}/{MAX_CHUNKS_BEFORE_FORCE})"):
+                # Priority 1: TIME-BASED forcing (replaces unreliable chunk counting)
+                # This handles continuous speech without pauses deterministically
+                accumulation_time = now - last_process_time
+                if accumulation_time >= MAX_ACCUMULATED_TIME:
+                    if process_and_reset(f"⏭️  Max accumulation time ({accumulation_time:.2f}s)"):
                         continue  # Skip rest of iteration
                 
                 if is_voice:
@@ -332,6 +371,9 @@ async def handle_audio_stream(
             # Task cleanup is handled by done callback, but remove here too just in case
             if stream_key in active_tasks:
                 del active_tasks[stream_key]
+        # Clean up spectral analysis history buffer
+        if stream_key in _spectral_history:
+            del _spectral_history[stream_key]
 
 async def process_stream_message(redis, stream_key: str, message_id: str, data: dict):
     try:

@@ -44,7 +44,7 @@ class AudioController {
   final List<int> _accumulatedChunks = [];
   Timer? _sendTimer;
   static const int _sendIntervalMs = AppConstants.audioSendIntervalMs;
-  static const int _minChunkSize = AppConstants.audioMinChunkSize;
+  // Note: _minChunkSize removed - now sending whatever is accumulated every 100ms
 
   AudioController(this._wsService, this._notifyListeners);
 
@@ -300,20 +300,18 @@ class AudioController {
   void _sendAccumulatedAudio() {
     if (_accumulatedChunks.isEmpty || _isMuted) return;
 
-    // Only send if we have minimum chunk size
-    if (_accumulatedChunks.length >= _minChunkSize) {
-      final audioData = Uint8List.fromList(_accumulatedChunks);
+    // FIXED: Send whatever is accumulated - guarantees 100ms intervals
+    // Previously had minimum chunk size gate which caused jittery 150-200ms sends
+    final audioData = Uint8List.fromList(_accumulatedChunks);
 
-      // Calculate audio duration for verification
-      final durationMs =
-          (audioData.length / (AppConstants.audioSampleRate * 2) * 1000)
-              .round();
+    // Calculate audio duration for verification
+    final durationMs =
+        (audioData.length / (AppConstants.audioSampleRate * 2) * 1000).round();
 
-      _wsService.sendAudio(audioData);
-      debugPrint(
-          '[AudioController] Sent ${audioData.length} bytes (~${durationMs}ms worth)');
-      _accumulatedChunks.clear();
-    }
+    _wsService.sendAudio(audioData);
+    debugPrint(
+        '[AudioController] Sent ${audioData.length} bytes (~${durationMs}ms) at t=${DateTime.now().millisecondsSinceEpoch}');
+    _accumulatedChunks.clear();
   }
 
   Future<void> _cleanupAudioPlayer() async {
