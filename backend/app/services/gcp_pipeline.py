@@ -180,6 +180,71 @@ class GCPSpeechPipeline:
             return ""
         return response.translations[0].translated_text
 
+    def _translate_text_with_context(
+        self,
+        text: str,
+        context_history: str,
+        *,
+        source_language_code: str,
+        target_language_code: str,
+    ) -> str:
+        """
+        Translate text with context from previous segments (Phase 4).
+        
+        This helps the translation API understand the conversation flow
+        and produce more coherent translations.
+        
+        Args:
+            text: The text to translate
+            context_history: Previous transcript text for context
+            source_language_code: Source language (e.g., "en")
+            target_language_code: Target language (e.g., "he")
+            
+        Returns:
+            Translated text
+        """
+        # If no context, use regular translation
+        if not context_history or len(context_history.strip()) == 0:
+            return self._translate_text(
+                text,
+                source_language_code=source_language_code,
+                target_language_code=target_language_code
+            )
+        
+        # Create a context-aware prompt
+        # Note: GCP Translate doesn't have native context support,
+        # so we format the context as a hint that helps with coherence
+        context_snippet = context_history[-150:].strip()  # Last ~150 chars
+        
+        # Format: Translate the continuation of a conversation
+        # The context helps with pronouns, subject continuity, etc.
+        text_with_context = f"[...{context_snippet}] {text}"
+        
+        try:
+            result = self._translate_text(
+                text_with_context,
+                source_language_code=source_language_code,
+                target_language_code=target_language_code
+            )
+            
+            # Remove any translated context prefix if present
+            # (GCP might translate the [...] part)
+            if result.startswith("[") and "]" in result:
+                # Find the closing bracket and skip past it
+                bracket_end = result.index("]") + 1
+                result = result[bracket_end:].strip()
+            
+            logger.info(f"[GCP] Context-aware translation: '{text}' -> '{result}' (with {len(context_snippet)} chars context)")
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Context-aware translation failed: {e}, falling back to regular translation")
+            return self._translate_text(
+                text,
+                source_language_code=source_language_code,
+                target_language_code=target_language_code
+            )
+
     def _synthesize(
         self,
         text: str,

@@ -323,3 +323,130 @@ async def handle_audio_stream(...):
         }))
 Why: Prevents "I love pizza" → ["I love", "pizza"] fragmentation. Translator understands full context.
 
+
+
+CONTEXT PRESERVATION STRATEGIES
+Since you asked specifically about better preservation of context while maintaining real-time requirements, here are your options:
+
+Option A: Post-Processing Merging (Easiest)
+python
+# Keep last N segments in memory
+recent_segments = []  # List of (transcript, translation, timestamp)
+MERGE_WINDOW = 2  # seconds
+
+async def should_merge_with_previous(transcript, time_now):
+    """Merge short fragments if they're close together"""
+    if not recent_segments:
+        return False
+    
+    last_transcript, last_translation, last_time = recent_segments[-1]
+    time_diff = time_now - last_time
+    
+    # Heuristics:
+    # - Fragment < 5 words AND within 500ms of previous
+    # - No sentence-ending punctuation
+    if (len(transcript.split()) < 5 and 
+        time_diff < 0.5 and
+        not last_transcript.endswith(('.', '!', '?'))):
+        
+        # Merge with previous
+        merged_transcript = last_transcript + " " + transcript
+        merged_translation = await pipeline._translate_text(
+            merged_transcript,  # ← Full context
+            source_lang[:2],
+            target_lang[:2]
+        )
+        recent_segments[-1] = (merged_transcript, merged_translation, time_now)
+        return True
+    
+    return False
+Trade-off: Adds 100-300ms latency (merging waits to see if next chunk comes), but hugely improves context.
+
+Option B: Streaming Translation with Context (Better)
+Use GCP's Streaming API with incremental translation:
+
+python
+async def handle_audio_stream_with_streaming_translate(...):
+    """Use GCP Streaming Speech-to-Text + incremental translate"""
+    session_text = ""  # Accumulate everything
+    
+    async def stream_transcribe_and_translate():
+        # GCP Streaming API (returns interim results!)
+        async for interim_transcript, is_final in stream_recognize(audio_source):
+            # Accumulate
+            if is_final:
+                session_text += interim_transcript
+            
+            # Translate INCREMENTALLY with full context
+            translation = await pipeline._translate_text(
+                session_text,  # ← Full context every time!
+                context_aware=True
+            )
+            
+            # Publish immediately (interim or final)
+            await redis.publish(channel, json.dumps({
+                "type": "translation",
+                "transcript": interim_transcript,
+                "full_transcript": session_text,
+                "translation": translation,
+                "is_final": is_final,
+                "is_interim": not is_final
+            }))
+Trade-off: Requires GCP Streaming API (higher cost), but context is preserved perfectly. Latency drops to 200-300ms.
+
+Option C: Hybrid Approach (Recommended for Your Case)
+Use pause-based segmentation BUT with context-aware merging:
+
+python
+class SegmentBuffer:
+    def __init__(self):
+        self.segments = []  # (transcript, translation, time)
+        self.full_context = ""  # All transcripts
+    
+    def add_segment(self, transcript, translation, timestamp):
+        self.segments.append((transcript, translation, timestamp))
+        self.full_context += " " + transcript
+    
+    def should_merge_recent(self, max_age_sec=2.0):
+        """Check if last 2 segments should be merged"""
+        if len(self.segments) < 2:
+            return False
+        
+        t1, trans1, time1 = self.segments[-2]
+        t2, trans2, time2 = self.segments[-1]
+        
+        # Merge if:
+        # - Both short fragments (< 5 words each)
+        # - Close together (< 1 second)
+        # - No sentence boundary between them
+        if (len(t1.split()) <= 5 and 
+            len(t2.split()) <= 5 and
+            (time2 - time1) < 1.0 and
+            not t1.endswith(('.', '!', '?', ','))):
+            
+            return True
+        
+        return False
+    
+    async def finalize_for_publish(self):
+        """Merge recent segments before publishing"""
+        while self.should_merge_recent():
+            t1, trans1, time1 = self.segments.pop(-2)
+            t2, trans2, time2 = self.segments.pop(-1)
+            
+            merged_t = t1 + " " + t2
+            # Re-translate merged with full context
+            merged_trans = await pipeline._translate_text(merged_t)
+            
+            self.segments.append((merged_t, merged_trans, time2))
+        
+        return self.segments[-1]  # Return merged result
+This solves your problem:
+
+✅ Pause-based segmentation (real-time)
+
+✅ Context preservation (merging)
+
+✅ No extra latency (merging happens server-side)
+
+✅ Handles both sentence boundaries and natural speech pauses

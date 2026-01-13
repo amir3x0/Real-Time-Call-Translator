@@ -3,8 +3,9 @@ import json
 import logging
 import os
 import time
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 import queue
+from dataclasses import dataclass, field
 
 from app.config.redis import get_redis
 from app.services.gcp_pipeline import _get_pipeline
@@ -35,6 +36,142 @@ _spectral_history: Dict[str, bytearray] = {}
 active_tasks: Dict[str, asyncio.Task] = {}
 # Global shutdown flag for graceful termination
 _shutdown_flag = False
+
+# === OPTION C: Hybrid Context Preservation (Pause-based + Smart Merging) ===
+
+@dataclass
+class SegmentBuffer:
+    """
+    Option C: Hybrid approach combining pause-based segmentation with 
+    context-aware merging for better translation quality.
+    
+    Features:
+    - Tracks recent segments with (transcript, translation, timestamp)
+    - should_merge_recent(): Checks if last 2 segments should be merged
+    - finalize_for_publish(): Batch merges before sending
+    - full_context: Accumulated transcript for Phase 4 context hints
+    """
+    # Configuration
+    MERGE_TIME_WINDOW: float = 1.0  # seconds - merge if within this time (increased from 0.5)
+    MIN_WORDS_TO_KEEP_SEPARATE: int = 5  # don't merge segments with >= this many words
+    SENTENCE_ENDINGS: Tuple[str, ...] = ('.', '!', '?')
+    CLAUSE_ENDINGS: Tuple[str, ...] = ('.', '!', '?', ',')  # Include comma for Option C
+    
+    # State
+    segments: List[Tuple[str, str, float]] = field(default_factory=list)  # (transcript, translation, timestamp)
+    full_context: str = ""  # All transcripts accumulated
+    
+    def should_merge_with_previous(self, new_transcript: str, timestamp: float) -> bool:
+        """Check if new segment should be merged with the previous one."""
+        if not self.segments:
+            return False
+        
+        last_transcript, last_translation, last_time = self.segments[-1]
+        time_diff = timestamp - last_time
+        
+        # Merge if:
+        # - New fragment < 5 words AND within time window
+        # - Previous segment doesn't end with sentence punctuation
+        if (len(new_transcript.split()) < self.MIN_WORDS_TO_KEEP_SEPARATE and 
+            time_diff < self.MERGE_TIME_WINDOW and
+            not last_transcript.rstrip().endswith(self.SENTENCE_ENDINGS)):
+            return True
+        
+        return False
+    
+    def should_merge_recent(self) -> bool:
+        """
+        Option C: Check if the last 2 segments should be merged.
+        Called before publishing to catch fragments that slipped through.
+        """
+        if len(self.segments) < 2:
+            return False
+        
+        t1, trans1, time1 = self.segments[-2]
+        t2, trans2, time2 = self.segments[-1]
+        
+        # Merge if:
+        # - Both short fragments (<= 5 words each)
+        # - Close together (< 1 second)
+        # - No sentence boundary between them (no . ! ? ,)
+        if (len(t1.split()) <= self.MIN_WORDS_TO_KEEP_SEPARATE and 
+            len(t2.split()) <= self.MIN_WORDS_TO_KEEP_SEPARATE and
+            (time2 - time1) < self.MERGE_TIME_WINDOW and
+            not t1.rstrip().endswith(self.CLAUSE_ENDINGS)):
+            return True
+        
+        return False
+    
+    def add_segment(self, transcript: str, translation: str, timestamp: float):
+        """Add a new segment to the buffer."""
+        self.segments.append((transcript, translation, timestamp))
+        self.full_context += " " + transcript
+        
+        # Keep only last 10 segments to prevent memory growth
+        if len(self.segments) > 10:
+            self.segments.pop(0)
+    
+    def merge_last_two(self, new_translation: str, timestamp: float) -> Tuple[str, str]:
+        """Merge the last two segments and update with new translation."""
+        if len(self.segments) < 1:
+            return ("", "")
+        
+        last_transcript, _, last_time = self.segments.pop()
+        merged_transcript = last_transcript
+        
+        # Update the last segment with merged content
+        if self.segments:
+            prev_transcript, _, _ = self.segments.pop()
+            merged_transcript = prev_transcript + " " + last_transcript
+        
+        self.segments.append((merged_transcript, new_translation, timestamp))
+        return (merged_transcript, new_translation)
+    
+    async def finalize_for_publish(self, pipeline, source_lang: str, target_lang: str, loop) -> Optional[Tuple[str, str]]:
+        """
+        Option C: Batch merge recent segments before publishing.
+        Returns the final (transcript, translation) after merging, or None if no segments.
+        """
+        if not self.segments:
+            return None
+        
+        # Keep merging while should_merge_recent() is True
+        merge_count = 0
+        while self.should_merge_recent():
+            t1, trans1, time1 = self.segments.pop(-2)
+            t2, trans2, time2 = self.segments.pop(-1)
+            
+            merged_t = t1 + " " + t2
+            
+            # Re-translate merged text with context (Phase 4)
+            context = self.get_context_for_translation()
+            
+            def translate_merged():
+                return pipeline._translate_text_with_context(
+                    merged_t,
+                    context,
+                    source_language_code=source_lang[:2],
+                    target_language_code=target_lang[:2]
+                )
+            
+            merged_trans = await loop.run_in_executor(None, translate_merged)
+            self.segments.append((merged_t, merged_trans, time2))
+            merge_count += 1
+            
+            logger.info(f"🔗 Finalize merge: '{t1}' + '{t2}' -> '{merged_t}'")
+        
+        if merge_count > 0:
+            logger.info(f"📦 Finalized {merge_count} merge(s)")
+        
+        return self.segments[-1][:2] if self.segments else None
+    
+    def get_context_for_translation(self, max_chars: int = 200) -> str:
+        """Get recent context to help with translation (Phase 4)."""
+        return self.full_context[-max_chars:].strip() if self.full_context else ""
+
+# Segment buffers for context preservation
+# Key: stream_key -> Value: SegmentBuffer
+_segment_buffers: Dict[str, SegmentBuffer] = {}
 
 async def handle_audio_stream(
     session_id: str,
@@ -261,10 +398,20 @@ async def handle_audio_stream(
             )
 
     async def process_accumulated_audio(audio_data: bytes, pipeline, redis, loop, session_id, speaker_id, source_lang, target_lang):
-        """Process accumulated audio chunk: transcribe, translate, TTS, and publish"""
+        """Process accumulated audio chunk: transcribe, translate, TTS, and publish.
+        
+        Implements:
+        - Option C: Hybrid context-aware merging
+        - Phase 4: Context hints passed to translation API
+        """
         import time
         start_time = time.time()
         lang_pair = f"{source_lang}_{target_lang}"
+        
+        # Get or create segment buffer for this stream
+        if stream_key not in _segment_buffers:
+            _segment_buffers[stream_key] = SegmentBuffer()
+        segment_buffer = _segment_buffers[stream_key]
         
         try:
             logger.info(f"🔄 Processing accumulated audio chunk ({len(audio_data)} bytes) after pause")
@@ -286,20 +433,59 @@ async def handle_audio_stream(
             
             logger.info(f"📝 Transcript: '{transcript}'")
             
-            # Translate (also blocking, but faster)
-            def translate_chunk():
-                return pipeline._translate_text(
-                    transcript,
-                    source_language_code=source_lang[:2],
-                    target_language_code=target_lang[:2]
-                )
+            # === OPTION C: Context-aware merging with Phase 4 context hints ===
+            should_merge = segment_buffer.should_merge_with_previous(transcript, start_time)
             
-            translate_start = time.time()
-            translation = await loop.run_in_executor(None, translate_chunk)
-            audio_processing_latency.labels(
-                component='translate', language_pair=lang_pair
-            ).observe(time.time() - translate_start)
-            logger.info(f"🔄 Translation: '{translation}'")
+            # Get context for Phase 4 context-aware translation
+            context = segment_buffer.get_context_for_translation()
+            
+            if should_merge and segment_buffer.segments:
+                # Merge with previous segment
+                last_transcript, last_translation, _ = segment_buffer.segments[-1]
+                merged_transcript = last_transcript + " " + transcript
+                
+                logger.info(f"🔗 Merging segments: '{last_transcript}' + '{transcript}' -> '{merged_transcript}'")
+                
+                # Re-translate merged transcript with context (Phase 4)
+                def translate_merged():
+                    return pipeline._translate_text_with_context(
+                        merged_transcript,
+                        context,
+                        source_language_code=source_lang[:2],
+                        target_language_code=target_lang[:2]
+                    )
+                
+                translate_start = time.time()
+                translation = await loop.run_in_executor(None, translate_merged)
+                audio_processing_latency.labels(
+                    component='translate', language_pair=lang_pair
+                ).observe(time.time() - translate_start)
+                
+                # Update buffer with merged segment
+                segment_buffer.merge_last_two(translation, start_time)
+                transcript = merged_transcript
+                
+                logger.info(f"🔄 Merged Translation (with context): '{translation}'")
+            else:
+                # Normal translation with context (Phase 4)
+                def translate_chunk():
+                    return pipeline._translate_text_with_context(
+                        transcript,
+                        context,
+                        source_language_code=source_lang[:2],
+                        target_language_code=target_lang[:2]
+                    )
+                
+                translate_start = time.time()
+                translation = await loop.run_in_executor(None, translate_chunk)
+                audio_processing_latency.labels(
+                    component='translate', language_pair=lang_pair
+                ).observe(time.time() - translate_start)
+                
+                # Add to buffer for future merging
+                segment_buffer.add_segment(transcript, translation, start_time)
+                
+                logger.info(f"🔄 Translation (with context): '{translation}'")
             
             # TTS (blocking)
             def synthesize_chunk():
@@ -334,7 +520,9 @@ async def handle_audio_stream(
                 "audio_content": audio_content.hex() if audio_content else None,
                 "source_lang": source_lang,
                 "target_lang": target_lang,
-                "is_final": True
+                "is_final": True,
+                "is_merged": should_merge,  # Flag to indicate this was a merged segment
+                "has_context": bool(context)  # Flag to indicate context was used
             }
             
             channel = f"channel:translation:{session_id}"
@@ -374,6 +562,9 @@ async def handle_audio_stream(
         # Clean up spectral analysis history buffer
         if stream_key in _spectral_history:
             del _spectral_history[stream_key]
+        # Clean up segment buffer for context preservation
+        if stream_key in _segment_buffers:
+            del _segment_buffers[stream_key]
 
 async def process_stream_message(redis, stream_key: str, message_id: str, data: dict):
     try:
