@@ -198,39 +198,40 @@ class AudioController {
     );
   }
 
+  /// Ensure playback timer is running
   void _startBufferedPlayback() {
-    // ⭐ Guard against disposed state
     if (_disposed || _audioPlayer == null || !_isPlayerInitialized) {
-      debugPrint('[AudioController] Skipping playback - disposed or not ready');
       return;
     }
 
-    _playbackTimer?.cancel();
+    // FIX: Don't recreate timer if already running.
+    // Persistent timer prevents "Timer cancels itself" bug.
+    if (_playbackTimer != null && _playbackTimer!.isActive) {
+      return;
+    }
 
-    // Play chunks at regular intervals to smooth out jitter
-    int playedChunks = 0;
+    debugPrint('[AudioController] 🟢 Starting persistent playback timer');
+
     _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      // ⭐ Check disposed state inside timer
       if (_disposed || _audioPlayer == null || !_isPlayerInitialized) {
         _playbackTimer?.cancel();
-        _playbackTimer = null;
         return;
       }
 
+      // Play accumulated chunks
       if (_audioBuffer.isNotEmpty) {
         final chunk = _audioBuffer.removeFirst();
-        playedChunks++;
-        debugPrint(
-            '[AudioController] 🔈 Playing chunk #$playedChunks: ${chunk.length} bytes');
-        _audioPlayer!.uint8ListSink?.add(chunk);
-      } else if (_audioBuffer.isEmpty && !_isBuffering) {
-        // Buffer underrun - stop playing and wait for buffer to refill
-        _isBuffering = true;
-        debugPrint(
-            '[AudioController] Buffer underrun, entering buffering mode');
-        // Stop the timer until we have enough buffered data again
-        _playbackTimer?.cancel();
-        _playbackTimer = null;
+        try {
+          _audioPlayer!.uint8ListSink?.add(chunk);
+        } catch (e) {
+          debugPrint('[AudioController] ❌ Playback error: $e');
+        }
+      } else {
+        // Buffer empty - just wait, don't cancel timer!
+        if (!_isBuffering) {
+          // Optional logic: Mark buffering if needed, but keeping timer alive is key
+          // debugPrint('[AudioController] Buffer underrun (timer active)');
+        }
       }
     });
   }
@@ -332,29 +333,51 @@ class AudioController {
     }
   }
 
-  /// Toggle mute state
-  void toggleMute() {
+  /// Toggle mute state with physical mic pause
+  Future<void> toggleMute() async {
     _isMuted = !_isMuted;
     debugPrint('[AudioController] Toggling mute: $_isMuted');
 
-    if (_isMuted) {
-      // Stop timer when muted
-      _sendTimer?.cancel();
-      _sendTimer = null;
-      // Clear accumulated chunks to prevent memory buildup
-      _accumulatedChunks.clear();
-      debugPrint('[AudioController] 🔴 Muted - stopped send timer');
-    } else {
-      // Restart timer when unmuted
-      _sendTimer = Timer.periodic(
-        const Duration(milliseconds: _sendIntervalMs),
-        (_) => _sendAccumulatedAudio(),
-      );
-      debugPrint('[AudioController] 🟢 Unmuted - restarted send timer');
-    }
+    try {
+      if (_isMuted) {
+        // Stop timer AND physical mic
+        _sendTimer?.cancel();
+        _sendTimer = null;
+        _accumulatedChunks.clear();
 
-    _wsService.setMuted(_isMuted);
-    _notifyListeners();
+        if (_audioRecorder != null && await _audioRecorder!.isRecording()) {
+          await _audioRecorder!.pause();
+          debugPrint('[AudioController] ⏸️ Microphone paused (physical)');
+        }
+        debugPrint('[AudioController] 🔴 Muted - stopped send timer');
+      } else {
+        // Resume physical mic
+        if (_audioRecorder != null) {
+          if (await _audioRecorder!.isPaused()) {
+            await _audioRecorder!.resume();
+            debugPrint('[AudioController] ▶️ Microphone resumed (physical)');
+          } else if (!(await _audioRecorder!.isRecording())) {
+            // Edge case: recorder stopped? Restart it.
+            debugPrint(
+                '[AudioController] ⚠️ Microphone was stopped, restarting...');
+            await _setupMicrophone();
+          }
+        }
+
+        // Restart timer
+        _sendTimer?.cancel();
+        _sendTimer = Timer.periodic(
+          const Duration(milliseconds: _sendIntervalMs),
+          (_) => _sendAccumulatedAudio(),
+        );
+        debugPrint('[AudioController] 🟢 Unmuted - restarted send timer');
+      }
+
+      _wsService.setMuted(_isMuted);
+      _notifyListeners();
+    } catch (e) {
+      debugPrint('[AudioController] ❌ Error toggling mute: $e');
+    }
   }
 
   /// Switch audio output to earpiece (receiver)

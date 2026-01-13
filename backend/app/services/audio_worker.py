@@ -36,6 +36,10 @@ _spectral_history: Dict[str, bytearray] = {}
 active_tasks: Dict[str, asyncio.Task] = {}
 # Global shutdown flag for graceful termination
 _shutdown_flag = False
+# Issue #8 Fix: Track processed message IDs to prevent duplicate processing (echo)
+# Uses a set with TTL-like cleanup to prevent unbounded growth
+_processed_message_ids: Dict[str, float] = {}  # message_id -> timestamp
+_DEDUP_TTL_SECONDS = 30.0  # How long to remember a message ID
 
 # === OPTION C: Hybrid Context Preservation (Pause-based + Smart Merging) ===
 
@@ -567,7 +571,23 @@ async def handle_audio_stream(
             del _segment_buffers[stream_key]
 
 async def process_stream_message(redis, stream_key: str, message_id: str, data: dict):
+    global _processed_message_ids
+    
     try:
+        # Issue #8 Fix: Skip duplicate messages to prevent echo
+        now = time.time()
+        if message_id in _processed_message_ids:
+            logger.debug(f"Skipping duplicate message: {message_id}")
+            return
+        
+        # Clean up old entries to prevent memory growth
+        expired = [mid for mid, ts in _processed_message_ids.items() if now - ts > _DEDUP_TTL_SECONDS]
+        for mid in expired:
+            del _processed_message_ids[mid]
+        
+        # Track this message
+        _processed_message_ids[message_id] = now
+        
         # Get audio data
         audio_data = data.get(b"data")
         if not audio_data:

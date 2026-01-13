@@ -143,7 +143,13 @@ class GCPSpeechPipeline:
         )
         audio = speech.RecognitionAudio(content=chunk)
         try:
-            response = self._speech_client.recognize(config=config, audio=audio)
+            # Issue 7: Translation Timeout (User waits 30+s)
+            # Add explicit timeout safely (fail fast)
+            response = self._speech_client.recognize(
+                config=config, 
+                audio=audio,
+                timeout=7.0
+            )
             logger.info(f"[GCP] STT Response: results_count={len(response.results) if response.results else 0}")
             if not response.results:
                 logger.info("[GCP] STT: No speech detected in this chunk")
@@ -167,18 +173,23 @@ class GCPSpeechPipeline:
         target_language_code: str,
     ) -> str:
         parent = f"projects/{self.project_id}/locations/{self.location}"
-        response = self._translate_client.translate_text(
-            request={
-                "parent": parent,
-                "contents": [text],
-                "mime_type": "text/plain",
-                "source_language_code": source_language_code,
-                "target_language_code": target_language_code,
-            }
-        )
-        if not response.translations:
-            return ""
-        return response.translations[0].translated_text
+        try:
+            response = self._translate_client.translate_text(
+                request={
+                    "parent": parent,
+                    "contents": [text],
+                    "mime_type": "text/plain",
+                    "source_language_code": source_language_code,
+                    "target_language_code": target_language_code,
+                },
+                timeout=5.0  # Fail fast on translation
+            )
+            if not response.translations:
+                return ""
+            return response.translations[0].translated_text
+        except Exception as e:
+            logger.error(f"[GCP] Translate Error: {e}")
+            return text  # Fallback to original text
 
     def _translate_text_with_context(
         self,
@@ -263,12 +274,17 @@ class GCPSpeechPipeline:
             pitch=0.0,
         )
         synthesis_input = texttospeech.SynthesisInput(text=text)
-        response = self._tts_client.synthesize_speech(
-            input=synthesis_input,
-            voice=voice_params,
-            audio_config=audio_config,
-        )
-        return response.audio_content
+        try:
+            response = self._tts_client.synthesize_speech(
+                input=synthesis_input,
+                voice=voice_params,
+                audio_config=audio_config,
+                timeout=10.0 # Allow slightly more for audio generation
+            )
+            return response.audio_content
+        except Exception as e:
+            logger.error(f"[GCP] TTS Error: {e}")
+            return b""
 
 
     def streaming_transcribe(

@@ -272,7 +272,16 @@ class CallOrchestrator:
         
         try:
             while True:
-                message = await self.websocket.receive()
+                # Issue 6: Heartbeat Not Validated (Zombie Calls)
+                # Wait for message with timeout (35s > 30s heartbeat interval)
+                try:
+                    message = await asyncio.wait_for(
+                        self.websocket.receive(), 
+                        timeout=35.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(f"[WebSocket] User {self.user_id} zombie connection timeout - disconnecting")
+                    break
                 
                 # LOG EVERYTHING
                 msg_type = message.get('type')
@@ -317,14 +326,9 @@ class CallOrchestrator:
                 await self.websocket.send_json({"type": "pong"})
                 
             elif msg_type == 'audio':
-                # Fallback for when binary frames are blocked/dropped
-                # Audio data encoded as base64 in "data" field
-                import base64
-                try:
-                    audio_bytes = base64.b64decode(data.get('data', ''))
-                    await self._handle_binary_message(audio_bytes)
-                except Exception as e:
-                    logger.error(f"[WebSocket] Failed to decode base64 audio: {e}")
+                # Issue #2 Fix: Base64 fallback removed - binary frames are reliable
+                # Previously this caused duplication if client sent both binary AND JSON
+                logger.warning(f"[WebSocket] Received deprecated 'audio' JSON message, ignoring (use binary frames)")
             
             else:
                 logger.warning(f"[WebSocket] Unknown message type: {msg_type}")
@@ -380,9 +384,11 @@ class CallOrchestrator:
         source_lang = self.participant_info.get("participant_language", "he")
         source_lang = _normalize_language_code(source_lang)
         
-        # Get target language (the other participant's language)
-        target_lang = await self._get_target_language()
-        target_lang = _normalize_language_code(target_lang)
+        # Get target language - CACHED to avoid DB query per chunk (Issue #10 fix)
+        if not hasattr(self, '_cached_target_language') or self._cached_target_language is None:
+            self._cached_target_language = await self._get_target_language()
+            logger.info(f"[WebSocket] Cached target language: {self._cached_target_language}")
+        target_lang = _normalize_language_code(self._cached_target_language)
         
         logger.info(f"[WebSocket] 🎙️ Publishing audio: user={self.user_id}, session={self.session_id}, {source_lang} -> {target_lang}, {len(audio_data)} bytes")
         
@@ -433,8 +439,8 @@ class CallOrchestrator:
         # Only mark user as offline when disconnecting from LOBBY
         # (call session disconnect should NOT affect online status - user still has lobby connection)
         if self.session_id == "lobby":
-            async with AsyncSessionLocal() as db:
-                await status_service.set_user_offline(self.user_id, db, connection_manager)
+            # Issue D Fix: Use grace period to prevent status flicker
+            await status_service.set_user_offline_with_grace(self.user_id, None, connection_manager)
         else:
             logger.info(f"[WebSocket] User {self.user_id} disconnected from call session {self.session_id}, NOT marking offline (lobby still active)")
     

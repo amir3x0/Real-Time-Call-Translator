@@ -43,7 +43,8 @@ class CallProvider with ChangeNotifier {
   StreamSubscription<WSMessage>? _wsSub;
 
   // Helpers (SRP: Each handles specific responsibility)
-  late final AudioController _audioController;
+  // Issue B Fix: AudioController is now nullable, recreated fresh for each call
+  AudioController? _audioController;
   late final CaptionManager _captionManager;
   late final TranscriptionManager _transcriptionManager;
 
@@ -52,7 +53,7 @@ class CallProvider with ChangeNotifier {
     required CallApiService apiService,
   })  : _wsService = wsService,
         _apiService = apiService {
-    _audioController = AudioController(_wsService, notifyListeners);
+    // AudioController NOT created here - created fresh per call in _joinCallSession
     _captionManager = CaptionManager(notifyListeners, () => _disposed);
     _transcriptionManager =
         TranscriptionManager(notifyListeners, () => _disposed);
@@ -70,8 +71,8 @@ class CallProvider with ChangeNotifier {
   TranscriptionEntry? get latestTranscription =>
       _transcriptionManager.latestEntry;
   String? get activeSpeakerId => _activeSpeakerId;
-  bool get isMuted => _audioController.isMuted;
-  bool get isSpeakerOn => _audioController.isSpeakerOn;
+  bool get isMuted => _audioController?.isMuted ?? false;
+  bool get isSpeakerOn => _audioController?.isSpeakerOn ?? false;
 
   // === Testing helpers ===
 
@@ -203,14 +204,17 @@ class CallProvider with ChangeNotifier {
     debugPrint('[CallProvider] Successfully connected to call session');
     _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
 
-    // Initialize Audio
-    await _audioController.initAudio();
+    // Issue B Fix: Create FRESH AudioController for each call
+    _audioController?.dispose(); // Clean up any previous instance
+    _audioController = AudioController(_wsService, notifyListeners);
+    await _audioController!.initAudio();
   }
 
   /// End the call (called by user or when remote call_ended received)
   void endCall() {
     debugPrint('[CallProvider] endCall called');
-    _audioController.dispose();
+    _audioController?.dispose();
+    _audioController = null; // Issue B: Release reference for GC
     _status = CallStatus.ended;
     _participants = [];
     _activeSessionId = null;
@@ -235,9 +239,9 @@ class CallProvider with ChangeNotifier {
 
   // === Audio Controls ===
 
-  void toggleMute() => _audioController.toggleMute();
+  Future<void> toggleMute() async => await _audioController?.toggleMute();
 
-  Future<void> toggleSpeaker() => _audioController.toggleSpeaker();
+  Future<void> toggleSpeaker() async => await _audioController?.toggleSpeaker();
 
   // === WebSocket Message Handling ===
 
