@@ -1,15 +1,16 @@
 class AppConstants {
-  // Audio Configuration
+  // === OUTGOING AUDIO (Microphone → Backend) ===
   static const int audioSendIntervalMs =
-      60; // Reduced from 300ms for lower latency
+      150; // How often we send to server (increased from 100ms for lower network overhead)
   static const int audioMinChunkSize =
-      1920; // ~60ms at 16kHz (was 6400 for 200ms)
-  static const int audioMaxBufferSize =
-      12; // Drop old chunks if buffer grows too large
+      4800; // Minimum bytes to send (~150ms at 16kHz, 16000 Hz × 2 bytes × 0.15s)
+  static const int audioSampleRate = 16000; // Sample rate for recording
+
+  // === INCOMING AUDIO (Backend → Speaker) ===
+  static const int audioMaxBufferSize = 8; // Jitter buffer: max chunks to keep (~1.2s at 150ms chunks, reduced from 12 for lower latency)
   static const int audioMinBufferSize =
-      1; // Wait for 1 chunk before playing (low latency)
-  static const int audioSampleRate = 16000;
-  static const int audioBufferSize = 8192;
+      1; // Jitter buffer: min chunks before playing
+  static const int audioBufferSize = 8192; // FlutterSound internal buffer size
 
   // API Configuration
   static const int apiTimeoutSeconds = 30;

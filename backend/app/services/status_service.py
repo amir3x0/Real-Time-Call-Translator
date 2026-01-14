@@ -34,6 +34,10 @@ class StatusService:
     HEARTBEAT_INTERVAL = 30  # seconds - clients send heartbeat every 30s
     HEARTBEAT_TTL = 60  # seconds - Redis key TTL (expires if no heartbeat)
     CLEANUP_INTERVAL = 120  # seconds - how often to sync Redis → DB
+    OFFLINE_GRACE_PERIOD = 5.0  # Issue D Fix: seconds to wait before marking offline
+    
+    # Issue D Fix: Track pending offline tasks to prevent status flicker
+    _pending_offline_tasks: dict = {}  # user_id -> asyncio.Task
     
     @staticmethod
     async def get_user_contacts(user_id: str, db: AsyncSession) -> List[str]:
@@ -59,6 +63,12 @@ class StatusService:
         - User connects via WebSocket
         - User logs in
         """
+        # Issue D Fix: Cancel any pending offline task (user reconnected!)
+        if user_id in StatusService._pending_offline_tasks:
+            StatusService._pending_offline_tasks[user_id].cancel()
+            del StatusService._pending_offline_tasks[user_id]
+            logger.info(f"User {user_id} reconnected - cancelled pending offline")
+        
         redis = await get_redis()
         
         # Set Redis key with TTL
@@ -128,6 +138,38 @@ class StatusService:
                 contact_user_ids=contact_user_ids
             )
             logger.info(f"Notified {notified} contacts about user {user_id} going offline")
+    
+    @staticmethod
+    async def set_user_offline_with_grace(user_id: str, db: AsyncSession = None, connection_manager=None):
+        """
+        Issue D Fix: Mark user as offline AFTER grace period.
+        
+        This prevents status flicker when user switches sockets
+        (e.g., disconnecting from lobby to join call).
+        
+        If user reconnects within OFFLINE_GRACE_PERIOD seconds,
+        set_user_online() cancels the pending offline task.
+        """
+        # Cancel any existing pending task for this user
+        if user_id in StatusService._pending_offline_tasks:
+            StatusService._pending_offline_tasks[user_id].cancel()
+        
+        async def delayed_offline():
+            try:
+                await asyncio.sleep(StatusService.OFFLINE_GRACE_PERIOD)
+                # User didn't reconnect within grace period - actually mark offline
+                async with AsyncSessionLocal() as db_session:
+                    await StatusService.set_user_offline(user_id, db_session, connection_manager)
+            except asyncio.CancelledError:
+                logger.debug(f"User {user_id} offline cancelled (reconnected in time)")
+            finally:
+                if user_id in StatusService._pending_offline_tasks:
+                    del StatusService._pending_offline_tasks[user_id]
+        
+        # Schedule the delayed offline task
+        task = asyncio.create_task(delayed_offline())
+        StatusService._pending_offline_tasks[user_id] = task
+        logger.info(f"User {user_id} scheduled for offline in {StatusService.OFFLINE_GRACE_PERIOD}s")
     
     @staticmethod
     async def heartbeat(user_id: str):

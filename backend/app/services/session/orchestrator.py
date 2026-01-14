@@ -272,7 +272,16 @@ class CallOrchestrator:
         
         try:
             while True:
-                message = await self.websocket.receive()
+                # Issue 6: Heartbeat Not Validated (Zombie Calls)
+                # Wait for message with timeout (35s > 30s heartbeat interval)
+                try:
+                    message = await asyncio.wait_for(
+                        self.websocket.receive(), 
+                        timeout=35.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(f"[WebSocket] User {self.user_id} zombie connection timeout - disconnecting")
+                    break
                 
                 # LOG EVERYTHING
                 msg_type = message.get('type')
@@ -317,14 +326,9 @@ class CallOrchestrator:
                 await self.websocket.send_json({"type": "pong"})
                 
             elif msg_type == 'audio':
-                # Fallback for when binary frames are blocked/dropped
-                # Audio data encoded as base64 in "data" field
-                import base64
-                try:
-                    audio_bytes = base64.b64decode(data.get('data', ''))
-                    await self._handle_binary_message(audio_bytes)
-                except Exception as e:
-                    logger.error(f"[WebSocket] Failed to decode base64 audio: {e}")
+                # Issue #2 Fix: Base64 fallback removed - binary frames are reliable
+                # Previously this caused duplication if client sent both binary AND JSON
+                logger.warning(f"[WebSocket] Received deprecated 'audio' JSON message, ignoring (use binary frames)")
             
             else:
                 logger.warning(f"[WebSocket] Unknown message type: {msg_type}")
@@ -375,24 +379,20 @@ class CallOrchestrator:
             return
             
         logger.info(f"[WebSocket] Received {len(audio_data)} bytes from {self.user_id} in session {self.session_id}")
-        
+
         # Get source language from participant info
         source_lang = self.participant_info.get("participant_language", "he")
         source_lang = _normalize_language_code(source_lang)
-        
-        # Get target language (the other participant's language)
-        target_lang = await self._get_target_language()
-        target_lang = _normalize_language_code(target_lang)
-        
-        logger.info(f"[WebSocket] 🎙️ Publishing audio: user={self.user_id}, session={self.session_id}, {source_lang} -> {target_lang}, {len(audio_data)} bytes")
-        
+
+        logger.info(f"[WebSocket] 🎙️ Publishing audio: user={self.user_id}, session={self.session_id}, source={source_lang}, {len(audio_data)} bytes")
+
         # Publish to Redis Stream for Worker processing
+        # Phase 3: Worker determines target languages from database for multi-party support
         try:
             result = await publish_audio_chunk(
                 session_id=self.session_id,
                 chunk=audio_data,
                 source_lang=source_lang,
-                target_lang=target_lang,
                 speaker_id=self.user_id
             )
             logger.debug(f"[WebSocket] Audio published to stream: {result}")
@@ -433,8 +433,8 @@ class CallOrchestrator:
         # Only mark user as offline when disconnecting from LOBBY
         # (call session disconnect should NOT affect online status - user still has lobby connection)
         if self.session_id == "lobby":
-            async with AsyncSessionLocal() as db:
-                await status_service.set_user_offline(self.user_id, db, connection_manager)
+            # Issue D Fix: Use grace period to prevent status flicker
+            await status_service.set_user_offline_with_grace(self.user_id, None, connection_manager)
         else:
             logger.info(f"[WebSocket] User {self.user_id} disconnected from call session {self.session_id}, NOT marking offline (lobby still active)")
     
@@ -563,14 +563,20 @@ class CallOrchestrator:
         """
         msg_type = data.get("type")
         speaker_id = data.get("speaker_id")
-        
+        recipient_ids = data.get("recipient_ids", [])  # Phase 3: NEW!
+
         logger.info(f"[WebSocket][{self.user_id}] Processing {msg_type} from speaker {speaker_id}")
-        
+
         # Don't send back to the speaker
         if speaker_id == self.user_id:
             logger.info(f"[WebSocket][{self.user_id}] Skipping - this is from myself")
             return
-        
+
+        # Phase 3: Only send if this user is in recipient list
+        if recipient_ids and self.user_id not in recipient_ids:
+            logger.info(f"[WebSocket][{self.user_id}] Skipping - not in recipient list {recipient_ids}")
+            return
+
         logger.info(f"[WebSocket][{self.user_id}] ✅ Forwarding {msg_type} to client")
         
         if msg_type == "transcription_update":

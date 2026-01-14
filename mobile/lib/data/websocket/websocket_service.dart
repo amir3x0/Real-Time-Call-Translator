@@ -105,10 +105,19 @@ class WebSocketService {
   StreamController<Uint8List>? _audioController;
   Timer? _heartbeatTimer;
   String? _sessionId;
-  // String? _userId;
   String? _callId;
   bool _isConnected = false;
   bool _intentionalDisconnect = false;
+
+  // Issue A Fix: Reconnection state
+  bool _isReconnecting = false;
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 3;
+  static const Duration _reconnectDelay = Duration(seconds: 2);
+
+  // Store connection params for reconnect
+  String? _userId;
+  String? _token;
 
   /// Stream of control messages (JSON)
   Stream<WSMessage> get messages =>
@@ -120,6 +129,9 @@ class WebSocketService {
 
   /// Whether connected to WebSocket
   bool get isConnected => _isConnected;
+
+  /// Issue A: Whether attempting to reconnect
+  bool get isReconnecting => _isReconnecting;
 
   /// Current session ID
   String? get sessionId => _sessionId;
@@ -145,9 +157,11 @@ class WebSocketService {
     }
 
     try {
-      // _userId = userId;
+      _userId = userId;
+      _token = token;
       _sessionId = sessionId;
       _callId = callId;
+      _reconnectAttempts = 0; // Reset on fresh connect
 
       // Build WebSocket URL with query parameters
       // backend expects /ws/{session_id}?token={token}
@@ -338,18 +352,68 @@ class WebSocketService {
     _isConnected = false;
     _stopHeartbeat();
 
-    // Only send callEnded if this was NOT an intentional disconnect
-    // (e.g., switching from lobby to call session should not trigger callEnded)
-    if (!_intentionalDisconnect) {
+    // Don't reconnect if this was intentional or if it's the lobby
+    if (_intentionalDisconnect || _sessionId == 'lobby') {
+      _intentionalDisconnect = false;
+      debugPrint('[WebSocketService] Intentional disconnect, not reconnecting');
+      return;
+    }
+
+    // Issue A Fix: Attempt reconnect for call sessions
+    if (_sessionId != null && _userId != null && _token != null) {
+      _attemptReconnect();
+    } else {
+      // Can't reconnect - missing params
       _messageController?.add(WSMessage(
         type: WSMessageType.callEnded,
         data: {'reason': 'connection_closed'},
       ));
     }
+  }
 
-    // Reset flag for next connection
-    _intentionalDisconnect = false;
+  /// Issue A Fix: Attempt to reconnect with retry logic
+  Future<void> _attemptReconnect() async {
+    if (_isReconnecting) return; // Already trying
 
-    debugPrint('[WebSocketService] Disconnected');
+    _isReconnecting = true;
+    debugPrint(
+        '[WebSocketService] 🔄 Attempting to reconnect (attempt ${_reconnectAttempts + 1}/$_maxReconnectAttempts)');
+
+    // Notify UI that we're reconnecting
+    _messageController?.add(WSMessage(
+      type: WSMessageType.error,
+      data: {'error': 'reconnecting', 'attempt': _reconnectAttempts + 1},
+    ));
+
+    while (
+        _reconnectAttempts < _maxReconnectAttempts && !_intentionalDisconnect) {
+      await Future.delayed(_reconnectDelay);
+      _reconnectAttempts++;
+
+      debugPrint('[WebSocketService] Reconnect attempt $_reconnectAttempts...');
+
+      final success = await connect(
+        _sessionId!,
+        userId: _userId!,
+        token: _token!,
+        callId: _callId,
+      );
+
+      if (success) {
+        debugPrint('[WebSocketService] ✅ Reconnected successfully!');
+        _isReconnecting = false;
+        _reconnectAttempts = 0;
+        return;
+      }
+    }
+
+    // All attempts failed - end the call
+    debugPrint(
+        '[WebSocketService] ❌ Reconnect failed after $_maxReconnectAttempts attempts');
+    _isReconnecting = false;
+    _messageController?.add(WSMessage(
+      type: WSMessageType.callEnded,
+      data: {'reason': 'reconnect_failed'},
+    ));
   }
 }

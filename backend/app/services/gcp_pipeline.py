@@ -143,7 +143,13 @@ class GCPSpeechPipeline:
         )
         audio = speech.RecognitionAudio(content=chunk)
         try:
-            response = self._speech_client.recognize(config=config, audio=audio)
+            # Issue 7: Translation Timeout (User waits 30+s)
+            # Add explicit timeout safely (fail fast)
+            response = self._speech_client.recognize(
+                config=config, 
+                audio=audio,
+                timeout=7.0
+            )
             logger.info(f"[GCP] STT Response: results_count={len(response.results) if response.results else 0}")
             if not response.results:
                 logger.info("[GCP] STT: No speech detected in this chunk")
@@ -167,18 +173,88 @@ class GCPSpeechPipeline:
         target_language_code: str,
     ) -> str:
         parent = f"projects/{self.project_id}/locations/{self.location}"
-        response = self._translate_client.translate_text(
-            request={
-                "parent": parent,
-                "contents": [text],
-                "mime_type": "text/plain",
-                "source_language_code": source_language_code,
-                "target_language_code": target_language_code,
-            }
-        )
-        if not response.translations:
-            return ""
-        return response.translations[0].translated_text
+        try:
+            response = self._translate_client.translate_text(
+                request={
+                    "parent": parent,
+                    "contents": [text],
+                    "mime_type": "text/plain",
+                    "source_language_code": source_language_code,
+                    "target_language_code": target_language_code,
+                },
+                timeout=5.0  # Fail fast on translation
+            )
+            if not response.translations:
+                return ""
+            return response.translations[0].translated_text
+        except Exception as e:
+            logger.error(f"[GCP] Translate Error: {e}")
+            return text  # Fallback to original text
+
+    def _translate_text_with_context(
+        self,
+        text: str,
+        context_history: str,
+        *,
+        source_language_code: str,
+        target_language_code: str,
+    ) -> str:
+        """
+        Translate text with context from previous segments (Phase 4).
+        
+        This helps the translation API understand the conversation flow
+        and produce more coherent translations.
+        
+        Args:
+            text: The text to translate
+            context_history: Previous transcript text for context
+            source_language_code: Source language (e.g., "en")
+            target_language_code: Target language (e.g., "he")
+            
+        Returns:
+            Translated text
+        """
+        # If no context, use regular translation
+        if not context_history or len(context_history.strip()) == 0:
+            return self._translate_text(
+                text,
+                source_language_code=source_language_code,
+                target_language_code=target_language_code
+            )
+        
+        # Create a context-aware prompt
+        # Note: GCP Translate doesn't have native context support,
+        # so we format the context as a hint that helps with coherence
+        context_snippet = context_history[-150:].strip()  # Last ~150 chars
+        
+        # Format: Translate the continuation of a conversation
+        # The context helps with pronouns, subject continuity, etc.
+        text_with_context = f"[...{context_snippet}] {text}"
+        
+        try:
+            result = self._translate_text(
+                text_with_context,
+                source_language_code=source_language_code,
+                target_language_code=target_language_code
+            )
+            
+            # Remove any translated context prefix if present
+            # (GCP might translate the [...] part)
+            if result.startswith("[") and "]" in result:
+                # Find the closing bracket and skip past it
+                bracket_end = result.index("]") + 1
+                result = result[bracket_end:].strip()
+            
+            logger.info(f"[GCP] Context-aware translation: '{text}' -> '{result}' (with {len(context_snippet)} chars context)")
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Context-aware translation failed: {e}, falling back to regular translation")
+            return self._translate_text(
+                text,
+                source_language_code=source_language_code,
+                target_language_code=target_language_code
+            )
 
     def _synthesize(
         self,
@@ -187,6 +263,21 @@ class GCPSpeechPipeline:
         language_code: str,
         voice_name: Optional[str],
     ) -> bytes:
+        # Normalize language code to full format (e.g., "en" -> "en-US")
+        if "-" not in language_code:
+            lang_map = {
+                "en": "en-US",
+                "he": "he-IL",
+                "ru": "ru-RU",
+                "es": "es-ES",
+                "fr": "fr-FR",
+                "de": "de-DE",
+                "ar": "ar-XA",
+                "zh": "zh-CN",
+                "ja": "ja-JP",
+            }
+            language_code = lang_map.get(language_code.lower(), f"{language_code}-{language_code.upper()}")
+        
         voice_params = texttospeech.VoiceSelectionParams(
             language_code=language_code,
             name=voice_name or f"{language_code}-Standard-A",
@@ -198,12 +289,17 @@ class GCPSpeechPipeline:
             pitch=0.0,
         )
         synthesis_input = texttospeech.SynthesisInput(text=text)
-        response = self._tts_client.synthesize_speech(
-            input=synthesis_input,
-            voice=voice_params,
-            audio_config=audio_config,
-        )
-        return response.audio_content
+        try:
+            response = self._tts_client.synthesize_speech(
+                input=synthesis_input,
+                voice=voice_params,
+                audio_config=audio_config,
+                timeout=10.0 # Allow slightly more for audio generation
+            )
+            return response.audio_content
+        except Exception as e:
+            logger.error(f"[GCP] TTS Error: {e}")
+            return b""
 
 
     def streaming_transcribe(
@@ -276,13 +372,13 @@ class GCPSpeechPipeline:
                 requests=requests,
             )
 
-                logger.info("[GCP Streaming] Waiting for responses...")
-                response_count = 0
-                for response in responses:
-                    response_count += 1
-                    if not response.results:
-                        logger.debug(f"[GCP Streaming] Response #{response_count}: no results")
-                        continue
+            logger.info("[GCP Streaming] Waiting for responses...")
+            response_count = 0
+            for response in responses:
+                response_count += 1
+                if not response.results:
+                    logger.debug(f"[GCP Streaming] Response #{response_count}: no results")
+                    continue
 
                 result = response.results[0]
                 if not result.alternatives:
