@@ -5,6 +5,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
 import '../../config/app_config.dart';
+import '../../config/constants.dart';
 
 /// Message types for WebSocket communication
 enum WSMessageType {
@@ -112,8 +113,9 @@ class WebSocketService {
   // Issue A Fix: Reconnection state
   bool _isReconnecting = false;
   int _reconnectAttempts = 0;
-  static const int _maxReconnectAttempts = 3;
-  static const Duration _reconnectDelay = Duration(seconds: 2);
+  static const int _maxReconnectAttempts = AppConstants.wsMaxReconnectAttempts;
+  static const Duration _reconnectDelay =
+      Duration(seconds: AppConstants.wsReconnectDelaySeconds);
 
   // Store connection params for reconnect
   String? _userId;
@@ -179,7 +181,8 @@ class WebSocketService {
       // Create WebSocket connection
       _channel = IOWebSocketChannel.connect(
         Uri.parse(wsUrl),
-        pingInterval: const Duration(seconds: 10),
+        pingInterval:
+            const Duration(seconds: AppConstants.wsPingIntervalSeconds),
       );
 
       // Initialize stream controllers
@@ -230,7 +233,8 @@ class WebSocketService {
     if (_isConnected && _channel != null) {
       try {
         _channel!.sink.add(jsonEncode({'type': 'leave'}));
-        await Future.delayed(const Duration(milliseconds: 100));
+        await Future.delayed(
+            const Duration(milliseconds: AppConstants.wsCloseDelayMs));
       } catch (_) {}
     }
 
@@ -288,7 +292,7 @@ class WebSocketService {
   void _startHeartbeat() {
     _stopHeartbeat();
     _heartbeatTimer = Timer.periodic(
-      const Duration(seconds: 30),
+      const Duration(seconds: AppConstants.wsHeartbeatIntervalSeconds),
       (_) => _sendHeartbeat(),
     );
     // Send initial heartbeat

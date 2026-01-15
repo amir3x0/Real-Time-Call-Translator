@@ -12,6 +12,12 @@ from google.cloud import texttospeech
 from google.cloud import translate
 
 from app.config.settings import settings
+from app.config.constants import (
+    GCP_STT_SAMPLE_RATE_HZ, GCP_TTS_SAMPLE_RATE_HZ,
+    GCP_STT_TIMEOUT_SEC, GCP_TRANSLATE_TIMEOUT_SEC, GCP_TTS_TIMEOUT_SEC,
+    TTS_SPEAKING_RATE, TTS_PITCH,
+    CONTEXT_SNIPPET_MAX_CHARS, LANGUAGE_CODE_MAP,
+)
 
 import logging
 logger = logging.getLogger(__name__)
@@ -136,19 +142,17 @@ class GCPSpeechPipeline:
         logger.info(f"[GCP] STT Starting for {len(chunk)} bytes, lang={language_code}")
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-            sample_rate_hertz=16000,
+            sample_rate_hertz=GCP_STT_SAMPLE_RATE_HZ,
             language_code=language_code,
             enable_automatic_punctuation=True,
-            # model="phone_call", # Removed to support more languages
         )
         audio = speech.RecognitionAudio(content=chunk)
         try:
-            # Issue 7: Translation Timeout (User waits 30+s)
             # Add explicit timeout safely (fail fast)
             response = self._speech_client.recognize(
-                config=config, 
+                config=config,
                 audio=audio,
-                timeout=7.0
+                timeout=GCP_STT_TIMEOUT_SEC
             )
             logger.info(f"[GCP] STT Response: results_count={len(response.results) if response.results else 0}")
             if not response.results:
@@ -182,7 +186,7 @@ class GCPSpeechPipeline:
                     "source_language_code": source_language_code,
                     "target_language_code": target_language_code,
                 },
-                timeout=5.0  # Fail fast on translation
+                timeout=GCP_TRANSLATE_TIMEOUT_SEC
             )
             if not response.translations:
                 return ""
@@ -225,7 +229,7 @@ class GCPSpeechPipeline:
         # Create a context-aware prompt
         # Note: GCP Translate doesn't have native context support,
         # so we format the context as a hint that helps with coherence
-        context_snippet = context_history[-150:].strip()  # Last ~150 chars
+        context_snippet = context_history[-CONTEXT_SNIPPET_MAX_CHARS:].strip()
         
         # Format: Translate the continuation of a conversation
         # The context helps with pronouns, subject continuity, etc.
@@ -265,18 +269,7 @@ class GCPSpeechPipeline:
     ) -> bytes:
         # Normalize language code to full format (e.g., "en" -> "en-US")
         if "-" not in language_code:
-            lang_map = {
-                "en": "en-US",
-                "he": "he-IL",
-                "ru": "ru-RU",
-                "es": "es-ES",
-                "fr": "fr-FR",
-                "de": "de-DE",
-                "ar": "ar-XA",
-                "zh": "zh-CN",
-                "ja": "ja-JP",
-            }
-            language_code = lang_map.get(language_code.lower(), f"{language_code}-{language_code.upper()}")
+            language_code = LANGUAGE_CODE_MAP.get(language_code.lower(), f"{language_code}-{language_code.upper()}")
         
         voice_params = texttospeech.VoiceSelectionParams(
             language_code=language_code,
@@ -284,9 +277,9 @@ class GCPSpeechPipeline:
         )
         audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.LINEAR16,
-            sample_rate_hertz=16000,
-            speaking_rate=1.0,
-            pitch=0.0,
+            sample_rate_hertz=GCP_TTS_SAMPLE_RATE_HZ,
+            speaking_rate=TTS_SPEAKING_RATE,
+            pitch=TTS_PITCH,
         )
         synthesis_input = texttospeech.SynthesisInput(text=text)
         try:
@@ -294,7 +287,7 @@ class GCPSpeechPipeline:
                 input=synthesis_input,
                 voice=voice_params,
                 audio_config=audio_config,
-                timeout=10.0 # Allow slightly more for audio generation
+                timeout=GCP_TTS_TIMEOUT_SEC
             )
             return response.audio_content
         except Exception as e:
@@ -324,7 +317,7 @@ class GCPSpeechPipeline:
 
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-            sample_rate_hertz=16000,
+            sample_rate_hertz=GCP_STT_SAMPLE_RATE_HZ,
             language_code=language_code,
             enable_automatic_punctuation=True,
             model=model,

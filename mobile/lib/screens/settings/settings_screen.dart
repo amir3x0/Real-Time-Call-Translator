@@ -2,12 +2,16 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/lobby_provider.dart';
+import '../../config/app_config.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/voice_service.dart';
 import '../../widgets/voice_recorder_widget.dart';
+import '../../widgets/server_config_widget.dart';
 import '../../utils/language_utils.dart';
 import '../../config/app_theme.dart';
 
@@ -94,10 +98,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 24),
 
+          // Section: Server
+          _buildSectionHeader('Server', Icons.dns_outlined)
+              .animate()
+              .fadeIn(delay: 425.ms, duration: 400.ms),
+          const SizedBox(height: 12),
+
+          _buildServerSection(authProv)
+              .animate()
+              .fadeIn(delay: 450.ms, duration: 400.ms),
+
+          const SizedBox(height: 24),
+
           // Section: Account
           _buildSectionHeader('Account', Icons.person_outlined)
               .animate()
-              .fadeIn(delay: 450.ms, duration: 400.ms),
+              .fadeIn(delay: 475.ms, duration: 400.ms),
           const SizedBox(height: 12),
 
           _buildLogoutButton(authProv)
@@ -478,6 +494,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildServerSection(AuthProvider authProv) {
+    return FutureBuilder<String?>(
+      future: SharedPreferences.getInstance()
+          .then((prefs) => prefs.getString(AppConfig.userTokenKey)),
+      builder: (context, snapshot) {
+        final token = snapshot.data;
+
+        return ServerConfigWidget(
+          compact: false,
+          validateAuthToken: true,
+          authToken: token,
+          onConfigSaved: () {
+            // Reconnect lobby WebSocket to new server
+            final lobbyProvider =
+                Provider.of<LobbyProvider>(context, listen: false);
+            final userId = authProv.currentUser?.id;
+
+            if (token != null && userId != null) {
+              // Disconnect from old server and reconnect to new
+              lobbyProvider.disconnect();
+              lobbyProvider.connect(token, userId);
+            }
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Server configuration updated'),
+                backgroundColor: AppTheme.successGreen,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+          onAuthTokenInvalid: () {
+            // Token is invalid on new server - log out the user
+            authProv.logout();
+            Navigator.pushReplacementNamed(context, '/login');
+          },
+        );
+      },
     );
   }
 

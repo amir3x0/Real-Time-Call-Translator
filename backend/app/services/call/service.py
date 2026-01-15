@@ -27,16 +27,17 @@ from .validators import validate_contact_exists, validate_not_in_active_call
 from .participants import create_participant, handle_participant_left, handle_participant_joined, force_leave_all_calls
 from .history import get_call_with_participants, get_user_call_history, get_pending_calls
 from .transcripts import add_transcript
+from app.config.constants import MIN_CALL_PARTICIPANTS, MAX_CALL_PARTICIPANTS
 
 logger = logging.getLogger(__name__)
 
 
 class CallService:
     """Service for managing calls and call participants."""
-    
-    # Participant limits
-    MIN_PARTICIPANTS = 1
-    MAX_PARTICIPANTS = 4
+
+    # Participant limits (from constants)
+    MIN_PARTICIPANTS = MIN_CALL_PARTICIPANTS
+    MAX_PARTICIPANTS = MAX_CALL_PARTICIPANTS
     
     # === Validation methods (delegates to validators module) ===
     

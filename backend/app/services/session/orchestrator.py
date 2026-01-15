@@ -31,6 +31,7 @@ from app.services.call import call_service
 from app.services.call.lifecycle import CallLifecycleManager
 from app.services.rtc_service import publish_audio_chunk
 from app.config.redis import get_redis
+from app.config.constants import WEBSOCKET_MESSAGE_TIMEOUT_SEC, DEFAULT_CALL_LANGUAGE
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ class CallOrchestrator:
         """Setup connection for lobby (presence/status updates)."""
         self.call_info = {
             "call_id": None,
-            "call_language": "en",
+            "call_language": DEFAULT_CALL_LANGUAGE,
             "is_active": True
         }
         
@@ -273,11 +274,11 @@ class CallOrchestrator:
         try:
             while True:
                 # Issue 6: Heartbeat Not Validated (Zombie Calls)
-                # Wait for message with timeout (35s > 30s heartbeat interval)
+                # Wait for message with timeout (> heartbeat interval)
                 try:
                     message = await asyncio.wait_for(
-                        self.websocket.receive(), 
-                        timeout=35.0
+                        self.websocket.receive(),
+                        timeout=WEBSOCKET_MESSAGE_TIMEOUT_SEC
                     )
                 except asyncio.TimeoutError:
                     logger.warning(f"[WebSocket] User {self.user_id} zombie connection timeout - disconnecting")

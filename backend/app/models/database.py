@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config.settings import settings
+from app.config.constants import DB_POOL_SIZE, DB_POOL_MAX_OVERFLOW
 
 # Build async database URL with asyncpg driver
 DATABASE_URL = (
@@ -14,8 +15,8 @@ engine = create_async_engine(
     echo=settings.DEBUG,
     future=True,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20
+    pool_size=DB_POOL_SIZE,
+    max_overflow=DB_POOL_MAX_OVERFLOW
 )
 
 # Create async session factory

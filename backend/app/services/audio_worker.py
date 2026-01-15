@@ -10,6 +10,19 @@ from dataclasses import dataclass, field
 from app.config.redis import get_redis
 from app.services.gcp_pipeline import _get_pipeline
 from app.config.settings import settings
+from app.config.constants import (
+    AUDIO_SAMPLE_RATE, AUDIO_BYTES_PER_SAMPLE,
+    SILENCE_THRESHOLD_SEC, RMS_SILENCE_THRESHOLD, MIN_AUDIO_LENGTH_SEC,
+    SEGMENT_MERGE_TIME_WINDOW_SEC, MIN_WORDS_TO_KEEP_SEPARATE,
+    TRANSLATION_CONTEXT_MAX_CHARS, MAX_BUFFER_SEGMENTS,
+    SPECTRAL_HISTORY_MAX_BYTES, MIN_ANALYSIS_BYTES,
+    FFT_SPEECH_FREQ_MIN, FFT_SPEECH_FREQ_MAX, FFT_NOISE_FREQ_MIN,
+    SPEECH_NOISE_RATIO_THRESHOLD,
+    AUDIO_QUEUE_READ_TIMEOUT_SEC, MAX_ACCUMULATED_AUDIO_TIME_SEC,
+    MESSAGE_DEDUP_TTL_SEC, REDIS_STREAM_BLOCK_MS, REDIS_STREAM_MESSAGE_COUNT,
+    ERROR_RECOVERY_SLEEP_SEC, GRACEFUL_SHUTDOWN_TIMEOUT_SEC,
+    DEFAULT_PARTICIPANT_LANGUAGE, METRICS_SERVER_PORT,
+)
 from app.services.metrics import (
     audio_processing_latency,
     segments_processed,
@@ -39,7 +52,6 @@ _shutdown_flag = False
 # Issue #8 Fix: Track processed message IDs to prevent duplicate processing (echo)
 # Uses a set with TTL-like cleanup to prevent unbounded growth
 _processed_message_ids: Dict[str, float] = {}  # message_id -> timestamp
-_DEDUP_TTL_SECONDS = 30.0  # How long to remember a message ID
 
 # === OPTION C: Hybrid Context Preservation (Pause-based + Smart Merging) ===
 
@@ -55,9 +67,9 @@ class SegmentBuffer:
     - finalize_for_publish(): Batch merges before sending
     - full_context: Accumulated transcript for Phase 4 context hints
     """
-    # Configuration
-    MERGE_TIME_WINDOW: float = 1.0  # seconds - merge if within this time (increased from 0.5)
-    MIN_WORDS_TO_KEEP_SEPARATE: int = 5  # don't merge segments with >= this many words
+    # Configuration (uses constants from app.config.constants)
+    MERGE_TIME_WINDOW: float = SEGMENT_MERGE_TIME_WINDOW_SEC
+    MIN_WORDS_TO_KEEP_SEPARATE: int = MIN_WORDS_TO_KEEP_SEPARATE
     SENTENCE_ENDINGS: Tuple[str, ...] = ('.', '!', '?')
     CLAUSE_ENDINGS: Tuple[str, ...] = ('.', '!', '?', ',')  # Include comma for Option C
     
@@ -110,9 +122,9 @@ class SegmentBuffer:
         """Add a new segment to the buffer."""
         self.segments.append((transcript, translation, timestamp))
         self.full_context += " " + transcript
-        
-        # Keep only last 10 segments to prevent memory growth
-        if len(self.segments) > 10:
+
+        # Keep only last N segments to prevent memory growth
+        if len(self.segments) > MAX_BUFFER_SEGMENTS:
             self.segments.pop(0)
     
     def merge_last_two(self, new_translation: str, timestamp: float) -> Tuple[str, str]:
@@ -169,7 +181,7 @@ class SegmentBuffer:
         
         return self.segments[-1][:2] if self.segments else None
     
-    def get_context_for_translation(self, max_chars: int = 200) -> str:
+    def get_context_for_translation(self, max_chars: int = TRANSLATION_CONTEXT_MAX_CHARS) -> str:
         """Get recent context to help with translation (Phase 4)."""
         return self.full_context[-max_chars:].strip() if self.full_context else ""
 
@@ -201,14 +213,13 @@ async def handle_audio_stream(
     redis = await get_redis()
     loop = asyncio.get_running_loop()
     
-    # Configuration for pause-based chunking
-    SILENCE_THRESHOLD = 0.25  # 0.25 second of silence triggers processing (reduced from 0.4s for lower latency)
-    RMS_THRESHOLD = 300   # RMS level below which we consider it silence (lowered to catch quiet speakers)
-    MIN_AUDIO_LENGTH = 0.5  # Minimum 0.5 seconds of audio before processing (reduced from 1s for faster response)
-    # MAX_CHUNKS_BEFORE_FORCE removed - now using time-based forcing in process_audio_chunks()
-    SAMPLE_RATE = 16000
-    BYTES_PER_SAMPLE = 2  # 16-bit PCM
-    MIN_BYTES = int(MIN_AUDIO_LENGTH * SAMPLE_RATE * BYTES_PER_SAMPLE)  # ~16000 bytes for 0.5s
+    # Configuration for pause-based chunking (from app.config.constants)
+    SILENCE_THRESHOLD = SILENCE_THRESHOLD_SEC
+    RMS_THRESHOLD = RMS_SILENCE_THRESHOLD
+    MIN_AUDIO_LENGTH = MIN_AUDIO_LENGTH_SEC
+    SAMPLE_RATE = AUDIO_SAMPLE_RATE
+    BYTES_PER_SAMPLE = AUDIO_BYTES_PER_SAMPLE
+    MIN_BYTES = int(MIN_AUDIO_LENGTH * SAMPLE_RATE * BYTES_PER_SAMPLE)
     
     def is_likely_speech(chunk: bytes) -> bool:
         """
@@ -234,15 +245,13 @@ async def handle_audio_stream(
         
         history = _spectral_history[stream_key]
         history.extend(chunk)
-        
-        # Keep only last 400ms (16kHz × 2 bytes × 0.4s = 12800 bytes)
-        MAX_HISTORY = 12800
-        if len(history) > MAX_HISTORY:
-            _spectral_history[stream_key] = history[-MAX_HISTORY:]
+
+        # Keep only last ~400ms for sliding window FFT
+        if len(history) > SPECTRAL_HISTORY_MAX_BYTES:
+            _spectral_history[stream_key] = history[-SPECTRAL_HISTORY_MAX_BYTES:]
             history = _spectral_history[stream_key]
-        
-        # Need at least 100ms for meaningful analysis
-        MIN_ANALYSIS_BYTES = 3200  # 100ms at 16kHz mono 16-bit
+
+        # Need minimum audio for meaningful analysis
         if len(history) < MIN_ANALYSIS_BYTES:
             return True  # Not enough data, assume speech to avoid false negatives
         
@@ -261,19 +270,18 @@ async def handle_audio_stream(
             # Calculate bin indices based on actual FFT size
             # bin_index = frequency * fft_size / sample_rate
             fft_size = len(audio)
-            bin_80hz = int(80 * fft_size / SAMPLE_RATE)
-            bin_4000hz = int(4000 * fft_size / SAMPLE_RATE)
-            bin_5000hz = int(5000 * fft_size / SAMPLE_RATE)
-            
-            # Speech energy: 80-4000 Hz
-            speech_band = fft_magnitude[bin_80hz:bin_4000hz].sum()
-            
-            # Noise energy: >5000 Hz
-            noise_band = fft_magnitude[bin_5000hz:].sum()
-            
+            bin_speech_min = int(FFT_SPEECH_FREQ_MIN * fft_size / SAMPLE_RATE)
+            bin_speech_max = int(FFT_SPEECH_FREQ_MAX * fft_size / SAMPLE_RATE)
+            bin_noise_min = int(FFT_NOISE_FREQ_MIN * fft_size / SAMPLE_RATE)
+
+            # Speech energy in speech frequency range
+            speech_band = fft_magnitude[bin_speech_min:bin_speech_max].sum()
+
+            # Noise energy above speech frequencies
+            noise_band = fft_magnitude[bin_noise_min:].sum()
+
             # Speech should have dominant energy in speech frequencies
-            # Ratio 2.0 = speech band must be 2x larger than high-freq noise
-            return speech_band > 2.0 * noise_band
+            return speech_band > SPEECH_NOISE_RATIO_THRESHOLD * noise_band
             
         except Exception as e:
             logger.warning(f"Spectral analysis failed: {e}, falling back to RMS")
@@ -284,12 +292,12 @@ async def handle_audio_stream(
         # Audio buffer to accumulate chunks
         audio_buffer = bytearray()
         last_voice_time = time.time()
-        last_process_time = time.time()  # NEW: Track when we last processed
+        last_process_time = time.time()  # Track when we last processed
         chunk_count = 0  # Keep for logging only
-        chunk_timeout = 0.15  # 150ms timeout for queue reads (aligned with client send interval)
-        
+        chunk_timeout = AUDIO_QUEUE_READ_TIMEOUT_SEC
+
         # TIME-BASED constants (more reliable than chunk counting)
-        MAX_ACCUMULATED_TIME = 0.75  # Force process after 750ms of audio (5 chunks at 150ms)
+        MAX_ACCUMULATED_TIME = MAX_ACCUMULATED_AUDIO_TIME_SEC
         
         # Check if audio_source is a queue or iterator
         is_queue = isinstance(audio_source, queue.Queue)
@@ -596,7 +604,7 @@ async def handle_audio_stream(
 
                     # Build language map: {language: [user_ids]}
                     for p in participants:
-                        lang = p.participant_language or "en-US"
+                        lang = p.participant_language or DEFAULT_PARTICIPANT_LANGUAGE
                         if lang not in target_langs_map:
                             target_langs_map[lang] = []
                         target_langs_map[lang].append(p.user_id)
@@ -792,7 +800,7 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
             return
         
         # Clean up old entries to prevent memory growth
-        expired = [mid for mid, ts in _processed_message_ids.items() if now - ts > _DEDUP_TTL_SECONDS]
+        expired = [mid for mid, ts in _processed_message_ids.items() if now - ts > MESSAGE_DEDUP_TTL_SEC]
         for mid in expired:
             del _processed_message_ids[mid]
         
@@ -850,7 +858,7 @@ async def run_worker():
     _shutdown_flag = False  # Reset on start
     
     # Start metrics server
-    start_metrics_server(port=8001)
+    start_metrics_server(port=METRICS_SERVER_PORT)
     
     logger.info("Starting Stateful Streaming Worker...")
     redis = await get_redis()
@@ -870,13 +878,13 @@ async def run_worker():
     try:
         while not _shutdown_flag:
             try:
-                # Reduced block time from 2000ms to 500ms for faster shutdown response
+                # Use configurable block time for responsive shutdown
                 streams = await redis.xreadgroup(
                     group_name,
                     consumer_name,
                     {stream_key: ">"},
-                    count=10,
-                    block=500  # Reduced from 2000ms to 500ms for better responsiveness
+                    count=REDIS_STREAM_MESSAGE_COUNT,
+                    block=REDIS_STREAM_BLOCK_MS
                 )
                 
                 if _shutdown_flag:
@@ -894,7 +902,7 @@ async def run_worker():
                 if _shutdown_flag:
                     break
                 logger.error(f"Error in worker loop: {e}")
-                await asyncio.sleep(0.5)  # Reduced from 1s to 0.5s
+                await asyncio.sleep(ERROR_RECOVERY_SLEEP_SEC)
     finally:
         # Signal all active streams to shutdown
         _shutdown_flag = True
@@ -915,11 +923,11 @@ async def run_worker():
             for task in tasks_to_cancel:
                 task.cancel()
             
-            # Wait briefly for tasks to cancel (max 0.5s to avoid hanging)
+            # Wait briefly for tasks to cancel to avoid hanging
             try:
                 await asyncio.wait_for(
                     asyncio.gather(*tasks_to_cancel, return_exceptions=True),
-                    timeout=0.5
+                    timeout=GRACEFUL_SHUTDOWN_TIMEOUT_SEC
                 )
             except (asyncio.TimeoutError, Exception):
                 pass  # Don't wait too long - tasks will finish in background

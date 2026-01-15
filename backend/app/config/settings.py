@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # App
     API_HOST: str = Field(default="0.0.0.0")
     API_PORT: int = Field(default=8000)
+    # Public host for WebSocket URLs (use actual IP/hostname clients can reach)
+    # Set via API_PUBLIC_HOST env var when API_HOST is 0.0.0.0
+    API_PUBLIC_HOST: str | None = Field(default=None)
     DEBUG: bool = Field(default=True)
     JWT_SECRET_KEY: str = Field(default="supersecret")
     JWT_ALGORITHM: str = Field(default="HS256")

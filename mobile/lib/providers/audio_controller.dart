@@ -212,7 +212,8 @@ class AudioController {
 
     debugPrint('[AudioController] 🟢 Starting persistent playback timer');
 
-    _playbackTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+    _playbackTimer = Timer.periodic(
+        const Duration(milliseconds: AppConstants.audioPlaybackTimerMs), (_) {
       if (_disposed || _audioPlayer == null || !_isPlayerInitialized) {
         _playbackTimer?.cancel();
         return;
@@ -266,11 +267,13 @@ class AudioController {
     try {
       final isRecording = await _audioRecorder!.isRecording();
       if (isRecording) {
-        debugPrint('[AudioController] ⚠️ Recorder was still recording, forcing stop...');
+        debugPrint(
+            '[AudioController] ⚠️ Recorder was still recording, forcing stop...');
         await _audioRecorder!.stop();
       }
     } catch (e) {
-      debugPrint('[AudioController] Note: Could not check/stop recorder state: $e');
+      debugPrint(
+          '[AudioController] Note: Could not check/stop recorder state: $e');
       // Continue anyway - will try to start fresh
     }
 
