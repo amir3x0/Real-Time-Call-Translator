@@ -13,13 +13,15 @@ from typing import Optional
 import hashlib
 import logging
 
+from app.config.constants import TTS_CACHE_MAX_SIZE, CACHE_KEY_HASH_LENGTH
+
 logger = logging.getLogger(__name__)
 
 
 class TTSCache:
     """LRU cache for TTS audio results."""
 
-    def __init__(self, maxsize: int = 100):
+    def __init__(self, maxsize: int = TTS_CACHE_MAX_SIZE):
         """
         Initialize TTS cache.
 
@@ -46,7 +48,7 @@ class TTSCache:
             16-character hex hash
         """
         key_str = f"{text}|{language}|{voice or 'default'}"
-        return hashlib.md5(key_str.encode()).hexdigest()[:16]
+        return hashlib.md5(key_str.encode()).hexdigest()[:CACHE_KEY_HASH_LENGTH]
 
     def get(self, text: str, language: str, voice: Optional[str] = None) -> Optional[bytes]:
         """
@@ -124,7 +126,7 @@ class TTSCache:
 
 
 # Global singleton instance
-_tts_cache = TTSCache(maxsize=100)
+_tts_cache = TTSCache(maxsize=TTS_CACHE_MAX_SIZE)
 
 
 def get_tts_cache() -> TTSCache:

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'config/app_config.dart';
 import 'config/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/call_provider.dart';
@@ -25,7 +26,12 @@ import 'data/services/call_api_service.dart';
 import 'data/websocket/websocket_service.dart';
 import 'services/permission_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize AppConfig to load runtime backend host/port from SharedPreferences
+  await AppConfig.initialize();
+
   final authService = AuthService();
   final contactService = ContactService();
   final callApiService = CallApiService();

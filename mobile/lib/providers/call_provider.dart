@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/websocket/websocket_service.dart';
 import '../data/services/call_api_service.dart';
 import '../models/call.dart';
 import '../models/live_caption.dart';
+import '../models/interim_caption.dart';
 import '../models/participant.dart';
 import '../models/transcription_entry.dart';
+import '../config/constants.dart';
 import 'audio_controller.dart';
 import 'caption_manager.dart';
 import 'transcription_manager.dart';
@@ -27,6 +30,16 @@ class CallProvider with ChangeNotifier {
   String? _activeSessionId;
   String? _liveTranscription;
   String? _activeSpeakerId;
+
+  /// Interim captions per speaker (real-time typing indicator)
+  /// Key: speakerId, Value: latest InterimCaption for that speaker
+  final Map<String, InterimCaption> _interimCaptions = {};
+
+  /// Timers to auto-clear stale interim captions
+  final Map<String, Timer> _interimCaptionTimers = {};
+
+  /// User preference: whether to show interim captions (can be toggled in settings)
+  bool _showInterimCaptions = true;
 
   /// Current user ID - set when joining a call
   String? _currentUserId;
@@ -73,6 +86,22 @@ class CallProvider with ChangeNotifier {
   String? get activeSpeakerId => _activeSpeakerId;
   bool get isMuted => _audioController?.isMuted ?? false;
   bool get isSpeakerOn => _audioController?.isSpeakerOn ?? false;
+
+  /// Get all active interim captions (for UI display)
+  List<InterimCaption> get interimCaptions =>
+      _showInterimCaptions ? _interimCaptions.values.toList() : [];
+
+  /// Whether interim captions are enabled
+  bool get showInterimCaptions => _showInterimCaptions;
+
+  /// Toggle interim captions visibility
+  set showInterimCaptions(bool value) {
+    _showInterimCaptions = value;
+    if (!value) {
+      _clearAllInterimCaptions();
+    }
+    notifyListeners();
+  }
 
   // === Testing helpers ===
 
@@ -198,6 +227,10 @@ class CallProvider with ChangeNotifier {
       debugPrint('[CallProvider] Missing credentials for WebSocket connection');
       return;
     }
+
+    // Load interim caption preference from SharedPreferences
+    await _loadInterimCaptionPreference();
+
     final connected = await _wsService.connect(
       sessionId,
       userId: _currentUserId!,
@@ -220,6 +253,19 @@ class CallProvider with ChangeNotifier {
     await _audioController!.initAudio();
   }
 
+  /// Load interim caption preference from SharedPreferences
+  Future<void> _loadInterimCaptionPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _showInterimCaptions = prefs.getBool('show_interim_captions') ?? true;
+      debugPrint(
+          '[CallProvider] Interim captions enabled: $_showInterimCaptions');
+    } catch (e) {
+      debugPrint('[CallProvider] Failed to load interim caption pref: $e');
+      _showInterimCaptions = true; // Default to enabled
+    }
+  }
+
   /// End the call (called by user or when remote call_ended received)
   void endCall() {
     debugPrint('[CallProvider] endCall called');
@@ -232,6 +278,7 @@ class CallProvider with ChangeNotifier {
     _wsService.disconnect();
     _captionManager.clearBubbles();
     _transcriptionManager.clear();
+    _clearAllInterimCaptions(); // Clear interim captions
     notifyListeners();
   }
 
@@ -263,6 +310,9 @@ class CallProvider with ChangeNotifier {
         break;
       case WSMessageType.transcriptionUpdate:
         _handleTranscriptionUpdate(message);
+        break;
+      case WSMessageType.interimTranscript:
+        _handleInterimTranscript(message);
         break;
       case WSMessageType.translation:
         _handleTranslation(message);
@@ -332,14 +382,17 @@ class CallProvider with ChangeNotifier {
       return;
     }
 
-    // --- שלב 3: עדכון הממשק (UI Logic) ---
-    // הוספה להיסטוריה כדי שהמשתמש יראה את הבועה הסופית
+    // --- Step 3: Update UI ---
+    // Add to history so user sees the final translation bubble
     if (translatedText.isNotEmpty && originalText.isNotEmpty) {
       _addTranslationToHistory(speakerId, originalText, translatedText,
           sourceLanguage, targetLanguage);
 
-      // איפוס הטקסט החי כי קיבלנו תוצאה סופית
+      // Clear live text since we got final result
       _liveTranscription = null;
+
+      // Clear interim caption for this speaker (final translation supersedes interim)
+      _clearInterimCaption(speakerId);
     }
 
     debugPrint(
@@ -403,6 +456,76 @@ class CallProvider with ChangeNotifier {
     }
   }
 
+  /// Handle real-time interim transcripts (WhatsApp-style typing indicator)
+  void _handleInterimTranscript(WSMessage message) {
+    if (!_showInterimCaptions) return;
+
+    final data = message.data;
+    if (data == null) return;
+
+    // Parse interim caption from message
+    final interim = InterimCaption.fromJson(data);
+    if (interim.text.isEmpty) return;
+
+    // Resolve speaker name from participants
+    final speakerName = _getParticipantName(interim.speakerId);
+    final interimWithName = interim.copyWith(speakerName: speakerName);
+
+    // Update the interim caption for this speaker
+    _interimCaptions[interim.speakerId] = interimWithName;
+
+    // Reset the auto-clear timer for this speaker
+    _resetInterimCaptionTimer(interim.speakerId);
+
+    // If this is a final result from streaming STT, mark active speaker
+    if (interim.isFinal) {
+      _setActiveSpeaker(interim.speakerId);
+    }
+
+    debugPrint(
+        '[CallProvider] Interim caption [${interimWithName.displayTag}]: "${interim.text.length > 30 ? '${interim.text.substring(0, 30)}...' : interim.text}"');
+  }
+
+  /// Get participant display name from user ID
+  String? _getParticipantName(String speakerId) {
+    try {
+      final participant = _participants.firstWhere(
+        (p) => p.userId == speakerId || p.id == speakerId,
+      );
+      return participant.displayName;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Reset the auto-clear timer for an interim caption
+  void _resetInterimCaptionTimer(String speakerId) {
+    _interimCaptionTimers[speakerId]?.cancel();
+    _interimCaptionTimers[speakerId] = Timer(
+      const Duration(milliseconds: AppConstants.interimCaptionTimeoutMs),
+      () => _clearInterimCaption(speakerId),
+    );
+  }
+
+  /// Clear interim caption for a specific speaker
+  void _clearInterimCaption(String speakerId) {
+    _interimCaptions.remove(speakerId);
+    _interimCaptionTimers[speakerId]?.cancel();
+    _interimCaptionTimers.remove(speakerId);
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  /// Clear all interim captions (called when final translation arrives or settings toggle)
+  void _clearAllInterimCaptions() {
+    _interimCaptions.clear();
+    for (final timer in _interimCaptionTimers.values) {
+      timer.cancel();
+    }
+    _interimCaptionTimers.clear();
+  }
+
   void _setActiveSpeaker(String? participantId) {
     _activeSpeakerId = participantId;
     _participants = _participants
@@ -454,6 +577,7 @@ class CallProvider with ChangeNotifier {
     _wsSub?.cancel();
     _wsService.disconnect();
     _captionManager.dispose();
+    _clearAllInterimCaptions(); // Clean up timers
     super.dispose();
   }
 }

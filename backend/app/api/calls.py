@@ -138,7 +138,13 @@ async def start_call(
     
     # Build WebSocket URL (use actual host, not 0.0.0.0)
     # Client should use this URL directly
-    host = "10.231.5.22" if settings.API_HOST == "0.0.0.0" else settings.API_HOST
+    # Priority: API_PUBLIC_HOST (if set) > API_HOST (if not 0.0.0.0) > localhost fallback
+    if settings.API_PUBLIC_HOST:
+        host = settings.API_PUBLIC_HOST
+    elif settings.API_HOST != "0.0.0.0":
+        host = settings.API_HOST
+    else:
+        host = "localhost"  # Safe fallback - client should configure their own host
     websocket_url = f"ws://{host}:{settings.API_PORT}/ws/{call.session_id}"
     
     import logging

@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/lobby_provider.dart';
 import '../../config/app_theme.dart';
 import '../../widgets/flash_bar.dart';
+import '../../widgets/server_config_widget.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -177,7 +178,16 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
 
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 24),
+
+                    // Server Configuration (compact mode)
+                    Center(
+                      child: const ServerConfigWidget(compact: true)
+                          .animate()
+                          .fadeIn(delay: 700.ms, duration: 400.ms),
+                    ),
+
+                    const SizedBox(height: 24),
 
                     // Glassmorphism Phone Input
                     _buildGlassInput(

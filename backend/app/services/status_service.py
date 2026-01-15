@@ -21,6 +21,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.redis import get_redis
+from app.config.constants import (
+    HEARTBEAT_INTERVAL_SEC, HEARTBEAT_TTL_SEC,
+    STATUS_CLEANUP_INTERVAL_SEC, OFFLINE_GRACE_PERIOD_SEC,
+)
 from app.models.user import User
 from app.models.contact import Contact
 from app.models.database import AsyncSessionLocal
@@ -30,11 +34,11 @@ logger = logging.getLogger(__name__)
 
 class StatusService:
     """Service to track and manage user online/offline status."""
-    
-    HEARTBEAT_INTERVAL = 30  # seconds - clients send heartbeat every 30s
-    HEARTBEAT_TTL = 60  # seconds - Redis key TTL (expires if no heartbeat)
-    CLEANUP_INTERVAL = 120  # seconds - how often to sync Redis → DB
-    OFFLINE_GRACE_PERIOD = 5.0  # Issue D Fix: seconds to wait before marking offline
+
+    HEARTBEAT_INTERVAL = HEARTBEAT_INTERVAL_SEC
+    HEARTBEAT_TTL = HEARTBEAT_TTL_SEC
+    CLEANUP_INTERVAL = STATUS_CLEANUP_INTERVAL_SEC
+    OFFLINE_GRACE_PERIOD = OFFLINE_GRACE_PERIOD_SEC
     
     # Issue D Fix: Track pending offline tasks to prevent status flicker
     _pending_offline_tasks: dict = {}  # user_id -> asyncio.Task

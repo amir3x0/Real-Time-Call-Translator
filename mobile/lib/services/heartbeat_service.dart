@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../config/constants.dart';
+
 /// Heartbeat Service - Maintains WebSocket connection and sends periodic heartbeats
 /// to keep user status as 'online' in real-time
 class HeartbeatService {
-  static const int _heartbeatInterval = 30; // seconds
-  
+  static const int _heartbeatInterval = AppConstants.wsHeartbeatIntervalSeconds;
+
   WebSocketChannel? _channel;
   Timer? _heartbeatTimer;
   String? _userId;
@@ -27,7 +29,8 @@ class HeartbeatService {
     required String sessionId,
   }) async {
     if (_isActive) {
-      debugPrint('[HeartbeatService] Already active, stopping previous connection');
+      debugPrint(
+          '[HeartbeatService] Already active, stopping previous connection');
       await stop();
     }
 
@@ -90,7 +93,7 @@ class HeartbeatService {
         _sendHeartbeat();
       },
     );
-    
+
     // Send initial heartbeat immediately
     _sendHeartbeat();
   }
@@ -116,10 +119,15 @@ class HeartbeatService {
   Future<void> _reconnect() async {
     if (!_isActive) return;
 
-    debugPrint('[HeartbeatService] Reconnecting in 5 seconds...');
-    await Future.delayed(const Duration(seconds: 5));
+    debugPrint(
+        '[HeartbeatService] Reconnecting in ${AppConstants.wsReconnectDelaySeconds * 2} seconds...');
+    await Future.delayed(
+        const Duration(seconds: AppConstants.wsReconnectDelaySeconds * 2));
 
-    if (_isActive && _userId != null && _sessionId != null && _originalWsUrl != null) {
+    if (_isActive &&
+        _userId != null &&
+        _sessionId != null &&
+        _originalWsUrl != null) {
       // Use the original URL for reconnection (preserves 10.0.2.2 on Android emulator)
       await start(
         wsUrl: _originalWsUrl!,

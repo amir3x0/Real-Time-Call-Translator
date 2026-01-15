@@ -5,6 +5,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
 import '../../config/app_config.dart';
+import '../../config/constants.dart';
 
 /// Message types for WebSocket communication
 enum WSMessageType {
@@ -23,6 +24,7 @@ enum WSMessageType {
   transcript,
   transcriptionUpdate,
   translation,
+  interimTranscript, // Real-time typing indicator captions
   audio,
   incomingCall,
   userStatusChanged,
@@ -76,6 +78,8 @@ class WSMessage {
         return WSMessageType.transcriptionUpdate;
       case 'translation':
         return WSMessageType.translation;
+      case 'interim_transcript':
+        return WSMessageType.interimTranscript;
       case 'audio':
         return WSMessageType.audio;
       case 'incoming_call':
@@ -112,8 +116,9 @@ class WebSocketService {
   // Issue A Fix: Reconnection state
   bool _isReconnecting = false;
   int _reconnectAttempts = 0;
-  static const int _maxReconnectAttempts = 3;
-  static const Duration _reconnectDelay = Duration(seconds: 2);
+  static const int _maxReconnectAttempts = AppConstants.wsMaxReconnectAttempts;
+  static const Duration _reconnectDelay =
+      Duration(seconds: AppConstants.wsReconnectDelaySeconds);
 
   // Store connection params for reconnect
   String? _userId;
@@ -179,7 +184,8 @@ class WebSocketService {
       // Create WebSocket connection
       _channel = IOWebSocketChannel.connect(
         Uri.parse(wsUrl),
-        pingInterval: const Duration(seconds: 10),
+        pingInterval:
+            const Duration(seconds: AppConstants.wsPingIntervalSeconds),
       );
 
       // Initialize stream controllers
@@ -230,7 +236,8 @@ class WebSocketService {
     if (_isConnected && _channel != null) {
       try {
         _channel!.sink.add(jsonEncode({'type': 'leave'}));
-        await Future.delayed(const Duration(milliseconds: 100));
+        await Future.delayed(
+            const Duration(milliseconds: AppConstants.wsCloseDelayMs));
       } catch (_) {}
     }
 
@@ -288,7 +295,7 @@ class WebSocketService {
   void _startHeartbeat() {
     _stopHeartbeat();
     _heartbeatTimer = Timer.periodic(
-      const Duration(seconds: 30),
+      const Duration(seconds: AppConstants.wsHeartbeatIntervalSeconds),
       (_) => _sendHeartbeat(),
     );
     // Send initial heartbeat
