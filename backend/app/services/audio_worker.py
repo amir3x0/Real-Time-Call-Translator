@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 
 from app.config.redis import get_redis
 from app.services.gcp_pipeline import _get_pipeline
+from app.services.interim_caption_service import (
+    push_audio_for_interim,
+    stop_interim_session,
+    get_interim_caption_service,
+)
 from app.config.settings import settings
 from app.config.constants import (
     AUDIO_SAMPLE_RATE, AUDIO_BYTES_PER_SAMPLE,
@@ -788,6 +793,11 @@ async def handle_audio_stream(
         # Clean up segment buffer for context preservation
         if stream_key in _segment_buffers:
             del _segment_buffers[stream_key]
+        # DUAL-STREAM: Stop interim caption session
+        try:
+            await stop_interim_session(session_id, speaker_id)
+        except Exception as e:
+            logger.debug(f"Interim session cleanup failed (non-critical): {e}")
 
 async def process_stream_message(redis, stream_key: str, message_id: str, data: dict):
     global _processed_message_ids
@@ -846,7 +856,14 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
         # Push chunk to queue - the handle_audio_stream will process it with pause detection
         if key in active_streams:
             active_streams[key].put(audio_data)
-            
+
+        # DUAL-STREAM: Also push to interim caption service for real-time captions
+        # This runs in parallel with the main translation pipeline
+        try:
+            await push_audio_for_interim(session_id, speaker_id, source_lang, audio_data)
+        except Exception as e:
+            logger.debug(f"Interim caption push failed (non-critical): {e}")
+
         # Acknowledge message
         await redis.xack(stream_key, "audio_group", message_id)
         
@@ -907,6 +924,13 @@ async def run_worker():
         # Signal all active streams to shutdown
         _shutdown_flag = True
         logger.info("Shutting down worker - canceling all tasks and signaling streams to stop...")
+
+        # Shutdown interim caption service
+        try:
+            interim_service = get_interim_caption_service()
+            await interim_service.shutdown()
+        except Exception as e:
+            logger.debug(f"Interim service shutdown failed (non-critical): {e}")
         
         # Put sentinel values in all queues first to unblock them
         logger.info(f"Unblocking {len(active_streams)} active streams...")

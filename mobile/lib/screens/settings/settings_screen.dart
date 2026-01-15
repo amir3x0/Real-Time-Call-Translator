@@ -26,9 +26,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedLang = 'en';
   bool _hasVoiceSample = false;
   bool _isLoadingVoiceStatus = true;
+  bool _showInterimCaptions = true;
 
   final AuthService _authService = AuthService();
   final VoiceService _voiceService = VoiceService();
+
+  static const String _interimCaptionsKey = 'show_interim_captions';
 
   @override
   void initState() {
@@ -48,6 +51,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _selectedLang = currentUser.primaryLanguage;
       });
     }
+
+    // Load interim caption preference
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _showInterimCaptions = prefs.getBool(_interimCaptionsKey) ?? true;
+    });
 
     // Check voice sample status
     try {
@@ -95,6 +104,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildVoiceSection()
               .animate()
               .fadeIn(delay: 400.ms, duration: 400.ms),
+
+          const SizedBox(height: 24),
+
+          // Section: Call Settings
+          _buildSectionHeader('Call Settings', Icons.call_outlined)
+              .animate()
+              .fadeIn(delay: 410.ms, duration: 400.ms),
+          const SizedBox(height: 12),
+
+          _buildCallSettingsSection()
+              .animate()
+              .fadeIn(delay: 420.ms, duration: 400.ms),
 
           const SizedBox(height: 24),
 
@@ -490,6 +511,125 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCallSettingsSection() {
+    return ClipRRect(
+      borderRadius: AppTheme.borderRadiusMedium,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: AppTheme.glassDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderColor: Colors.white.withValues(alpha: 0.1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Interim Captions Toggle
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _showInterimCaptions
+                          ? AppTheme.accentCyan.withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.closed_caption,
+                      color: _showInterimCaptions
+                          ? AppTheme.accentCyan
+                          : AppTheme.secondaryText,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Live Captions',
+                            style: AppTheme.titleMedium),
+                        Text(
+                          'Show real-time transcription as you speak',
+                          style: AppTheme.bodyMedium.copyWith(
+                            color: AppTheme.secondaryText,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: _showInterimCaptions,
+                    activeTrackColor: AppTheme.accentCyan,
+                    onChanged: (value) async {
+                      HapticFeedback.selectionClick();
+                      setState(() => _showInterimCaptions = value);
+
+                      // Persist to SharedPreferences
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool(_interimCaptionsKey, value);
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              value
+                                  ? 'Live captions enabled'
+                                  : 'Live captions disabled',
+                            ),
+                            backgroundColor: value
+                                ? AppTheme.accentCyan
+                                : AppTheme.secondaryText,
+                            behavior: SnackBarBehavior.floating,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Info text
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentCyan.withValues(alpha: 0.08),
+                  borderRadius: AppTheme.borderRadiusSmall,
+                  border: Border.all(
+                    color: AppTheme.accentCyan.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: AppTheme.accentCyan.withValues(alpha: 0.8),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Live captions show what is being said in real-time, like a typing indicator.',
+                        style: AppTheme.bodyMedium.copyWith(
+                          color: AppTheme.secondaryText,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

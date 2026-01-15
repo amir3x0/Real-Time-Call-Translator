@@ -10,6 +10,7 @@ import '../../providers/call_provider.dart';
 import '../../widgets/call/network_indicator.dart';
 import '../../widgets/call/participant_grid.dart';
 import '../../widgets/call/transcription_panel.dart';
+import '../../widgets/call/interim_caption_bubble.dart';
 import '../../config/app_theme.dart';
 
 class ActiveCallScreen extends StatefulWidget {
@@ -130,8 +131,21 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                   ),
                 ),
 
+                // Interim captions (WhatsApp-style real-time typing indicator)
+                if (callProvider.interimCaptions.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 8),
+                    child: InterimCaptionList(
+                      captions: callProvider.interimCaptions,
+                      maxVisible: 3,
+                    ),
+                  ),
+
                 // Live transcription bubble (text being transcribed in real-time)
-                if (callProvider.liveTranscription.isNotEmpty)
+                // Only show if no interim captions (avoid duplication)
+                if (callProvider.liveTranscription.isNotEmpty &&
+                    callProvider.interimCaptions.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 16),

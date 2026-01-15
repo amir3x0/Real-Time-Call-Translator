@@ -24,6 +24,7 @@ enum WSMessageType {
   transcript,
   transcriptionUpdate,
   translation,
+  interimTranscript, // Real-time typing indicator captions
   audio,
   incomingCall,
   userStatusChanged,
@@ -77,6 +78,8 @@ class WSMessage {
         return WSMessageType.transcriptionUpdate;
       case 'translation':
         return WSMessageType.translation;
+      case 'interim_transcript':
+        return WSMessageType.interimTranscript;
       case 'audio':
         return WSMessageType.audio;
       case 'incoming_call':

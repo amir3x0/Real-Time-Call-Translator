@@ -8,12 +8,12 @@ class AppConstants {
   // ============================================================
 
   /// How often we send audio chunks to server (ms)
-  /// Increased from 100ms for lower network overhead
-  static const int audioSendIntervalMs = 150;
+  /// Reduced from 150ms to 100ms for faster interim caption updates
+  static const int audioSendIntervalMs = 100;
 
-  /// Minimum bytes to send per chunk (~150ms at 16kHz mono 16-bit)
-  /// Formula: 16000 Hz × 2 bytes × 0.15s = 4800 bytes
-  static const int audioMinChunkSize = 4800;
+  /// Minimum bytes to send per chunk (~100ms at 16kHz mono 16-bit)
+  /// Formula: 16000 Hz × 2 bytes × 0.1s = 3200 bytes
+  static const int audioMinChunkSize = 3200;
 
   /// Sample rate for recording (Hz)
   static const int audioSampleRate = 16000;
@@ -105,6 +105,25 @@ class AppConstants {
 
   /// Maximum transcription entries to keep in history
   static const int maxTranscriptionEntries = 100;
+
+  // ============================================================
+  // INTERIM CAPTIONS (Real-time typing indicator)
+  // ============================================================
+
+  /// Interim caption text fade/transition animation (ms)
+  static const int interimCaptionFadeMs = 200;
+
+  /// Maximum length of interim caption text before truncation
+  static const int interimCaptionMaxLength = 150;
+
+  /// Blinking cursor animation interval (ms)
+  static const int interimCursorBlinkMs = 500;
+
+  /// Interim caption auto-clear timeout if no updates (ms)
+  static const int interimCaptionTimeoutMs = 3000;
+
+  /// Letter-by-letter typing animation speed (ms per character)
+  static const int interimTypingSpeedMs = 30;
 
   // ============================================================
   // VOICE RECORDING

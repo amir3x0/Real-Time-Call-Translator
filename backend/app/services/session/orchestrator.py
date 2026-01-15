@@ -555,10 +555,11 @@ class CallOrchestrator:
     async def _handle_translation_result(self, data: Dict[str, Any]) -> None:
         """
         Handle translation result from the Worker.
-        
+
         Forwards the result to the appropriate WebSocket client.
-        
+
         Message types from Worker:
+        - interim_transcript: Real-time interim caption (sent to ALL including speaker)
         - transcription_update: Interim STT result
         - translation: Final translation with TTS audio
         """
@@ -568,7 +569,12 @@ class CallOrchestrator:
 
         logger.info(f"[WebSocket][{self.user_id}] Processing {msg_type} from speaker {speaker_id}")
 
-        # Don't send back to the speaker
+        # INTERIM TRANSCRIPT: Send to ALL participants including self (for self-preview)
+        if msg_type == "interim_transcript":
+            await self._forward_interim_transcript(data, speaker_id)
+            return
+
+        # Other message types: Don't send back to the speaker
         if speaker_id == self.user_id:
             logger.info(f"[WebSocket][{self.user_id}] Skipping - this is from myself")
             return
@@ -615,6 +621,31 @@ class CallOrchestrator:
                     logger.error(f"[WebSocket][{self.user_id}] ❌ Failed to send TTS audio: {e}")
             else:
                 logger.warning(f"[WebSocket][{self.user_id}] No TTS audio in translation")
+
+    async def _forward_interim_transcript(self, data: Dict[str, Any], speaker_id: str) -> None:
+        """
+        Forward interim transcript to client.
+
+        Unlike other messages, interim transcripts are sent to ALL participants
+        including the speaker (for self-preview / typing indicator).
+        """
+        # Determine if this is from self (for UI tagging)
+        is_self = (speaker_id == self.user_id)
+
+        interim_msg = {
+            "type": "interim_transcript",
+            "text": data.get("text", ""),
+            "speaker_id": speaker_id,
+            "is_self": is_self,  # Client uses this to tag as "You" vs speaker name
+            "source_lang": data.get("source_lang", ""),
+            "is_final": data.get("is_final", False),
+            "confidence": data.get("confidence", 0.7),
+            "timestamp": data.get("timestamp")
+        }
+
+        await self.websocket.send_json(interim_msg)
+        tag = "[You]" if is_self else f"[{speaker_id[:8]}]"
+        logger.debug(f"[WebSocket][{self.user_id}] Sent interim_transcript {tag}: '{data.get('text', '')[:30]}...'")
 
 
 def _normalize_language_code(lang: str) -> str:

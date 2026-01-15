@@ -38,14 +38,14 @@ MAX_BUFFER_SEGMENTS: int = 10
 # AUDIO PROCESSING - THRESHOLDS
 # ==============================================================================
 
-# Silence detection threshold in seconds
-SILENCE_THRESHOLD_SEC: float = 0.25
+# Silence detection threshold in seconds (optimized for better sentence boundaries)
+SILENCE_THRESHOLD_SEC: float = 0.40
 
 # RMS threshold for detecting silence (lower = more sensitive)
 RMS_SILENCE_THRESHOLD: int = 300
 
-# Minimum audio length before processing (seconds)
-MIN_AUDIO_LENGTH_SEC: float = 0.5
+# Minimum audio length before processing (seconds, reduced for faster response)
+MIN_AUDIO_LENGTH_SEC: float = 0.4
 
 # Time window for merging adjacent segments (seconds)
 SEGMENT_MERGE_TIME_WINDOW_SEC: float = 1.0
@@ -69,11 +69,30 @@ SPEECH_NOISE_RATIO_THRESHOLD: float = 2.0
 # CONTEXT-AWARE TRANSLATION
 # ==============================================================================
 
-# Max characters for translation context window
-TRANSLATION_CONTEXT_MAX_CHARS: int = 200
+# Max characters for translation context window (increased for better context)
+TRANSLATION_CONTEXT_MAX_CHARS: int = 350
 
-# Context snippet length for context-aware translation
-CONTEXT_SNIPPET_MAX_CHARS: int = 150
+# Context snippet length for context-aware translation (increased for richer context)
+CONTEXT_SNIPPET_MAX_CHARS: int = 250
+
+# ==============================================================================
+# INTERIM CAPTION STREAMING
+# ==============================================================================
+
+# Minimum interval between interim caption publishes (milliseconds)
+INTERIM_PUBLISH_INTERVAL_MS: int = 150
+
+# Streaming STT session timeout (seconds)
+STREAMING_STT_TIMEOUT_SEC: float = 30.0
+
+# Minimum characters before publishing interim caption (avoid single chars)
+INTERIM_MIN_CHARS_TO_PUBLISH: int = 3
+
+# Maximum interim text length before truncation
+INTERIM_MAX_TEXT_LENGTH: int = 200
+
+# Deduplication window for identical interim results (seconds)
+INTERIM_DEDUP_WINDOW_SEC: float = 0.5
 
 # ==============================================================================
 # TIMING & DELAYS - AUDIO WORKER
@@ -82,8 +101,8 @@ CONTEXT_SNIPPET_MAX_CHARS: int = 150
 # Audio queue read timeout (seconds) - how long to wait for new audio
 AUDIO_QUEUE_READ_TIMEOUT_SEC: float = 0.15
 
-# Max accumulated audio time before forced processing (seconds)
-MAX_ACCUMULATED_AUDIO_TIME_SEC: float = 0.75
+# Max accumulated audio time before forced processing (seconds, increased for more context)
+MAX_ACCUMULATED_AUDIO_TIME_SEC: float = 1.2
 
 # Message deduplication TTL (seconds)
 MESSAGE_DEDUP_TTL_SEC: float = 30.0
