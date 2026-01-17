@@ -14,6 +14,7 @@ from app.services.interim_caption_service import (
     stop_interim_session,
     get_interim_caption_service,
 )
+from app.services.streaming_translation_processor import get_streaming_processor
 from app.config.settings import settings
 from app.config.constants import (
     AUDIO_SAMPLE_RATE, AUDIO_BYTES_PER_SAMPLE,
@@ -857,10 +858,18 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
         if key in active_streams:
             active_streams[key].put(audio_data)
 
-        # DUAL-STREAM: Also push to interim caption service for real-time captions
-        # This runs in parallel with the main translation pipeline
+        # DUAL-STREAM: Push to interim caption service for real-time captions + streaming translation
+        # The streaming processor callback is invoked when STT produces a final result,
+        # enabling sub-2-second latency by bypassing the batch STT path
         try:
-            await push_audio_for_interim(session_id, speaker_id, source_lang, audio_data)
+            streaming_processor = get_streaming_processor()
+            await push_audio_for_interim(
+                session_id,
+                speaker_id,
+                source_lang,
+                audio_data,
+                on_final_transcript=streaming_processor.process_final_transcript
+            )
         except Exception as e:
             logger.debug(f"Interim caption push failed (non-critical): {e}")
 
