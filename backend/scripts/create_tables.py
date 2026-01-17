@@ -4,8 +4,8 @@ from app.models.user import User
 from app.models.call import Call
 from app.models.call_participant import CallParticipant
 from app.models.contact import Contact
-from app.models.voice_model import VoiceModel
-from app.models.message import Message
+from app.models.call_transcript import CallTranscript
+from app.models.voice_recording import VoiceRecording
 
 
 async def create_tables():
@@ -16,11 +16,11 @@ async def create_tables():
     print("  - calls")
     print("  - call_participants")
     print("  - contacts")
-    print("  - voice_models")
-    print("  - messages")
-    
+    print("  - call_transcripts")
+    print("  - voice_recordings")
+
     await init_db()
-    
+
     print("✅ All tables created successfully!")
     print("\nDatabase schema ready for Real-Time Call Translator")
 

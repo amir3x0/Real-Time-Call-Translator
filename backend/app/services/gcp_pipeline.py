@@ -430,6 +430,74 @@ class GCPSpeechPipeline:
             # Don't retry in a loop as this causes duplicate processing
             pass
 
+    # =========================================================================
+    # Protocol-compliant public methods (for SpeechPipelineProtocol)
+    # =========================================================================
+
+    def transcribe(self, audio_data: bytes, language_code: str) -> str:
+        """
+        Transcribe audio to text (protocol-compliant wrapper).
+
+        Args:
+            audio_data: Raw PCM16 audio bytes at 16kHz
+            language_code: Language code (e.g., "en-US", "he-IL")
+
+        Returns:
+            Transcribed text
+        """
+        return self._transcribe(audio_data, language_code)
+
+    def translate(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+        context: str = ""
+    ) -> str:
+        """
+        Translate text (protocol-compliant wrapper).
+
+        Args:
+            text: Text to translate
+            source_lang: Source language code (e.g., "en", "he")
+            target_lang: Target language code (e.g., "en", "he")
+            context: Optional context for better translation coherence
+
+        Returns:
+            Translated text
+        """
+        if context:
+            return self._translate_text_with_context(
+                text,
+                context,
+                source_language_code=source_lang,
+                target_language_code=target_lang
+            )
+        return self._translate_text(
+            text,
+            source_language_code=source_lang,
+            target_language_code=target_lang
+        )
+
+    def synthesize(
+        self,
+        text: str,
+        language_code: str,
+        voice: Optional[str] = None
+    ) -> bytes:
+        """
+        Synthesize speech from text (protocol-compliant wrapper).
+
+        Args:
+            text: Text to synthesize
+            language_code: Language code (e.g., "en-US", "he-IL")
+            voice: Optional voice name
+
+        Returns:
+            Raw PCM16 audio bytes
+        """
+        return self._synthesize(text, language_code=language_code, voice_name=voice)
+
 
 @functools.lru_cache(maxsize=1)
 def _get_pipeline() -> GCPSpeechPipeline:
@@ -439,6 +507,19 @@ def _get_pipeline() -> GCPSpeechPipeline:
 # Dedicated thread pool for GCP operations (larger than default)
 from concurrent.futures import ThreadPoolExecutor
 _gcp_executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="gcp_worker")
+
+
+def get_gcp_executor() -> ThreadPoolExecutor:
+    """
+    Get the dedicated thread pool executor for GCP operations.
+
+    This executor should be used for all blocking GCP API calls
+    (STT, Translation, TTS) to prevent thread pool starvation.
+
+    Returns:
+        ThreadPoolExecutor with 16 workers
+    """
+    return _gcp_executor
 
 
 async def process_audio_chunk(

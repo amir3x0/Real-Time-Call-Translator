@@ -13,6 +13,12 @@ Key Features:
 - Queries database for target languages (multiparty support)
 - Runs translation + TTS in parallel per target language
 - Includes deduplication to prevent double processing
+
+Usage:
+    from app.services.translation.streaming import get_streaming_processor
+
+    processor = get_streaming_processor()
+    await processor.process_final_transcript(session_id, speaker_id, transcript, source_lang)
 """
 
 import asyncio
@@ -24,7 +30,8 @@ from dataclasses import dataclass, field
 
 from app.config.redis import get_redis
 from app.services.gcp_pipeline import _get_pipeline
-from app.services.tts_cache import get_tts_cache
+from app.services.translation.tts_cache import get_tts_cache
+from app.services.core.repositories import call_repository
 from app.config.constants import (
     TRANSLATION_CONTEXT_MAX_CHARS,
     DEFAULT_PARTICIPANT_LANGUAGE,
@@ -326,58 +333,13 @@ class StreamingTranslationProcessor:
         """
         Get target languages for translation from database.
 
-        Queries all connected participants in the call (except the speaker)
-        and groups them by language.
+        OOP Refactor: Delegates to CallRepository to eliminate code duplication.
 
         Returns:
             Dict mapping language code to list of user IDs
             e.g., {"en-US": ["user2", "user3"], "he-IL": ["user4"]}
         """
-        from app.models.database import AsyncSessionLocal
-        from app.models.call_participant import CallParticipant
-        from app.models.call import Call
-        from sqlalchemy import select, and_
-
-        target_langs_map: Dict[str, list] = {}
-
-        try:
-            async with AsyncSessionLocal() as db:
-                # Get call by session_id
-                call_result = await db.execute(
-                    select(Call).where(Call.session_id == session_id)
-                )
-                call = call_result.scalar_one_or_none()
-
-                if not call:
-                    logger.warning(f"No call found for session {session_id}")
-                    return {}
-
-                # Get other connected participants
-                participants_result = await db.execute(
-                    select(CallParticipant).where(
-                        and_(
-                            CallParticipant.call_id == call.id,
-                            CallParticipant.user_id != speaker_id,
-                            CallParticipant.is_connected == True
-                        )
-                    )
-                )
-                participants = participants_result.scalars().all()
-
-                for p in participants:
-                    lang = p.participant_language or DEFAULT_PARTICIPANT_LANGUAGE
-                    if lang not in target_langs_map:
-                        target_langs_map[lang] = []
-                    target_langs_map[lang].append(p.user_id)
-
-                logger.debug(f"Target languages for {speaker_id}: {target_langs_map}")
-
-        except Exception as e:
-            logger.error(f"Error getting target languages: {e}")
-            import traceback
-            traceback.print_exc()
-
-        return target_langs_map
+        return await call_repository.get_target_languages(session_id, speaker_id)
 
     def cleanup_stream(self, session_id: str, speaker_id: str):
         """Clean up context for a stream when it ends."""

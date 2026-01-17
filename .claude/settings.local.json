@@ -3,7 +3,11 @@
     "allow": [
       "Bash(flutter build:*)",
       "Bash(xargs:*)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "Bash(cd:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)"
     ]
   }
 }
