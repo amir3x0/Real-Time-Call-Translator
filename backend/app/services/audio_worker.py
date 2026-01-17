@@ -129,6 +129,10 @@ class SegmentBuffer:
         self.segments.append((transcript, translation, timestamp))
         self.full_context += " " + transcript
 
+        # Bound context string to prevent memory leak (same as StreamContext)
+        if len(self.full_context) > TRANSLATION_CONTEXT_MAX_CHARS * 2:
+            self.full_context = self.full_context[-TRANSLATION_CONTEXT_MAX_CHARS:]
+
         # Keep only last N segments to prevent memory growth
         if len(self.segments) > MAX_BUFFER_SEGMENTS:
             self.segments.pop(0)

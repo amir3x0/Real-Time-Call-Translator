@@ -293,6 +293,10 @@ class InterimCaptionService:
         session.last_publish_time = now
 
         if is_final:
+            # Send clear signal to mobile BEFORE final translation
+            # This allows UI to clean up old interim text
+            await self._publish_interim_clear(session)
+
             # Invoke callback for streaming translation pipeline
             if session.on_final_transcript is not None:
                 try:
@@ -339,6 +343,28 @@ class InterimCaptionService:
 
         except Exception as e:
             logger.error(f"Failed to publish interim caption: {e}")
+
+    async def _publish_interim_clear(self, session: InterimSession):
+        """
+        Signal mobile to clear interim display for this speaker.
+
+        Sent before final translation so UI can clean up old interim text
+        and prepare for the translated result.
+        """
+        try:
+            payload = {
+                "type": "interim_clear",
+                "session_id": session.session_id,
+                "speaker_id": session.speaker_id,
+                "timestamp": time.time()
+            }
+
+            channel = f"channel:translation:{session.session_id}"
+            await self._redis.publish(channel, json.dumps(payload))
+            logger.debug(f"🧹 Interim clear signal sent for [{session.speaker_id}]")
+
+        except Exception as e:
+            logger.error(f"Failed to publish interim clear: {e}")
 
     async def shutdown(self):
         """Shutdown all active sessions."""

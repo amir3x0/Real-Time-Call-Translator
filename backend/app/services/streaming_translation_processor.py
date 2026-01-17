@@ -38,14 +38,20 @@ class StreamContext:
     """
     Maintains translation context per speaker stream.
 
-    Provides bounded context window for coherent translations
-    and deduplication to prevent processing the same transcript twice.
+    Provides bounded context window for coherent translations,
+    deduplication to prevent processing the same transcript twice,
+    and translation memory for term consistency.
     """
     full_context: str = ""
     last_transcript: str = ""
     last_translation: str = ""
     processed_transcripts: Set[str] = field(default_factory=set)
     last_process_time: float = 0.0
+
+    # Translation memory for consistent term translation
+    # Key: normalized source text, Value: translation
+    translation_memory: Dict[str, str] = field(default_factory=dict)
+    MEMORY_MAX_SIZE: int = 50  # Max entries to prevent memory growth
 
     def add_segment(self, transcript: str, translation: str):
         """Add a processed segment to the context."""
@@ -81,6 +87,41 @@ class StreamContext:
     def clear_dedup(self):
         """Clear deduplication tracking (e.g., on long silence)."""
         self.processed_transcripts.clear()
+
+    def remember_translation(self, source: str, target_lang: str, translation: str):
+        """
+        Store translation for consistency.
+
+        Next time the same source text is spoken for the same target language,
+        we return the same translation to avoid inconsistency
+        (e.g., "שלום" to English always → "Hello", not sometimes "Hi").
+
+        Args:
+            source: Source text (will be normalized)
+            target_lang: Target language code (e.g., "en-US")
+            translation: The translation to store
+        """
+        # Key includes target language for language-pair specificity
+        key = f"{source.strip().lower()}|{target_lang[:2]}"
+        self.translation_memory[key] = translation
+
+        # LRU-style eviction: remove oldest if over limit
+        if len(self.translation_memory) > self.MEMORY_MAX_SIZE:
+            oldest_key = next(iter(self.translation_memory))
+            del self.translation_memory[oldest_key]
+
+    def recall_translation(self, source: str, target_lang: str) -> Optional[str]:
+        """
+        Get previous translation if exists.
+
+        Returns None if not found, meaning we need to translate fresh.
+
+        Args:
+            source: Source text to look up
+            target_lang: Target language code (e.g., "en-US")
+        """
+        key = f"{source.strip().lower()}|{target_lang[:2]}"
+        return self.translation_memory.get(key)
 
 
 class StreamingTranslationProcessor:
@@ -178,17 +219,27 @@ class StreamingTranslationProcessor:
         async def process_language(tgt_lang: str, recipients: list):
             """Translate and synthesize for one target language."""
             try:
-                # Translate with context
-                def do_translate():
-                    return self._pipeline._translate_text_with_context(
-                        transcript,
-                        context_text,
-                        source_language_code=source_lang[:2],
-                        target_language_code=tgt_lang[:2]
-                    )
+                # Check translation memory first for consistency
+                cached_translation = context.recall_translation(transcript, tgt_lang)
 
-                translation = await loop.run_in_executor(None, do_translate)
-                logger.info(f"🔄 [{tgt_lang}] '{transcript[:30]}...' -> '{translation[:30]}...'")
+                if cached_translation:
+                    translation = cached_translation
+                    logger.info(f"📚 [{tgt_lang}] Memory hit: '{transcript[:30]}...' -> '{translation[:30]}...'")
+                else:
+                    # Translate with context
+                    def do_translate():
+                        return self._pipeline._translate_text_with_context(
+                            transcript,
+                            context_text,
+                            source_language_code=source_lang[:2],
+                            target_language_code=tgt_lang[:2]
+                        )
+
+                    translation = await loop.run_in_executor(None, do_translate)
+                    logger.info(f"🔄 [{tgt_lang}] '{transcript[:30]}...' -> '{translation[:30]}...'")
+
+                    # Store in memory for future consistency
+                    context.remember_translation(transcript, tgt_lang, translation)
 
                 # TTS with caching
                 cache = get_tts_cache()
