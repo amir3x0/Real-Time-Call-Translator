@@ -53,10 +53,12 @@ class AudioController {
 
   /// Initialize audio for a call session
   Future<void> initAudio() async {
-    // ⭐ Reset disposed state - AudioController is reused across calls
+    // ⭐ FIX: Never reinitialize a disposed controller - create a fresh one instead
+    // CallProvider now creates a new AudioController for each call, so hitting this
+    // means there's a bug in the call lifecycle management
     if (_disposed) {
-      debugPrint('[AudioController] ⚠️ Was disposed - resetting for new call');
-      _disposed = false;
+      throw StateError(
+          'Cannot initialize a disposed AudioController. Create a new instance instead.');
     }
 
     if (_audioInitializing) {

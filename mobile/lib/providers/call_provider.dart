@@ -9,9 +9,9 @@ import '../models/live_caption.dart';
 import '../models/interim_caption.dart';
 import '../models/participant.dart';
 import '../models/transcription_entry.dart';
-import '../config/constants.dart';
 import 'audio_controller.dart';
 import 'caption_manager.dart';
+import 'interim_caption_manager.dart';
 import 'transcription_manager.dart';
 
 /// Callback for when call ends remotely (e.g., other participant left)
@@ -30,16 +30,6 @@ class CallProvider with ChangeNotifier {
   String? _activeSessionId;
   String? _liveTranscription;
   String? _activeSpeakerId;
-
-  /// Interim captions per speaker (real-time typing indicator)
-  /// Key: speakerId, Value: latest InterimCaption for that speaker
-  final Map<String, InterimCaption> _interimCaptions = {};
-
-  /// Timers to auto-clear stale interim captions
-  final Map<String, Timer> _interimCaptionTimers = {};
-
-  /// User preference: whether to show interim captions (can be toggled in settings)
-  bool _showInterimCaptions = true;
 
   /// Current user ID - set when joining a call
   String? _currentUserId;
@@ -60,6 +50,7 @@ class CallProvider with ChangeNotifier {
   AudioController? _audioController;
   late final CaptionManager _captionManager;
   late final TranscriptionManager _transcriptionManager;
+  late final InterimCaptionManager _interimCaptionManager;
 
   CallProvider({
     required WebSocketService wsService,
@@ -70,6 +61,12 @@ class CallProvider with ChangeNotifier {
     _captionManager = CaptionManager(notifyListeners, () => _disposed);
     _transcriptionManager =
         TranscriptionManager(notifyListeners, () => _disposed);
+    _interimCaptionManager = InterimCaptionManager(
+      notifyListeners: notifyListeners,
+      isDisposed: () => _disposed,
+      getParticipantName: _getParticipantName,
+      setActiveSpeaker: (id) => _setActiveSpeaker(id),
+    );
   }
 
   // === Getters ===
@@ -89,17 +86,14 @@ class CallProvider with ChangeNotifier {
 
   /// Get all active interim captions (for UI display)
   List<InterimCaption> get interimCaptions =>
-      _showInterimCaptions ? _interimCaptions.values.toList() : [];
+      _interimCaptionManager.captions.values.toList();
 
   /// Whether interim captions are enabled
-  bool get showInterimCaptions => _showInterimCaptions;
+  bool get showInterimCaptions => _interimCaptionManager.showCaptions;
 
   /// Toggle interim captions visibility
   set showInterimCaptions(bool value) {
-    _showInterimCaptions = value;
-    if (!value) {
-      _clearAllInterimCaptions();
-    }
+    _interimCaptionManager.showCaptions = value;
     notifyListeners();
   }
 
@@ -178,12 +172,21 @@ class CallProvider with ChangeNotifier {
     _participants = parts
         .map((p) => CallParticipant.fromJson(Map<String, dynamic>.from(p)))
         .toList();
-    _status = CallStatus.ongoing;
     _activeSessionId = sessionId;
 
     debugPrint(
         '[CallProvider] Connecting to WebSocket: session=$sessionId, call=$callId');
-    await _joinCallSession(sessionId, callId: callId);
+
+    final success = await _joinCallSession(sessionId, callId: callId);
+
+    // FIX: Only set ongoing if connection succeeded
+    if (success) {
+      _status = CallStatus.ongoing;
+    } else {
+      _status = CallStatus.ended;
+      _activeSessionId = null;
+      throw Exception('Failed to connect to call session');
+    }
     notifyListeners();
   }
 
@@ -208,24 +211,33 @@ class CallProvider with ChangeNotifier {
       String? callId}) async {
     _activeSessionId = sessionId;
     _participants = participants;
-    _status = CallStatus.ongoing;
+    _status = CallStatus.initiating; // FIX: Use initiating until actually connected
     _currentUserId = currentUserId;
     _authToken = token;
 
-    // ⭐ Notify immediately to update UI state BEFORE async operations
-    // This prevents race condition where UI sees null incomingCall but status not yet ongoing
+    // Notify immediately to update UI state BEFORE async operations
     notifyListeners();
 
-    await _joinCallSession(sessionId, callId: callId);
+    final success = await _joinCallSession(sessionId, callId: callId);
+
+    // FIX: Only set ongoing if connection succeeded
+    if (success) {
+      _status = CallStatus.ongoing;
+    } else {
+      _status = CallStatus.ended;
+      _activeSessionId = null;
+    }
+    notifyListeners();
   }
 
-  Future<void> _joinCallSession(String sessionId, {String? callId}) async {
+  /// Returns true if connection was successful, false otherwise
+  Future<bool> _joinCallSession(String sessionId, {String? callId}) async {
     debugPrint(
         '[CallProvider] Joining call session: $sessionId, call_id: $callId');
     await _wsSub?.cancel();
     if (_currentUserId == null || _authToken == null) {
       debugPrint('[CallProvider] Missing credentials for WebSocket connection');
-      return;
+      return false;
     }
 
     // Load interim caption preference from SharedPreferences
@@ -240,29 +252,37 @@ class CallProvider with ChangeNotifier {
     if (!connected) {
       debugPrint(
           '[CallProvider] FAILED to connect to call session: $sessionId');
-      // Optionally handle error state here
-      return;
+      return false;
     }
 
     debugPrint('[CallProvider] Successfully connected to call session');
     _wsSub = _wsService.messages.listen(_handleWebSocketMessage);
 
-    // Issue B Fix: Create FRESH AudioController for each call
+    // Create FRESH AudioController for each call
     _audioController?.dispose(); // Clean up any previous instance
     _audioController = AudioController(_wsService, notifyListeners);
-    await _audioController!.initAudio();
+    try {
+      await _audioController!.initAudio();
+    } catch (e) {
+      debugPrint('[CallProvider] Failed to initialize audio: $e');
+      // Audio init failed but WebSocket connected - continue with call
+      // User will see muted state
+    }
+
+    return true;
   }
 
   /// Load interim caption preference from SharedPreferences
   Future<void> _loadInterimCaptionPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _showInterimCaptions = prefs.getBool('show_interim_captions') ?? true;
+      _interimCaptionManager.showCaptions =
+          prefs.getBool('show_interim_captions') ?? true;
       debugPrint(
-          '[CallProvider] Interim captions enabled: $_showInterimCaptions');
+          '[CallProvider] Interim captions enabled: ${_interimCaptionManager.showCaptions}');
     } catch (e) {
       debugPrint('[CallProvider] Failed to load interim caption pref: $e');
-      _showInterimCaptions = true; // Default to enabled
+      _interimCaptionManager.showCaptions = true; // Default to enabled
     }
   }
 
@@ -278,7 +298,7 @@ class CallProvider with ChangeNotifier {
     _wsService.disconnect();
     _captionManager.clearBubbles();
     _transcriptionManager.clear();
-    _clearAllInterimCaptions(); // Clear interim captions
+    _interimCaptionManager.clearAll();
     notifyListeners();
   }
 
@@ -303,7 +323,13 @@ class CallProvider with ChangeNotifier {
   // === WebSocket Message Handling ===
 
   void _handleWebSocketMessage(WSMessage message) {
+    if (_disposed) return; // FIX: Don't process messages if disposed
     debugPrint('[CallProvider] WS message: ${message.type}');
+
+    // ⭐ FIX: Each handler notifies only when it changes state
+    // Removed blanket notifyListeners() to prevent:
+    // 1. Double notifications for handlers that already notify
+    // 2. Unnecessary rebuilds for no-op handlers
     switch (message.type) {
       case WSMessageType.transcript:
         _handleTranscript(message);
@@ -318,22 +344,24 @@ class CallProvider with ChangeNotifier {
         _handleTranslation(message);
         break;
       case WSMessageType.participantJoined:
-        _handleParticipantJoined(message);
+        _handleParticipantJoined(message); // Already calls notifyListeners
         break;
       case WSMessageType.participantLeft:
+        // No-op: participant list updated via _handleParticipantJoined
         break;
       case WSMessageType.muteStatusChanged:
+        // No-op: mute state managed locally
         break;
       case WSMessageType.callEnded:
-        _handleCallEnded(message);
+        _handleCallEnded(message); // Already calls notifyListeners via endCall()
         break;
       case WSMessageType.error:
         debugPrint('[CallProvider] WebSocket error: ${message.data}');
+        // No state change, no notification needed
         break;
       default:
         break;
     }
-    notifyListeners();
   }
 
   /// Handle live transcript (original text as it's being spoken)
@@ -392,7 +420,7 @@ class CallProvider with ChangeNotifier {
       _liveTranscription = null;
 
       // Clear interim caption for this speaker (final translation supersedes interim)
-      _clearInterimCaption(speakerId);
+      _interimCaptionManager.clearCaption(speakerId);
     }
 
     debugPrint(
@@ -453,37 +481,13 @@ class CallProvider with ChangeNotifier {
     if (displayText != null && displayText.isNotEmpty) {
       _liveTranscription = displayText;
       debugPrint('[CallProvider] Live transcription update: "$displayText"');
+      if (!_disposed) notifyListeners(); // ⭐ FIX: Notify UI of transcription update
     }
   }
 
   /// Handle real-time interim transcripts (WhatsApp-style typing indicator)
   void _handleInterimTranscript(WSMessage message) {
-    if (!_showInterimCaptions) return;
-
-    final data = message.data;
-    if (data == null) return;
-
-    // Parse interim caption from message
-    final interim = InterimCaption.fromJson(data);
-    if (interim.text.isEmpty) return;
-
-    // Resolve speaker name from participants
-    final speakerName = _getParticipantName(interim.speakerId);
-    final interimWithName = interim.copyWith(speakerName: speakerName);
-
-    // Update the interim caption for this speaker
-    _interimCaptions[interim.speakerId] = interimWithName;
-
-    // Reset the auto-clear timer for this speaker
-    _resetInterimCaptionTimer(interim.speakerId);
-
-    // If this is a final result from streaming STT, mark active speaker
-    if (interim.isFinal) {
-      _setActiveSpeaker(interim.speakerId);
-    }
-
-    debugPrint(
-        '[CallProvider] Interim caption [${interimWithName.displayTag}]: "${interim.text.length > 30 ? '${interim.text.substring(0, 30)}...' : interim.text}"');
+    _interimCaptionManager.handleInterimTranscript(message.data);
   }
 
   /// Get participant display name from user ID
@@ -498,35 +502,8 @@ class CallProvider with ChangeNotifier {
     }
   }
 
-  /// Reset the auto-clear timer for an interim caption
-  void _resetInterimCaptionTimer(String speakerId) {
-    _interimCaptionTimers[speakerId]?.cancel();
-    _interimCaptionTimers[speakerId] = Timer(
-      const Duration(milliseconds: AppConstants.interimCaptionTimeoutMs),
-      () => _clearInterimCaption(speakerId),
-    );
-  }
-
-  /// Clear interim caption for a specific speaker
-  void _clearInterimCaption(String speakerId) {
-    _interimCaptions.remove(speakerId);
-    _interimCaptionTimers[speakerId]?.cancel();
-    _interimCaptionTimers.remove(speakerId);
-    if (!_disposed) {
-      notifyListeners();
-    }
-  }
-
-  /// Clear all interim captions (called when final translation arrives or settings toggle)
-  void _clearAllInterimCaptions() {
-    _interimCaptions.clear();
-    for (final timer in _interimCaptionTimers.values) {
-      timer.cancel();
-    }
-    _interimCaptionTimers.clear();
-  }
-
   void _setActiveSpeaker(String? participantId) {
+    if (_disposed) return; // FIX: Don't modify state if disposed
     _activeSpeakerId = participantId;
     _participants = _participants
         .map((p) => p.copyWith(
@@ -576,8 +553,10 @@ class CallProvider with ChangeNotifier {
     _disposed = true;
     _wsSub?.cancel();
     _wsService.disconnect();
+    _audioController?.dispose(); // FIX: Dispose audio controller to prevent memory leak
+    _audioController = null;
     _captionManager.dispose();
-    _clearAllInterimCaptions(); // Clean up timers
+    _interimCaptionManager.dispose();
     super.dispose();
   }
 }
