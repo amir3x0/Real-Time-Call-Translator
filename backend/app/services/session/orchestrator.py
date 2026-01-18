@@ -574,15 +574,19 @@ class CallOrchestrator:
             await self._forward_interim_transcript(data, speaker_id)
             return
 
-        # Other message types: Don't send back to the speaker
-        if speaker_id == self.user_id:
-            logger.info(f"[WebSocket][{self.user_id}] Skipping - this is from myself")
-            return
-
-        # Phase 3: Only send if this user is in recipient list
-        if recipient_ids and self.user_id not in recipient_ids:
-            logger.info(f"[WebSocket][{self.user_id}] Skipping - not in recipient list {recipient_ids}")
-            return
+        # Phase 3: Check recipient list first (includes speaker for chat history feature)
+        # If recipient_ids is present, use it for filtering
+        if recipient_ids:
+            if self.user_id not in recipient_ids:
+                logger.info(f"[WebSocket][{self.user_id}] Skipping - not in recipient list {recipient_ids}")
+                return
+            # User is in recipient list - allow through (even if speaker is self)
+            logger.debug(f"[WebSocket][{self.user_id}] User in recipient_ids, forwarding")
+        else:
+            # Legacy mode (no recipient_ids): Don't send back to the speaker
+            if speaker_id == self.user_id:
+                logger.info(f"[WebSocket][{self.user_id}] Skipping - this is from myself (legacy mode)")
+                return
 
         logger.info(f"[WebSocket][{self.user_id}] ✅ Forwarding {msg_type} to client")
         
@@ -599,28 +603,34 @@ class CallOrchestrator:
         elif msg_type == "translation":
             # Final translation with TTS audio
             # Send text info as JSON
+            is_self = (speaker_id == self.user_id)
             translation_msg = {
                 "type": "translation",
                 "transcript": data.get("transcript", ""),
                 "translation": data.get("translation", ""),
                 "source_lang": data.get("source_lang", ""),
                 "target_lang": data.get("target_lang", ""),
-                "speaker_id": speaker_id
+                "speaker_id": speaker_id,
+                "is_self": is_self  # Flag for mobile to know this is self-message
             }
             await self.websocket.send_json(translation_msg)
-            logger.info(f"[WebSocket][{self.user_id}] Sent translation JSON: '{data.get('transcript', '')}' -> '{data.get('translation', '')}'")
-            
+            logger.info(f"[WebSocket][{self.user_id}] Sent translation JSON: '{data.get('transcript', '')}' -> '{data.get('translation', '')}'" + (" [SELF]" if is_self else ""))
+
             # Send TTS audio as binary if present
-            audio_hex = data.get("audio_content")
-            if audio_hex:
-                try:
-                    audio_bytes = bytes.fromhex(audio_hex)
-                    await self.websocket.send_bytes(audio_bytes)
-                    logger.info(f"[WebSocket][{self.user_id}] ✅ Sent {len(audio_bytes)} bytes TTS audio")
-                except Exception as e:
-                    logger.error(f"[WebSocket][{self.user_id}] ❌ Failed to send TTS audio: {e}")
+            # Skip TTS for self-messages (speaker doesn't need to hear themselves)
+            if is_self:
+                logger.debug(f"[WebSocket][{self.user_id}] Skipping TTS for self-message")
             else:
-                logger.warning(f"[WebSocket][{self.user_id}] No TTS audio in translation")
+                audio_hex = data.get("audio_content")
+                if audio_hex:
+                    try:
+                        audio_bytes = bytes.fromhex(audio_hex)
+                        await self.websocket.send_bytes(audio_bytes)
+                        logger.info(f"[WebSocket][{self.user_id}] ✅ Sent {len(audio_bytes)} bytes TTS audio")
+                    except Exception as e:
+                        logger.error(f"[WebSocket][{self.user_id}] ❌ Failed to send TTS audio: {e}")
+                else:
+                    logger.warning(f"[WebSocket][{self.user_id}] No TTS audio in translation")
 
     async def _forward_interim_transcript(self, data: Dict[str, Any], speaker_id: str) -> None:
         """

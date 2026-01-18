@@ -108,12 +108,22 @@ class InterimCaptionService:
         stream_key = self.get_stream_key(session_id, speaker_id)
 
         with self._lock:
-            if stream_key in self._sessions and self._sessions[stream_key].is_active:
-                # Update callback if provided (allows late registration)
-                if on_final_transcript is not None:
-                    self._sessions[stream_key].on_final_transcript = on_final_transcript
-                logger.debug(f"Interim session already active for {stream_key}")
-                return False
+            existing_session = self._sessions.get(stream_key)
+
+            if existing_session and existing_session.is_active:
+                # Check if the streaming task is actually still alive
+                # This handles the case where the task died (e.g., STT timeout after mute)
+                # but the session was never cleaned up
+                if existing_session.task and existing_session.task.done():
+                    logger.warning(f"⚠️ Found dead session for {stream_key} - task finished, restarting...")
+                    # Clean up the dead session
+                    del self._sessions[stream_key]
+                else:
+                    # Session exists and task is alive - just update callback
+                    if on_final_transcript is not None:
+                        existing_session.on_final_transcript = on_final_transcript
+                    logger.debug(f"Interim session already active for {stream_key}")
+                    return False
 
             # Create new session
             session = InterimSession(
@@ -124,10 +134,12 @@ class InterimCaptionService:
             )
             self._sessions[stream_key] = session
 
-        # Start the streaming task
-        loop = asyncio.get_running_loop()
-        task = asyncio.create_task(self._run_streaming_session(session))
-        session.task = task
+            # Create the streaming task INSIDE the lock to prevent race conditions
+            # where another coroutine accesses session.task before it's set.
+            # asyncio.create_task() is synchronous (just schedules, doesn't await),
+            # so it's safe to call inside a threading.Lock.
+            task = asyncio.create_task(self._run_streaming_session(session))
+            session.task = task
 
         logger.info(f"🎤 Started interim caption session for {stream_key} (lang: {source_lang})")
         return True
@@ -246,7 +258,10 @@ class InterimCaptionService:
             import traceback
             traceback.print_exc()
         finally:
-            logger.info(f"Streaming STT task ended for {stream_key}")
+            # Mark session as inactive so it can be restarted if needed
+            # This handles the case where the task ends due to timeout (e.g., after mute)
+            session.is_active = False
+            logger.info(f"Streaming STT task ended for {stream_key} - marked inactive")
 
     async def _process_interim_result(
         self,

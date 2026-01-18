@@ -24,6 +24,7 @@ Usage:
 import asyncio
 import queue
 import logging
+import threading
 from typing import Dict, Optional
 from dataclasses import dataclass
 
@@ -51,11 +52,12 @@ class StreamManager:
     - Cleanup when streams end
     - Metrics tracking
 
-    Thread-safe for queue operations (uses thread-safe Queue).
+    Thread-safe: All operations are protected by a reentrant lock.
     """
 
     def __init__(self):
         self._streams: Dict[str, StreamInfo] = {}
+        self._lock = threading.RLock()  # Reentrant lock for thread-safety
 
     def _get_key(self, session_id: str, speaker_id: str) -> str:
         """Generate unique key for a stream."""
@@ -78,22 +80,24 @@ class StreamManager:
         """
         key = self._get_key(session_id, speaker_id)
 
-        if key in self._streams:
-            logger.warning(f"Stream {key} already exists, returning existing queue")
-            return self._streams[key].audio_queue
+        with self._lock:
+            if key in self._streams:
+                # Stream already exists, return existing queue
+                logger.debug(f"Stream {key} already exists, returning existing queue")
+                return self._streams[key].audio_queue
 
-        audio_queue = queue.Queue()
-        self._streams[key] = StreamInfo(
-            session_id=session_id,
-            speaker_id=speaker_id,
-            audio_queue=audio_queue
-        )
+            audio_queue = queue.Queue()
+            self._streams[key] = StreamInfo(
+                session_id=session_id,
+                speaker_id=speaker_id,
+                audio_queue=audio_queue
+            )
 
-        # Update metrics
-        active_streams_gauge.set(len(self._streams))
+            # Update metrics
+            active_streams_gauge.set(len(self._streams))
 
-        logger.info(f"Created stream {key}")
-        return audio_queue
+            logger.info(f"Created stream {key}")
+            return audio_queue
 
     def set_task(
         self,
@@ -111,24 +115,34 @@ class StreamManager:
         """
         key = self._get_key(session_id, speaker_id)
 
-        if key not in self._streams:
-            logger.warning(f"Cannot set task: stream {key} does not exist")
-            return
+        with self._lock:
+            if key not in self._streams:
+                logger.warning(f"Cannot set task: stream {key} does not exist")
+                return
 
-        self._streams[key].task = task
+            self._streams[key].task = task
 
-        # Add done callback for cleanup
+        # Add done callback for cleanup (outside lock to avoid deadlock)
         def cleanup_callback(t):
-            if key in self._streams:
-                self._streams[key].task = None
-                logger.debug(f"Task cleanup callback for {key}")
+            with self._lock:
+                if key in self._streams:
+                    self._streams[key].task = None
+                    logger.debug(f"Task cleanup callback for {key}")
 
         task.add_done_callback(cleanup_callback)
 
     def has_stream(self, session_id: str, speaker_id: str) -> bool:
-        """Check if a stream exists."""
+        """
+        Check if a stream exists.
+
+        Returns True if the stream exists, False otherwise.
+        Does NOT check if the task is alive - that's handled by
+        InterimCaptionService which coordinates stream restarts.
+        """
         key = self._get_key(session_id, speaker_id)
-        return key in self._streams
+
+        with self._lock:
+            return key in self._streams
 
     def push_audio(
         self,
@@ -149,15 +163,16 @@ class StreamManager:
         """
         key = self._get_key(session_id, speaker_id)
 
-        if key not in self._streams:
-            return False
+        with self._lock:
+            if key not in self._streams:
+                return False
 
-        try:
-            self._streams[key].audio_queue.put_nowait(audio_data)
-            return True
-        except queue.Full:
-            logger.warning(f"Audio queue full for {key}")
-            return False
+            try:
+                self._streams[key].audio_queue.put_nowait(audio_data)
+                return True
+            except queue.Full:
+                logger.warning(f"Audio queue full for {key}")
+                return False
 
     def signal_end(self, session_id: str, speaker_id: str):
         """
@@ -169,9 +184,10 @@ class StreamManager:
         """
         key = self._get_key(session_id, speaker_id)
 
-        if key in self._streams:
-            self._streams[key].audio_queue.put(None)
-            logger.debug(f"Signaled end for {key}")
+        with self._lock:
+            if key in self._streams:
+                self._streams[key].audio_queue.put(None)
+                logger.debug(f"Signaled end for {key}")
 
     def remove_stream(self, session_id: str, speaker_id: str):
         """
@@ -183,21 +199,22 @@ class StreamManager:
         """
         key = self._get_key(session_id, speaker_id)
 
-        if key not in self._streams:
-            return
+        with self._lock:
+            if key not in self._streams:
+                return
 
-        stream_info = self._streams[key]
+            stream_info = self._streams[key]
 
-        # Cancel task if running
-        if stream_info.task and not stream_info.task.done():
-            stream_info.task.cancel()
+            # Cancel task if running
+            if stream_info.task and not stream_info.task.done():
+                stream_info.task.cancel()
 
-        del self._streams[key]
+            del self._streams[key]
 
-        # Update metrics
-        active_streams_gauge.set(len(self._streams))
+            # Update metrics
+            active_streams_gauge.set(len(self._streams))
 
-        logger.info(f"Removed stream {key}")
+            logger.info(f"Removed stream {key}")
 
     def get_queue(
         self,
@@ -207,10 +224,11 @@ class StreamManager:
         """Get the audio queue for a stream."""
         key = self._get_key(session_id, speaker_id)
 
-        if key not in self._streams:
-            return None
+        with self._lock:
+            if key not in self._streams:
+                return None
 
-        return self._streams[key].audio_queue
+            return self._streams[key].audio_queue
 
     async def cancel_all_tasks(self, timeout: float = 1.0):
         """
@@ -219,11 +237,12 @@ class StreamManager:
         Args:
             timeout: Seconds to wait for task cancellation
         """
-        tasks = []
-        for stream_info in self._streams.values():
-            if stream_info.task and not stream_info.task.done():
-                stream_info.task.cancel()
-                tasks.append(stream_info.task)
+        with self._lock:
+            tasks = []
+            for stream_info in self._streams.values():
+                if stream_info.task and not stream_info.task.done():
+                    stream_info.task.cancel()
+                    tasks.append(stream_info.task)
 
         if tasks:
             logger.info(f"Cancelling {len(tasks)} stream tasks...")
@@ -231,23 +250,26 @@ class StreamManager:
 
     def signal_all_end(self):
         """Signal end of all streams (for shutdown)."""
-        for stream_info in self._streams.values():
-            stream_info.audio_queue.put(None)
+        with self._lock:
+            for stream_info in self._streams.values():
+                stream_info.audio_queue.put(None)
 
     def get_active_count(self) -> int:
         """Get number of active streams."""
-        return len(self._streams)
+        with self._lock:
+            return len(self._streams)
 
     def get_stats(self) -> dict:
         """Get manager statistics."""
-        running_tasks = sum(
-            1 for s in self._streams.values()
-            if s.task and not s.task.done()
-        )
-        return {
-            "active_streams": len(self._streams),
-            "running_tasks": running_tasks
-        }
+        with self._lock:
+            running_tasks = sum(
+                1 for s in self._streams.values()
+                if s.task and not s.task.done()
+            )
+            return {
+                "active_streams": len(self._streams),
+                "running_tasks": running_tasks
+            }
 
 
 # Global singleton instance

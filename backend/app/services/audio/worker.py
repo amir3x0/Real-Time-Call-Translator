@@ -432,7 +432,8 @@ async def handle_audio_stream(
 
             # === STEP 1: Query target languages from database ===
             # OOP Refactor: Use CallRepository instead of inline DB queries
-            target_langs_map = await call_repository.get_target_languages(session_id, speaker_id)
+            # include_speaker=True ensures speaker sees their own messages in chat history
+            target_langs_map = await call_repository.get_target_languages(session_id, speaker_id, include_speaker=True)
 
             if not target_langs_map:
                 logger.info(f"No recipients for speaker {speaker_id} in session {session_id}")

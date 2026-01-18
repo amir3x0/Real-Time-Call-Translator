@@ -25,7 +25,9 @@ import asyncio
 import json
 import logging
 import time
-from typing import Dict, Optional, Set
+import threading
+from collections import OrderedDict
+from typing import Dict, Optional
 from dataclasses import dataclass, field
 
 from app.config.redis import get_redis
@@ -39,6 +41,9 @@ from app.config.constants import (
 
 logger = logging.getLogger(__name__)
 
+# Deduplication window in seconds
+DEDUP_WINDOW_SEC = 30.0
+
 
 @dataclass
 class StreamContext:
@@ -48,52 +53,78 @@ class StreamContext:
     Provides bounded context window for coherent translations,
     deduplication to prevent processing the same transcript twice,
     and translation memory for term consistency.
+
+    Thread-safe: Uses internal lock for all mutable operations.
     """
     full_context: str = ""
     last_transcript: str = ""
     last_translation: str = ""
-    processed_transcripts: Set[str] = field(default_factory=set)
     last_process_time: float = 0.0
 
+    # Deduplication: OrderedDict maintains insertion order for proper FIFO eviction
+    # Key: normalized text, Value: timestamp when processed
+    _processed_transcripts: OrderedDict = field(default_factory=OrderedDict)
+
     # Translation memory for consistent term translation
-    # Key: normalized source text, Value: translation
-    translation_memory: Dict[str, str] = field(default_factory=dict)
+    # Key: "normalized_source|lang_code", Value: translation
+    _translation_memory: Dict[str, str] = field(default_factory=dict)
     MEMORY_MAX_SIZE: int = 50  # Max entries to prevent memory growth
+
+    # Lock for thread-safety
+    _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def add_segment(self, transcript: str, translation: str):
         """Add a processed segment to the context."""
-        self.full_context += " " + transcript
-        # Keep context bounded
-        if len(self.full_context) > TRANSLATION_CONTEXT_MAX_CHARS * 2:
-            self.full_context = self.full_context[-TRANSLATION_CONTEXT_MAX_CHARS:]
-        self.last_transcript = transcript
-        self.last_translation = translation
-        self.last_process_time = time.time()
+        with self._lock:
+            self.full_context += " " + transcript
+            # Keep context bounded
+            if len(self.full_context) > TRANSLATION_CONTEXT_MAX_CHARS * 2:
+                self.full_context = self.full_context[-TRANSLATION_CONTEXT_MAX_CHARS:]
+            self.last_transcript = transcript
+            self.last_translation = translation
+            self.last_process_time = time.time()
 
     def get_context(self) -> str:
         """Get bounded context for translation."""
-        return self.full_context[-TRANSLATION_CONTEXT_MAX_CHARS:].strip()
+        with self._lock:
+            return self.full_context[-TRANSLATION_CONTEXT_MAX_CHARS:].strip()
 
     def is_duplicate(self, transcript: str) -> bool:
         """
         Check if transcript was already processed (deduplication).
 
+        Uses timestamp-based window instead of size-based limit to ensure
+        proper FIFO behavior. Transcripts older than DEDUP_WINDOW_SEC are
+        automatically removed.
+
         This prevents double processing when both streaming STT and
         the batch fallback might process the same audio.
         """
         normalized = transcript.strip().lower()
-        if normalized in self.processed_transcripts:
-            return True
-        self.processed_transcripts.add(normalized)
-        # Keep set bounded to prevent memory growth
-        if len(self.processed_transcripts) > 50:
-            # Remove oldest (arbitrary, but set is small)
-            self.processed_transcripts.pop()
-        return False
+        now = time.time()
+
+        with self._lock:
+            # Clean expired entries (older than window)
+            cutoff = now - DEDUP_WINDOW_SEC
+            keys_to_remove = [
+                key for key, timestamp in self._processed_transcripts.items()
+                if timestamp < cutoff
+            ]
+            for key in keys_to_remove:
+                del self._processed_transcripts[key]
+
+            # Check if duplicate
+            if normalized in self._processed_transcripts:
+                return True
+
+            # Add with current timestamp
+            self._processed_transcripts[normalized] = now
+            return False
 
     def clear_dedup(self):
         """Clear deduplication tracking (e.g., on long silence)."""
-        self.processed_transcripts.clear()
+        with self._lock:
+            self._processed_transcripts.clear()
 
     def remember_translation(self, source: str, target_lang: str, translation: str):
         """
@@ -110,12 +141,14 @@ class StreamContext:
         """
         # Key includes target language for language-pair specificity
         key = f"{source.strip().lower()}|{target_lang[:2]}"
-        self.translation_memory[key] = translation
 
-        # LRU-style eviction: remove oldest if over limit
-        if len(self.translation_memory) > self.MEMORY_MAX_SIZE:
-            oldest_key = next(iter(self.translation_memory))
-            del self.translation_memory[oldest_key]
+        with self._lock:
+            self._translation_memory[key] = translation
+
+            # LRU-style eviction: remove oldest if over limit
+            if len(self._translation_memory) > self.MEMORY_MAX_SIZE:
+                oldest_key = next(iter(self._translation_memory))
+                del self._translation_memory[oldest_key]
 
     def recall_translation(self, source: str, target_lang: str) -> Optional[str]:
         """
@@ -128,7 +161,8 @@ class StreamContext:
             target_lang: Target language code (e.g., "en-US")
         """
         key = f"{source.strip().lower()}|{target_lang[:2]}"
-        return self.translation_memory.get(key)
+        with self._lock:
+            return self._translation_memory.get(key)
 
 
 class StreamingTranslationProcessor:
@@ -138,6 +172,8 @@ class StreamingTranslationProcessor:
     This is the core of the sub-2-second latency optimization. Instead of waiting
     for pause-based chunking and batch STT, this processor receives final transcripts
     directly from the streaming STT service and immediately triggers translation + TTS.
+
+    Thread-safe: Uses per-stream context locking for concurrent speaker support.
 
     Usage:
         processor = get_streaming_processor()
@@ -153,7 +189,7 @@ class StreamingTranslationProcessor:
         self._contexts: Dict[str, StreamContext] = {}
         self._pipeline = None
         self._redis = None
-        self._lock = asyncio.Lock()
+        self._contexts_lock = asyncio.Lock()  # Protects _contexts dict access
         self._processing_count = 0  # For metrics
         self._total_latency_ms = 0.0
 
@@ -201,13 +237,13 @@ class StreamingTranslationProcessor:
         transcript = transcript.strip()
         logger.info(f"🚀 [StreamingTranslation] Processing: '{transcript[:50]}...' for {stream_key}")
 
-        # Get or create context
-        async with self._lock:
+        # Get or create context (lock protects dict access)
+        async with self._contexts_lock:
             if stream_key not in self._contexts:
                 self._contexts[stream_key] = StreamContext()
             context = self._contexts[stream_key]
 
-        # Deduplication check
+        # Deduplication check (StreamContext has internal lock)
         if context.is_duplicate(transcript):
             logger.debug(f"Skipping duplicate transcript for {stream_key}: '{transcript[:30]}...'")
             return
@@ -219,7 +255,7 @@ class StreamingTranslationProcessor:
             logger.info(f"No recipients for {speaker_id} in session {session_id}, skipping translation")
             return
 
-        # Get context for translation
+        # Get context for translation (StreamContext has internal lock)
         context_text = context.get_context()
         loop = asyncio.get_running_loop()
 
@@ -227,6 +263,7 @@ class StreamingTranslationProcessor:
             """Translate and synthesize for one target language."""
             try:
                 # Check translation memory first for consistency
+                # (StreamContext has internal lock)
                 cached_translation = context.recall_translation(transcript, tgt_lang)
 
                 if cached_translation:
@@ -246,6 +283,7 @@ class StreamingTranslationProcessor:
                     logger.info(f"🔄 [{tgt_lang}] '{transcript[:30]}...' -> '{translation[:30]}...'")
 
                     # Store in memory for future consistency
+                    # (StreamContext has internal lock)
                     context.remember_translation(transcript, tgt_lang, translation)
 
                 # TTS with caching
@@ -318,6 +356,7 @@ class StreamingTranslationProcessor:
                 logger.error(f"Failed to publish translation: {e}")
 
         # Update context with first successful translation
+        # (StreamContext has internal lock)
         if successful_results:
             context.add_segment(transcript, successful_results[0]["translation"])
 
@@ -339,11 +378,14 @@ class StreamingTranslationProcessor:
             Dict mapping language code to list of user IDs
             e.g., {"en-US": ["user2", "user3"], "he-IL": ["user4"]}
         """
-        return await call_repository.get_target_languages(session_id, speaker_id)
+        # include_speaker=True ensures speaker sees their own messages in chat history
+        return await call_repository.get_target_languages(session_id, speaker_id, include_speaker=True)
 
     def cleanup_stream(self, session_id: str, speaker_id: str):
         """Clean up context for a stream when it ends."""
         stream_key = self.get_stream_key(session_id, speaker_id)
+        # Note: Using asyncio.Lock in sync context would deadlock
+        # We accept this small race since cleanup is not critical
         if stream_key in self._contexts:
             del self._contexts[stream_key]
             logger.info(f"Cleaned up streaming context for {stream_key}")

@@ -92,7 +92,8 @@ class CallRepository:
     @staticmethod
     async def get_target_languages(
         session_id: str,
-        speaker_id: str
+        speaker_id: str,
+        include_speaker: bool = False
     ) -> Dict[str, List[str]]:
         """
         Get target languages for translation.
@@ -103,7 +104,11 @@ class CallRepository:
 
         Args:
             session_id: The call session ID
-            speaker_id: The user ID of the speaker (to exclude from recipients)
+            speaker_id: The user ID of the speaker
+            include_speaker: If True, include the speaker in their own language's
+                           recipient list. This allows speakers to see their own
+                           messages in the chat history. Default False for backwards
+                           compatibility.
 
         Returns:
             Dict mapping language code to list of recipient user IDs.
@@ -111,6 +116,7 @@ class CallRepository:
             Returns empty dict if call not found or no other participants.
         """
         target_langs_map: Dict[str, List[str]] = {}
+        speaker_language: Optional[str] = None
 
         try:
             async with AsyncSessionLocal() as db:
@@ -123,6 +129,20 @@ class CallRepository:
                 if not call:
                     logger.warning(f"No call found for session {session_id}")
                     return {}
+
+                # If include_speaker, first get the speaker's language
+                if include_speaker:
+                    speaker_result = await db.execute(
+                        select(CallParticipant).where(
+                            and_(
+                                CallParticipant.call_id == call.id,
+                                CallParticipant.user_id == speaker_id
+                            )
+                        )
+                    )
+                    speaker_participant = speaker_result.scalar_one_or_none()
+                    if speaker_participant:
+                        speaker_language = speaker_participant.participant_language or DEFAULT_PARTICIPANT_LANGUAGE
 
                 # Get other connected participants (exclude speaker)
                 participants_result = await db.execute(
@@ -143,9 +163,18 @@ class CallRepository:
                         target_langs_map[lang] = []
                     target_langs_map[lang].append(p.user_id)
 
+                # Include speaker in their own language's recipient list
+                # This ensures speakers see their own messages in chat history
+                if include_speaker and speaker_language:
+                    if speaker_language not in target_langs_map:
+                        target_langs_map[speaker_language] = []
+                    # Add speaker to their language group (they'll receive their own message)
+                    target_langs_map[speaker_language].append(speaker_id)
+                    logger.debug(f"Including speaker {speaker_id} in {speaker_language} recipients")
+
                 logger.debug(
                     f"Target languages for {speaker_id} in session {session_id}: "
-                    f"{list(target_langs_map.keys())}"
+                    f"{list(target_langs_map.keys())} (include_speaker={include_speaker})"
                 )
 
         except Exception as e:

@@ -81,6 +81,18 @@ class CallProvider with ChangeNotifier {
   TranscriptionEntry? get latestTranscription =>
       _transcriptionManager.latestEntry;
   String? get activeSpeakerId => _activeSpeakerId;
+
+  /// Current user ID for identifying self messages in chat view
+  String? get currentUserId => _currentUserId;
+
+  /// Alias for activeSpeakerId (for chat view compatibility)
+  String? get liveSpeakerId => _activeSpeakerId;
+
+  /// Get transcription history in chronological order (oldest first)
+  /// Use this for chat-style display where newest messages are at the bottom
+  List<TranscriptionEntry> get transcriptionHistoryChronological =>
+      _transcriptionManager.chronologicalEntries;
+
   bool get isMuted => _audioController?.isMuted ?? false;
   bool get isSpeakerOn => _audioController?.isSpeakerOn ?? false;
 
@@ -381,7 +393,10 @@ class CallProvider with ChangeNotifier {
   /// Handle translation message (includes both original and translated text)
   void _handleTranslation(WSMessage message) {
     final data = message.data;
-    if (data == null) return;
+    if (data == null) {
+      debugPrint('[CallProvider] ⚠️ Translation message has NULL data!');
+      return;
+    }
 
     // --- Step 1: Parsing ---
     // API is now standardized: transcript, translation
@@ -391,27 +406,41 @@ class CallProvider with ChangeNotifier {
     final sourceLanguage = data['source_lang'] as String? ?? 'auto';
     final targetLanguage = data['target_lang'] as String? ?? 'auto';
 
-    // --- Step 2: Filtering ---
-    if (speakerId.isNotEmpty && speakerId == _currentUserId) {
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      debugPrint('[CallProvider] 🚫 BLOCKED: My own translation!');
-      debugPrint('[CallProvider] Speaker ID: $speakerId');
-      debugPrint('[CallProvider] Current User: $_currentUserId');
-      debugPrint('[CallProvider] Original: $originalText');
-      debugPrint('[CallProvider] Translation: $translatedText');
-      debugPrint('[CallProvider] ⚠️ Audio playback SKIPPED');
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // Comprehensive debug logging for ALL translation messages
+    debugPrint('═══════════════════════════════════════════════════════════');
+    debugPrint('[CallProvider] 📨 TRANSLATION MESSAGE RECEIVED');
+    debugPrint('[CallProvider] speaker_id: "$speakerId"');
+    debugPrint('[CallProvider] _currentUserId: "$_currentUserId"');
+    debugPrint('[CallProvider] IDs match: ${speakerId == _currentUserId}');
+    debugPrint('[CallProvider] originalText: "$originalText"');
+    debugPrint('[CallProvider] translatedText: "$translatedText"');
+    debugPrint('[CallProvider] originalText.isNotEmpty: ${originalText.isNotEmpty}');
+    debugPrint('[CallProvider] translatedText.isNotEmpty: ${translatedText.isNotEmpty}');
+    debugPrint('[CallProvider] sourceLanguage: $sourceLanguage');
+    debugPrint('[CallProvider] targetLanguage: $targetLanguage');
+    debugPrint('═══════════════════════════════════════════════════════════');
 
-      // Still add to history but don't play audio
-      if (translatedText.isNotEmpty && originalText.isNotEmpty) {
-        _addTranslationToHistory(speakerId, originalText, translatedText,
+    // --- Step 2: Handling self vs others ---
+    final isSelf = speakerId.isNotEmpty && speakerId == _currentUserId;
+
+    if (isSelf) {
+      debugPrint('[CallProvider] 🙋 This is MY OWN translation - adding to history without audio');
+
+      // Add to history (use originalText if translatedText is empty for same-language)
+      final textToShow = translatedText.isNotEmpty ? translatedText : originalText;
+      if (originalText.isNotEmpty && textToShow.isNotEmpty) {
+        _addTranslationToHistory(speakerId, originalText, textToShow,
             sourceLanguage, targetLanguage);
+        debugPrint('[CallProvider] ✅ Self-translation added to history');
+      } else {
+        debugPrint('[CallProvider] ❌ Self-translation NOT added - empty text');
       }
       return;
     }
 
-    // --- Step 3: Update UI ---
-    // Add to history so user sees the final translation bubble
+    // --- Step 3: Handle messages from others ---
+    debugPrint('[CallProvider] 👤 This is from ANOTHER participant');
+
     if (translatedText.isNotEmpty && originalText.isNotEmpty) {
       _addTranslationToHistory(speakerId, originalText, translatedText,
           sourceLanguage, targetLanguage);
@@ -421,10 +450,11 @@ class CallProvider with ChangeNotifier {
 
       // Clear interim caption for this speaker (final translation supersedes interim)
       _interimCaptionManager.clearCaption(speakerId);
-    }
 
-    debugPrint(
-        '[CallProvider] Translation processed: "$originalText" -> "$translatedText"');
+      debugPrint('[CallProvider] ✅ Translation added to history');
+    } else {
+      debugPrint('[CallProvider] ❌ Translation NOT added - empty text');
+    }
   }
 
   /// Helper method to add translation to history
@@ -435,6 +465,10 @@ class CallProvider with ChangeNotifier {
     String sourceLanguage,
     String targetLanguage,
   ) {
+    debugPrint('[CallProvider] _addTranslationToHistory called');
+    debugPrint('[CallProvider]   speakerId: $speakerId');
+    debugPrint('[CallProvider]   participants count: ${_participants.length}');
+
     // Find participant name from speakerId
     final participant = _participants.firstWhere(
       (p) => p.userId == speakerId || p.id == speakerId,
@@ -450,17 +484,29 @@ class CallProvider with ChangeNotifier {
       ),
     );
 
-    _transcriptionManager.addEntry(
-      TranscriptionEntry(
-        participantId: speakerId,
-        participantName: participant.displayName,
-        originalText: originalText,
-        translatedText: translatedText,
-        timestamp: DateTime.now(),
-        sourceLanguage: sourceLanguage,
-        targetLanguage: targetLanguage,
-      ),
+    debugPrint('[CallProvider]   participantName: ${participant.displayName}');
+    debugPrint('[CallProvider]   Creating TranscriptionEntry...');
+
+    final entry = TranscriptionEntry(
+      participantId: speakerId,
+      participantName: participant.displayName,
+      originalText: originalText,
+      translatedText: translatedText,
+      timestamp: DateTime.now(),
+      sourceLanguage: sourceLanguage,
+      targetLanguage: targetLanguage,
     );
+
+    final beforeCount = _transcriptionManager.chronologicalEntries.length;
+    _transcriptionManager.addEntry(entry);
+    final afterCount = _transcriptionManager.chronologicalEntries.length;
+
+    debugPrint('[CallProvider]   Entries before: $beforeCount, after: $afterCount');
+    if (afterCount > beforeCount) {
+      debugPrint('[CallProvider]   ✅ Entry successfully added to history');
+    } else {
+      debugPrint('[CallProvider]   ⚠️ Entry NOT added (likely duplicate)');
+    }
   }
 
   void _handleTranscriptionUpdate(WSMessage message) {
@@ -488,6 +534,47 @@ class CallProvider with ChangeNotifier {
   /// Handle real-time interim transcripts (WhatsApp-style typing indicator)
   void _handleInterimTranscript(WSMessage message) {
     _interimCaptionManager.handleInterimTranscript(message.data);
+
+    // Option B Fix: Speaker doesn't receive their own translation from backend,
+    // so when we get our own final interim transcript, add it to history directly.
+    // This ensures the speaker sees their own messages in the chat view.
+    final data = message.data;
+    if (data == null) return;
+
+    final speakerId = data['speaker_id'] as String? ?? '';
+    final isSelf = speakerId.isNotEmpty && speakerId == _currentUserId;
+    final isFinal = data['is_final'] as bool? ?? false;
+    final text = data['text'] as String? ?? '';
+
+    // DEBUG: Log all interim transcripts to diagnose the issue
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    debugPrint('[CallProvider] 📝 INTERIM TRANSCRIPT RECEIVED');
+    debugPrint('[CallProvider] speaker_id: $speakerId');
+    debugPrint('[CallProvider] currentUserId: $_currentUserId');
+    debugPrint('[CallProvider] isSelf: $isSelf');
+    debugPrint('[CallProvider] is_final: $isFinal');
+    debugPrint('[CallProvider] text: "${text.length > 50 ? '${text.substring(0, 50)}...' : text}"');
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    if (isSelf && isFinal && text.isNotEmpty) {
+      final sourceLanguage = data['source_lang'] as String? ?? 'auto';
+      final participantName = _getParticipantName(speakerId) ?? 'You';
+
+      // Add speaker's own message to history (original text, no translation needed for self)
+      _transcriptionManager.addEntry(
+        TranscriptionEntry(
+          participantId: speakerId,
+          participantName: participantName,
+          originalText: text,
+          translatedText: text, // Same as original for self
+          timestamp: DateTime.now(),
+          sourceLanguage: sourceLanguage,
+          targetLanguage: sourceLanguage, // Same language for self
+        ),
+      );
+
+      debugPrint('[CallProvider] Added self-transcription to history: "$text"');
+    }
   }
 
   /// Get participant display name from user ID
