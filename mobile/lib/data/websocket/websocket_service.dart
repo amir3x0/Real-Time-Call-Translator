@@ -117,8 +117,6 @@ class WebSocketService {
   bool _isReconnecting = false;
   int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = AppConstants.wsMaxReconnectAttempts;
-  static const Duration _reconnectDelay =
-      Duration(seconds: AppConstants.wsReconnectDelaySeconds);
 
   // Store connection params for reconnect
   String? _userId;
@@ -188,6 +186,23 @@ class WebSocketService {
             const Duration(seconds: AppConstants.wsPingIntervalSeconds),
       );
 
+      // ⭐ FIX: Wait for connection with timeout - fail fast on unreachable server
+      try {
+        await _channel!.ready.timeout(
+          const Duration(seconds: AppConstants.wsConnectTimeoutSeconds),
+          onTimeout: () {
+            throw TimeoutException(
+              'WebSocket connection timeout after ${AppConstants.wsConnectTimeoutSeconds}s',
+            );
+          },
+        );
+      } catch (e) {
+        debugPrint('[WebSocketService] Connection failed: $e');
+        await _channel?.sink.close();
+        _channel = null;
+        rethrow;
+      }
+
       // Initialize stream controllers
       _messageController = StreamController<WSMessage>.broadcast();
       _audioController = StreamController<Uint8List>.broadcast();
@@ -213,6 +228,17 @@ class WebSocketService {
     } catch (e) {
       debugPrint('[WebSocketService] Connection error: $e');
       _isConnected = false;
+
+      // ⭐ FIX: Clean up partially created resources to prevent memory leaks
+      await _messageController?.close();
+      _messageController = null;
+      await _audioController?.close();
+      _audioController = null;
+      await _channel?.sink.close();
+      _channel = null;
+      _sessionId = null;
+      _callId = null;
+
       return false;
     }
   }
@@ -378,7 +404,15 @@ class WebSocketService {
     }
   }
 
-  /// Issue A Fix: Attempt to reconnect with retry logic
+  /// Calculate exponential backoff delay: 2s, 4s, 8s...
+  Duration _getBackoffDelay(int attempt) {
+    // Exponential backoff: baseDelay * 2^attempt (capped at 8s)
+    final seconds = AppConstants.wsReconnectDelaySeconds * (1 << attempt);
+    final cappedSeconds = seconds > 8 ? 8 : seconds;
+    return Duration(seconds: cappedSeconds);
+  }
+
+  /// Issue A Fix: Attempt to reconnect with exponential backoff (2-4-8s)
   Future<void> _attemptReconnect() async {
     if (_isReconnecting) return; // Already trying
 
@@ -394,7 +428,11 @@ class WebSocketService {
 
     while (
         _reconnectAttempts < _maxReconnectAttempts && !_intentionalDisconnect) {
-      await Future.delayed(_reconnectDelay);
+      // ⭐ Exponential backoff: 2s → 4s → 8s
+      final backoffDelay = _getBackoffDelay(_reconnectAttempts);
+      debugPrint(
+          '[WebSocketService] Waiting ${backoffDelay.inSeconds}s before attempt ${_reconnectAttempts + 1}...');
+      await Future.delayed(backoffDelay);
       _reconnectAttempts++;
 
       debugPrint('[WebSocketService] Reconnect attempt $_reconnectAttempts...');

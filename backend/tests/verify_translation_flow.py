@@ -7,7 +7,7 @@ import os
 # Add backend to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.services.audio_worker import process_stream_message
+from app.services.audio.worker import process_stream_message
 from app.services.connection_manager import ConnectionManager, CallConnection
 from app.services.rtc_service import publish_audio_chunk
 
@@ -18,7 +18,7 @@ async def test_worker_processing():
     mock_redis = AsyncMock()
     
     # Mock GCP pipeline
-    with patch('app.services.audio_worker.process_audio_chunk') as mock_process:
+    with patch('app.services.audio.worker.process_audio_chunk') as mock_process:
         # Setup mock return
         mock_result = MagicMock()
         mock_result.transcript = "Hello"

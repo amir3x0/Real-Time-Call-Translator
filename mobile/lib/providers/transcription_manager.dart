@@ -22,6 +22,10 @@ class TranscriptionManager {
   /// Get all transcription entries (newest first)
   List<TranscriptionEntry> get entries => List.unmodifiable(_entries.reversed.toList());
 
+  /// Get all transcription entries in chronological order (oldest first)
+  /// Use this for chat-style display where newest messages are at the bottom
+  List<TranscriptionEntry> get chronologicalEntries => List.unmodifiable(_entries);
+
   /// Get the most recent entry
   TranscriptionEntry? get latestEntry => _entries.isNotEmpty ? _entries.last : null;
 
@@ -34,12 +38,52 @@ class TranscriptionManager {
         .toList();
   }
 
-  /// Add a new transcription entry
+  /// Add a new transcription entry with deduplication
+  ///
+  /// Deduplication prevents duplicate messages when the same transcription
+  /// arrives via multiple paths (e.g., interim_transcript + translation).
   void addEntry(TranscriptionEntry entry) {
+    debugPrint('[TranscriptionManager] addEntry called for: "${entry.originalText}"');
+    debugPrint('[TranscriptionManager]   participantId: ${entry.participantId}');
+    debugPrint('[TranscriptionManager]   current entries count: ${_entries.length}');
+
+    // Deduplication: Skip if recent entry from same speaker has EXACT same text
+    if (_isDuplicate(entry)) {
+      debugPrint('[TranscriptionManager] ⚠️ Skipped duplicate: ${entry.originalText}');
+      return;
+    }
+
     _entries.add(entry);
     _trimHistory();
+    debugPrint('[TranscriptionManager] ✅ Entry added! New count: ${_entries.length}');
     if (!_isDisposed()) _notifyListeners();
-    debugPrint('[TranscriptionManager] Added entry: ${entry.originalText} -> ${entry.translatedText}');
+  }
+
+  /// Check if entry is a duplicate of a recent entry from the same speaker
+  /// Only checks for EXACT matches within 3 seconds to avoid false positives
+  bool _isDuplicate(TranscriptionEntry entry) {
+    // Look at last 3 entries for duplicates
+    final recentEntries = _entries.reversed.take(3);
+
+    for (final existing in recentEntries) {
+      // Same speaker?
+      if (existing.participantId != entry.participantId) continue;
+
+      // Within dedup window (3 seconds - reduced from 5)?
+      final timeDiff = entry.timestamp.difference(existing.timestamp).inSeconds.abs();
+      if (timeDiff > 3) continue;
+
+      // EXACT match only (normalized comparison)
+      final existingText = existing.originalText.trim().toLowerCase();
+      final newText = entry.originalText.trim().toLowerCase();
+
+      if (existingText == newText) {
+        debugPrint('[TranscriptionManager] Duplicate detected: same speaker, same text within 3s');
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /// Add entry from raw data (e.g., WebSocket message)

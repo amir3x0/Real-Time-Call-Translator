@@ -11,6 +11,7 @@ import '../../widgets/call/network_indicator.dart';
 import '../../widgets/call/participant_grid.dart';
 import '../../widgets/call/transcription_panel.dart';
 import '../../widgets/call/interim_caption_bubble.dart';
+import '../../widgets/call/chat_transcription_view.dart';
 import '../../config/app_theme.dart';
 
 class ActiveCallScreen extends StatefulWidget {
@@ -30,6 +31,10 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
 
   // Store provider reference for safe disposal
   CallProvider? _callProviderRef;
+
+  // Feature flag: toggle between old (TranscriptionPanel) and new (ChatTranscriptionView) UI
+  // Set to true to use the new chat-style UI with integrated interim captions
+  bool _useChatStyleUI = true;
 
   @override
   void initState() {
@@ -114,43 +119,61 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                 // Spacer
                 const Spacer(flex: 1),
 
-                // Transcription Hero (Center Stage)
-                Expanded(
-                  flex: 10,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Center(
-                      child: TranscriptionPanel(
-                        key: const Key('transcription-panel'),
-                        entries: callProvider.transcriptionHistory,
-                        maxVisible: 4,
-                        showOriginal: true,
-                        showTranslated: true,
+                // Transcription Area - Toggle between old and new UI
+                if (_useChatStyleUI)
+                  // NEW: Chat-style UI with integrated interim captions
+                  Expanded(
+                    flex: 10,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: ChatTranscriptionView(
+                        key: const Key('chat-transcription-view'),
+                        entries: callProvider.transcriptionHistoryChronological,
+                        currentUserId: callProvider.currentUserId ?? '',
+                        interimCaptions: callProvider.interimCaptions,
+                        maxMessages: 20,
+                      ),
+                    ),
+                  )
+                else ...[
+                  // OLD: TranscriptionPanel + separate InterimCaptionList
+                  Expanded(
+                    flex: 10,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Center(
+                        child: TranscriptionPanel(
+                          key: const Key('transcription-panel'),
+                          entries: callProvider.transcriptionHistory,
+                          maxVisible: 4,
+                          showOriginal: true,
+                          showTranslated: true,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                // Interim captions (WhatsApp-style real-time typing indicator)
-                if (callProvider.interimCaptions.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 8),
-                    child: InterimCaptionList(
-                      captions: callProvider.interimCaptions,
-                      maxVisible: 3,
+                  // Interim captions (WhatsApp-style real-time typing indicator)
+                  if (callProvider.interimCaptions.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 8),
+                      child: InterimCaptionList(
+                        captions: callProvider.interimCaptions,
+                        maxVisible: 3,
+                      ),
                     ),
-                  ),
 
-                // Live transcription bubble (text being transcribed in real-time)
-                // Only show if no interim captions (avoid duplication)
-                if (callProvider.liveTranscription.isNotEmpty &&
-                    callProvider.interimCaptions.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 16),
-                    child: _buildLiveTranscriptionBubble(callProvider),
-                  ),
+                  // Live transcription bubble (text being transcribed in real-time)
+                  // Only show if no interim captions (avoid duplication)
+                  if (callProvider.liveTranscription.isNotEmpty &&
+                      callProvider.interimCaptions.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 16),
+                      child: _buildLiveTranscriptionBubble(callProvider),
+                    ),
+                ],
 
                 // Spacer
                 const Spacer(flex: 2),
@@ -249,8 +272,55 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
             ),
           ),
 
-          // Network Indicator
-          NetworkIndicator(participants: callProvider.participants),
+          Row(
+            children: [
+              // UI Toggle Button (for testing - remove in production)
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _useChatStyleUI = !_useChatStyleUI;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: _useChatStyleUI
+                        ? AppTheme.accentCyan.withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _useChatStyleUI
+                          ? AppTheme.accentCyan.withValues(alpha: 0.5)
+                          : Colors.white.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _useChatStyleUI ? Icons.chat_bubble : Icons.view_list,
+                        color: _useChatStyleUI ? AppTheme.accentCyan : Colors.white70,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _useChatStyleUI ? 'Chat' : 'Panel',
+                        style: TextStyle(
+                          color: _useChatStyleUI ? AppTheme.accentCyan : Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Network Indicator
+              NetworkIndicator(participants: callProvider.participants),
+            ],
+          ),
         ],
       ),
     );

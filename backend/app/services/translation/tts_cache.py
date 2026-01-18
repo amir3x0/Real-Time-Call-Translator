@@ -8,6 +8,15 @@ Example benefit:
 - Speaker A says "Hello" -> translated to "Hola"
 - Cache stores: ("Hola", "es-ES") -> audio_bytes
 - When same "Hola" is needed for 2nd Spanish speaker, cache hit avoids 2nd TTS call
+
+Usage:
+    from app.services.translation.tts_cache import get_tts_cache
+
+    cache = get_tts_cache()
+    audio = cache.get(text, language)
+    if not audio:
+        audio = synthesize(text, language)
+        cache.put(text, language, audio)
 """
 from typing import Optional
 import hashlib

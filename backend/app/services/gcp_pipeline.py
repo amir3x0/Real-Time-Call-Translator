@@ -195,6 +195,34 @@ class GCPSpeechPipeline:
             logger.error(f"[GCP] Translate Error: {e}")
             return text  # Fallback to original text
 
+    def _get_clean_context(self, text: str, max_chars: int) -> str:
+        """
+        Slice context at word boundaries, not mid-word.
+
+        This ensures context doesn't end with partial words like "...he sa"
+        but instead ends at word boundaries like "...he said".
+
+        Args:
+            text: The context text to slice
+            max_chars: Maximum characters to keep
+
+        Returns:
+            Context string sliced at word boundary
+        """
+        if not text or len(text) <= max_chars:
+            return text.strip() if text else ""
+
+        # Take last max_chars characters
+        truncated = text[-max_chars:]
+
+        # Find first space to start at word boundary
+        first_space = truncated.find(' ')
+        if first_space > 0 and first_space < len(truncated) - 1:
+            # Skip partial word at the beginning
+            return truncated[first_space:].strip()
+
+        return truncated.strip()
+
     def _translate_text_with_context(
         self,
         text: str,
@@ -205,16 +233,16 @@ class GCPSpeechPipeline:
     ) -> str:
         """
         Translate text with context from previous segments (Phase 4).
-        
+
         This helps the translation API understand the conversation flow
         and produce more coherent translations.
-        
+
         Args:
             text: The text to translate
             context_history: Previous transcript text for context
             source_language_code: Source language (e.g., "en")
             target_language_code: Target language (e.g., "he")
-            
+
         Returns:
             Translated text
         """
@@ -225,11 +253,12 @@ class GCPSpeechPipeline:
                 source_language_code=source_language_code,
                 target_language_code=target_language_code
             )
-        
+
         # Create a context-aware prompt
         # Note: GCP Translate doesn't have native context support,
         # so we format the context as a hint that helps with coherence
-        context_snippet = context_history[-CONTEXT_SNIPPET_MAX_CHARS:].strip()
+        # Use word-boundary aware slicing to avoid cutting mid-word
+        context_snippet = self._get_clean_context(context_history, CONTEXT_SNIPPET_MAX_CHARS)
         
         # Format: Translate the continuation of a conversation
         # The context helps with pronouns, subject continuity, etc.
@@ -401,6 +430,74 @@ class GCPSpeechPipeline:
             # Don't retry in a loop as this causes duplicate processing
             pass
 
+    # =========================================================================
+    # Protocol-compliant public methods (for SpeechPipelineProtocol)
+    # =========================================================================
+
+    def transcribe(self, audio_data: bytes, language_code: str) -> str:
+        """
+        Transcribe audio to text (protocol-compliant wrapper).
+
+        Args:
+            audio_data: Raw PCM16 audio bytes at 16kHz
+            language_code: Language code (e.g., "en-US", "he-IL")
+
+        Returns:
+            Transcribed text
+        """
+        return self._transcribe(audio_data, language_code)
+
+    def translate(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+        context: str = ""
+    ) -> str:
+        """
+        Translate text (protocol-compliant wrapper).
+
+        Args:
+            text: Text to translate
+            source_lang: Source language code (e.g., "en", "he")
+            target_lang: Target language code (e.g., "en", "he")
+            context: Optional context for better translation coherence
+
+        Returns:
+            Translated text
+        """
+        if context:
+            return self._translate_text_with_context(
+                text,
+                context,
+                source_language_code=source_lang,
+                target_language_code=target_lang
+            )
+        return self._translate_text(
+            text,
+            source_language_code=source_lang,
+            target_language_code=target_lang
+        )
+
+    def synthesize(
+        self,
+        text: str,
+        language_code: str,
+        voice: Optional[str] = None
+    ) -> bytes:
+        """
+        Synthesize speech from text (protocol-compliant wrapper).
+
+        Args:
+            text: Text to synthesize
+            language_code: Language code (e.g., "en-US", "he-IL")
+            voice: Optional voice name
+
+        Returns:
+            Raw PCM16 audio bytes
+        """
+        return self._synthesize(text, language_code=language_code, voice_name=voice)
+
 
 @functools.lru_cache(maxsize=1)
 def _get_pipeline() -> GCPSpeechPipeline:
@@ -410,6 +507,19 @@ def _get_pipeline() -> GCPSpeechPipeline:
 # Dedicated thread pool for GCP operations (larger than default)
 from concurrent.futures import ThreadPoolExecutor
 _gcp_executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="gcp_worker")
+
+
+def get_gcp_executor() -> ThreadPoolExecutor:
+    """
+    Get the dedicated thread pool executor for GCP operations.
+
+    This executor should be used for all blocking GCP API calls
+    (STT, Translation, TTS) to prevent thread pool starvation.
+
+    Returns:
+        ThreadPoolExecutor with 16 workers
+    """
+    return _gcp_executor
 
 
 async def process_audio_chunk(

@@ -21,7 +21,7 @@ import json
 import logging
 import time
 import threading
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Callable, Awaitable
 from dataclasses import dataclass, field
 from queue import Queue, Empty
 
@@ -39,6 +39,11 @@ from app.config.constants import (
 logger = logging.getLogger(__name__)
 
 
+# Type alias for the final transcript callback
+# Signature: (session_id, speaker_id, transcript, source_lang) -> Awaitable[None]
+FinalTranscriptCallback = Callable[[str, str, str, str], Awaitable[None]]
+
+
 @dataclass
 class InterimSession:
     """Tracks state for a single speaker's interim caption stream."""
@@ -51,6 +56,7 @@ class InterimSession:
     is_active: bool = True
     task: Optional[asyncio.Task] = None
     published_texts: Set[str] = field(default_factory=set)  # For dedup within window
+    on_final_transcript: Optional[FinalTranscriptCallback] = None  # Callback for streaming translation
 
 
 class InterimCaptionService:
@@ -79,31 +85,61 @@ class InterimCaptionService:
         """Generate unique key for a speaker's stream."""
         return f"{session_id}:{speaker_id}"
 
-    async def start_session(self, session_id: str, speaker_id: str, source_lang: str) -> bool:
+    async def start_session(
+        self,
+        session_id: str,
+        speaker_id: str,
+        source_lang: str,
+        on_final_transcript: Optional[FinalTranscriptCallback] = None
+    ) -> bool:
         """
         Start an interim caption session for a speaker.
+
+        Args:
+            session_id: The call session ID
+            speaker_id: The user ID of the speaker
+            source_lang: Language code (e.g., "he-IL")
+            on_final_transcript: Optional callback invoked when streaming STT
+                                 produces a final result. Used for low-latency
+                                 translation pipeline.
 
         Returns True if a new session was created, False if already exists.
         """
         stream_key = self.get_stream_key(session_id, speaker_id)
 
         with self._lock:
-            if stream_key in self._sessions and self._sessions[stream_key].is_active:
-                logger.debug(f"Interim session already active for {stream_key}")
-                return False
+            existing_session = self._sessions.get(stream_key)
+
+            if existing_session and existing_session.is_active:
+                # Check if the streaming task is actually still alive
+                # This handles the case where the task died (e.g., STT timeout after mute)
+                # but the session was never cleaned up
+                if existing_session.task and existing_session.task.done():
+                    logger.warning(f"⚠️ Found dead session for {stream_key} - task finished, restarting...")
+                    # Clean up the dead session
+                    del self._sessions[stream_key]
+                else:
+                    # Session exists and task is alive - just update callback
+                    if on_final_transcript is not None:
+                        existing_session.on_final_transcript = on_final_transcript
+                    logger.debug(f"Interim session already active for {stream_key}")
+                    return False
 
             # Create new session
             session = InterimSession(
                 session_id=session_id,
                 speaker_id=speaker_id,
-                source_lang=source_lang
+                source_lang=source_lang,
+                on_final_transcript=on_final_transcript
             )
             self._sessions[stream_key] = session
 
-        # Start the streaming task
-        loop = asyncio.get_running_loop()
-        task = asyncio.create_task(self._run_streaming_session(session))
-        session.task = task
+            # Create the streaming task INSIDE the lock to prevent race conditions
+            # where another coroutine accesses session.task before it's set.
+            # asyncio.create_task() is synchronous (just schedules, doesn't await),
+            # so it's safe to call inside a threading.Lock.
+            task = asyncio.create_task(self._run_streaming_session(session))
+            session.task = task
 
         logger.info(f"🎤 Started interim caption session for {stream_key} (lang: {source_lang})")
         return True
@@ -222,7 +258,10 @@ class InterimCaptionService:
             import traceback
             traceback.print_exc()
         finally:
-            logger.info(f"Streaming STT task ended for {stream_key}")
+            # Mark session as inactive so it can be restarted if needed
+            # This handles the case where the task ends due to timeout (e.g., after mute)
+            session.is_active = False
+            logger.info(f"Streaming STT task ended for {stream_key} - marked inactive")
 
     async def _process_interim_result(
         self,
@@ -269,6 +308,25 @@ class InterimCaptionService:
         session.last_publish_time = now
 
         if is_final:
+            # Send clear signal to mobile BEFORE final translation
+            # This allows UI to clean up old interim text
+            await self._publish_interim_clear(session)
+
+            # Invoke callback for streaming translation pipeline
+            if session.on_final_transcript is not None:
+                try:
+                    logger.info(f"🚀 Triggering streaming translation for '{transcript[:50]}...'")
+                    await session.on_final_transcript(
+                        session.session_id,
+                        session.speaker_id,
+                        transcript,
+                        session.source_lang
+                    )
+                except Exception as e:
+                    logger.error(f"Error in final transcript callback: {e}")
+                    import traceback
+                    traceback.print_exc()
+
             # Clear tracking on final result
             session.published_texts.clear()
             session.last_interim_text = ""
@@ -301,6 +359,28 @@ class InterimCaptionService:
         except Exception as e:
             logger.error(f"Failed to publish interim caption: {e}")
 
+    async def _publish_interim_clear(self, session: InterimSession):
+        """
+        Signal mobile to clear interim display for this speaker.
+
+        Sent before final translation so UI can clean up old interim text
+        and prepare for the translated result.
+        """
+        try:
+            payload = {
+                "type": "interim_clear",
+                "session_id": session.session_id,
+                "speaker_id": session.speaker_id,
+                "timestamp": time.time()
+            }
+
+            channel = f"channel:translation:{session.session_id}"
+            await self._redis.publish(channel, json.dumps(payload))
+            logger.debug(f"🧹 Interim clear signal sent for [{session.speaker_id}]")
+
+        except Exception as e:
+            logger.error(f"Failed to publish interim clear: {e}")
+
     async def shutdown(self):
         """Shutdown all active sessions."""
         logger.info("Shutting down InterimCaptionService...")
@@ -326,17 +406,31 @@ def get_interim_caption_service() -> InterimCaptionService:
     return _interim_caption_service
 
 
-async def push_audio_for_interim(session_id: str, speaker_id: str, source_lang: str, audio_data: bytes):
+async def push_audio_for_interim(
+    session_id: str,
+    speaker_id: str,
+    source_lang: str,
+    audio_data: bytes,
+    on_final_transcript: Optional[FinalTranscriptCallback] = None
+):
     """
     Convenience function to push audio for interim captioning.
 
     Automatically starts a session if one doesn't exist.
     Called from audio_worker.py in parallel with the main pipeline.
+
+    Args:
+        session_id: The call session ID
+        speaker_id: The user ID of the speaker
+        source_lang: Language code (e.g., "he-IL")
+        audio_data: Raw PCM16 audio bytes
+        on_final_transcript: Optional callback for streaming translation.
+                             Invoked when streaming STT produces final result.
     """
     service = get_interim_caption_service()
 
-    # Ensure session is started
-    await service.start_session(session_id, speaker_id, source_lang)
+    # Ensure session is started (with callback if provided)
+    await service.start_session(session_id, speaker_id, source_lang, on_final_transcript)
 
     # Push audio
     await service.push_audio(session_id, speaker_id, audio_data)

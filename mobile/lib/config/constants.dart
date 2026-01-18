@@ -70,6 +70,9 @@ class AppConstants {
   /// Max reconnection attempts before giving up
   static const int wsMaxReconnectAttempts = 3;
 
+  /// WebSocket connection timeout (seconds) - fail fast on unreachable server
+  static const int wsConnectTimeoutSeconds = 10;
+
   // ============================================================
   // API CONFIGURATION
   // ============================================================

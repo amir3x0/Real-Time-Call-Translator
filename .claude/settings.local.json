@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(flutter build:*)"
+      "Bash(flutter build:*)",
+      "Bash(xargs:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(cd:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter clean:*)",
+      "Bash(flutter pub get:*)",
+      "Bash(gradlew clean:*)",
+      "Bash(.gradlew.bat clean)",
+      "Bash(docker compose logs:*)"
     ]
   }
 }

@@ -39,12 +39,6 @@ class AppRoutes {
   // ========== Settings ==========
   /// Settings screen
   static const String settings = '/settings';
-  
-  /// Edit profile settings
-  static const String editProfile = '/settings/profile';
-  
-  /// Voice settings (manage voice sample)
-  static const String voiceSettings = '/settings/voice';
 
   // ========== Helpers ==========
   
@@ -77,8 +71,6 @@ class AppRoutes {
       case contacts: return 'Contacts';
       case addContact: return 'Add Contact';
       case settings: return 'Settings';
-      case editProfile: return 'Edit Profile';
-      case voiceSettings: return 'Voice Settings';
       default: return 'Unknown';
     }
   }

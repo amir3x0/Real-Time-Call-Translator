@@ -148,7 +148,6 @@ class ContactService:
             status='pending'
         )
         db.add(contact)
-        db.add(contact)
         await db.flush()
         
         # Notify target user via WebSocket

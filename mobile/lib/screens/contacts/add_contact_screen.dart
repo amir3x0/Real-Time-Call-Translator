@@ -420,23 +420,29 @@ class _AddContactScreenState extends State<AddContactScreen> {
             ),
             subtitle: Row(
               children: [
-                Text(
-                  user.phone,
-                  style: AppTheme.bodyMedium.copyWith(
-                    color: AppTheme.secondaryText,
+                Flexible(
+                  child: Text(
+                    user.phone,
+                    style: AppTheme.bodyMedium.copyWith(
+                      color: AppTheme.secondaryText,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Text(
                   LanguageUtils.getFlag(user.primaryLanguage),
-                  style: const TextStyle(fontSize: 16),
+                  style: const TextStyle(fontSize: 14),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  LanguageUtils.getName(user.primaryLanguage),
-                  style: AppTheme.bodyMedium.copyWith(
-                    color: AppTheme.secondaryText,
-                    fontSize: 12,
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    LanguageUtils.getName(user.primaryLanguage),
+                    style: AppTheme.bodyMedium.copyWith(
+                      color: AppTheme.secondaryText,
+                      fontSize: 12,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
