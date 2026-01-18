@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../contacts/contacts_screen.dart';
 import '../settings/settings_screen.dart';
 import '../../config/app_theme.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/lobby_provider.dart';
 import '../../core/navigation/app_routes.dart';
 
@@ -235,16 +236,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String _getSubtitle() {
-    switch (_currentIndex) {
-      case 0:
-        return 'Your contacts';
-      case 1:
-        return 'Call history';
-      case 2:
-        return 'Preferences';
-      default:
-        return '';
-    }
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
+    final name = user?.fullName.split(' ').first ?? 'Guest';
+    return 'Hello, $name';
   }
 
   Widget _buildBody() {

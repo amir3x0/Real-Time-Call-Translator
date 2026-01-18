@@ -443,8 +443,15 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
                 const Icon(Icons.dns_outlined,
                     color: AppTheme.primaryElectricBlue),
                 const SizedBox(width: 12),
-                const Text('Server Configuration', style: AppTheme.titleLarge),
-                const Spacer(),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Server Configuration',
+                      style: AppTheme.titleLarge,
+                    ),
+                  ),
+                ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.close),
@@ -540,7 +547,10 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
               ),
 
             // Action buttons
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 // Reset button
                 TextButton(
@@ -554,48 +564,51 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
                         .copyWith(color: AppTheme.secondaryText),
                   ),
                 ),
-                const Spacer(),
-                // Test button
-                Flexible(
-                  child: OutlinedButton.icon(
-                    onPressed: _isTesting ? null : _testConnection,
-                    icon: _isTesting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.wifi_tethering, size: 18),
-                    label: Text(_isTesting ? 'Testing...' : 'Test'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.primaryElectricBlue,
-                      side:
-                          const BorderSide(color: AppTheme.primaryElectricBlue),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                // Test and Save buttons
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Test button
+                    OutlinedButton.icon(
+                      onPressed: _isTesting ? null : _testConnection,
+                      icon: _isTesting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.wifi_tethering, size: 18),
+                      label: Text(_isTesting ? 'Testing...' : 'Test'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryElectricBlue,
+                        side:
+                            const BorderSide(color: AppTheme.primaryElectricBlue),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Save button
-                ElevatedButton(
-                  onPressed:
-                      (_connectionSuccessful && !_isSaving) ? _save : null,
-                  style: ElevatedButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text('Save'),
+                    const SizedBox(width: 8),
+                    // Save button
+                    ElevatedButton(
+                      onPressed:
+                          (_connectionSuccessful && !_isSaving) ? _save : null,
+                      style: ElevatedButton.styleFrom(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Save'),
+                    ),
+                  ],
                 ),
               ],
             ),
