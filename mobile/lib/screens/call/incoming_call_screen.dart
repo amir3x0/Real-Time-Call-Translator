@@ -8,6 +8,7 @@ import '../../providers/lobby_provider.dart';
 import '../../models/call.dart';
 import '../../models/participant.dart';
 import '../../utils/language_utils.dart';
+import '../../config/app_theme.dart';
 
 class IncomingCallScreen extends StatefulWidget {
   const IncomingCallScreen({super.key});
@@ -77,22 +78,21 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     // Safety check if we somehow got here with null incomingCall but not active
     if (incomingCall == null) return const SizedBox();
 
+    final isDark = AppTheme.isDarkMode(context);
+    final gradientColors = AppTheme.getScreenGradientColors(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0E0E16),
+      backgroundColor: AppTheme.getBackgroundColor(context),
       body: Stack(
         children: [
-          // Gradient background
+          // Gradient background - Theme Aware
           Positioned.fill(
             child: Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF12122A),
-                    Color(0xFF1A1A3A),
-                    Color(0xFF2B2B5C),
-                  ],
+                  colors: gradientColors,
                 ),
               ),
             ),
@@ -106,8 +106,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                   padding: const EdgeInsets.only(top: 40, bottom: 20),
                   child: Text(
                     '$_remainingSeconds',
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: AppTheme.getSecondaryTextColor(context),
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
@@ -151,8 +151,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                         // Caller name
                         Text(
                           lobbyProvider.incomingCallerName ?? 'Incoming Call',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: AppTheme.getTextColor(context),
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
                           ),
@@ -165,7 +165,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : Colors.black.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
@@ -180,8 +182,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                               Text(
                                 LanguageUtils.getEnglishName(
                                     incomingCall.callLanguage),
-                                style: const TextStyle(
-                                  color: Colors.white70,
+                                style: TextStyle(
+                                  color: AppTheme.getSecondaryTextColor(context),
                                   fontSize: 16,
                                 ),
                               ),

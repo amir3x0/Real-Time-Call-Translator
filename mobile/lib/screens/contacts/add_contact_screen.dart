@@ -100,11 +100,17 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final gradientColors = AppTheme.getScreenGradientColors(context);
+
     return Scaffold(
-      backgroundColor: AppTheme.darkSurface,
+      backgroundColor: AppTheme.getBackgroundColor(context),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: gradientColors,
+          ),
         ),
         child: SafeArea(
           child: Column(
@@ -160,13 +166,18 @@ class _AddContactScreenState extends State<AddContactScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
+            icon: Icon(
+              Icons.close,
+              color: AppTheme.getTextColor(context),
+            ),
             onPressed: () => Navigator.of(context).pop(),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
               'Add Contact',
-              style: AppTheme.titleLarge,
+              style: AppTheme.titleLarge.copyWith(
+                color: AppTheme.getTextColor(context),
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -177,20 +188,27 @@ class _AddContactScreenState extends State<AddContactScreen> {
   }
 
   Widget _buildInstructionsCard() {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.accentCyan.withValues(alpha: 0.1),
+        color: isDark
+            ? AppTheme.accentCyan.withValues(alpha: 0.1)
+            : Colors.white,
         borderRadius: AppTheme.borderRadiusMedium,
         border: Border.all(
-          color: AppTheme.accentCyan.withValues(alpha: 0.3),
+          color: isDark
+              ? AppTheme.accentCyan.withValues(alpha: 0.3)
+              : AppTheme.lightDivider,
         ),
+        boxShadow: isDark ? null : AppTheme.lightCardShadow,
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.info_outline,
-            color: AppTheme.accentCyan,
+            color: isDark ? AppTheme.accentCyan : AppTheme.primaryElectricBlue,
             size: 22,
           ),
           const SizedBox(width: 12),
@@ -198,7 +216,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
             child: Text(
               'Search users by phone number or name to add them to your contacts',
               style: AppTheme.bodyMedium.copyWith(
-                color: Colors.white.withValues(alpha: 0.8),
+                color: AppTheme.getSecondaryTextColor(context),
               ),
             ),
           ),
@@ -209,37 +227,47 @@ class _AddContactScreenState extends State<AddContactScreen> {
 
   /// Build phone number input field
   Widget _buildPhoneInput() {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.white,
         borderRadius: AppTheme.borderRadiusMedium,
         border: Border.all(
           color: _phoneFocusNode.hasFocus
-              ? AppTheme.accentCyan
-              : Colors.white.withValues(alpha: 0.1),
+              ? AppTheme.primaryElectricBlue
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : AppTheme.lightDivider),
         ),
+        boxShadow: isDark ? null : AppTheme.lightCardShadow,
       ),
       child: TextField(
         controller: _phoneController,
         focusNode: _phoneFocusNode,
-        style: AppTheme.bodyLarge.copyWith(letterSpacing: 1),
+        style: AppTheme.bodyLarge.copyWith(
+          letterSpacing: 1,
+          color: AppTheme.getTextColor(context),
+        ),
         keyboardType: TextInputType.text, // Supports both phone and name search
         textDirection: TextDirection.ltr,
         textAlign: TextAlign.center,
         decoration: InputDecoration(
           hintText: '050-XXX-XXXX or name',
           hintStyle: AppTheme.bodyMedium.copyWith(
-            color: AppTheme.secondaryText,
+            color: AppTheme.getSecondaryTextColor(context),
           ),
-          prefixIcon: const Icon(
+          prefixIcon: Icon(
             Icons.search,
-            color: AppTheme.secondaryText,
+            color: AppTheme.getSecondaryTextColor(context),
           ),
           suffixIcon: _phoneController.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.clear,
-                    color: AppTheme.secondaryText,
+                    color: AppTheme.getSecondaryTextColor(context),
                   ),
                   onPressed: () {
                     _phoneController.clear();
@@ -306,13 +334,13 @@ class _AddContactScreenState extends State<AddContactScreen> {
       child: Column(
         children: [
           const CircularProgressIndicator(
-            color: AppTheme.accentCyan,
+            color: AppTheme.primaryElectricBlue,
           ),
           const SizedBox(height: 16),
           Text(
             'Searching...',
             style: AppTheme.bodyMedium.copyWith(
-              color: AppTheme.secondaryText,
+              color: AppTheme.getSecondaryTextColor(context),
             ),
           ),
         ],
@@ -362,13 +390,13 @@ class _AddContactScreenState extends State<AddContactScreen> {
           Icon(
             Icons.person_search,
             size: 60,
-            color: AppTheme.secondaryText.withValues(alpha: 0.5),
+            color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           Text(
             'No results found',
             style: AppTheme.bodyMedium.copyWith(
-              color: AppTheme.secondaryText,
+              color: AppTheme.getSecondaryTextColor(context),
             ),
           ),
         ],
@@ -379,6 +407,8 @@ class _AddContactScreenState extends State<AddContactScreen> {
   /// Results list
   Widget _buildSearchResultsList() {
     final contactsProvider = context.read<ContactsProvider>();
+    final isDark = AppTheme.isDarkMode(context);
+
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -389,9 +419,16 @@ class _AddContactScreenState extends State<AddContactScreen> {
         final isOnline = user.isOnline;
         return Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white,
             borderRadius: AppTheme.borderRadiusMedium,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : AppTheme.lightDivider,
+            ),
+            boxShadow: isDark ? null : AppTheme.lightCardShadow,
           ),
           child: ListTile(
             leading: Container(
@@ -416,7 +453,10 @@ class _AddContactScreenState extends State<AddContactScreen> {
             ),
             title: Text(
               user.fullName,
-              style: AppTheme.titleMedium.copyWith(fontWeight: FontWeight.w600),
+              style: AppTheme.titleMedium.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppTheme.getTextColor(context),
+              ),
             ),
             subtitle: Row(
               children: [
@@ -424,7 +464,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                   child: Text(
                     user.phone,
                     style: AppTheme.bodyMedium.copyWith(
-                      color: AppTheme.secondaryText,
+                      color: AppTheme.getSecondaryTextColor(context),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -439,7 +479,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
                   child: Text(
                     LanguageUtils.getName(user.primaryLanguage),
                     style: AppTheme.bodyMedium.copyWith(
-                      color: AppTheme.secondaryText,
+                      color: AppTheme.getSecondaryTextColor(context),
                       fontSize: 12,
                     ),
                     overflow: TextOverflow.ellipsis,

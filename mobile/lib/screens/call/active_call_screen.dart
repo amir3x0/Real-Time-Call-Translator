@@ -101,7 +101,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0E0E16),
+      backgroundColor: AppTheme.getBackgroundColor(context),
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -197,14 +197,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   }
 
   Widget _buildDynamicBackground(CallProvider provider) {
-    // Determine active color based on speaker
-    Color activeColor = const Color(0xFF1A1A3A); // Default dark blue
-    /*
-    // Future improvement: use speaker's color
-    if (provider.activeSpeakerId != null) {
-       // activeColor = ...
-    }
-    */
+    final gradientColors = AppTheme.getScreenGradientColors(context);
 
     return AnimatedContainer(
       duration: const Duration(seconds: 2),
@@ -212,11 +205,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF0E0E16),
-            activeColor,
-            const Color(0xFF0F1630),
-          ],
+          colors: gradientColors,
         ),
       ),
     );
@@ -224,6 +213,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
 
   // Reused buildTopBar...
   Widget _buildTopBar(CallProvider callProvider) {
+    final isDark = AppTheme.isDarkMode(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: Row(
@@ -238,10 +228,23 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.white,
                   borderRadius: BorderRadius.circular(30),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : AppTheme.lightDivider,
+                  ),
+                  boxShadow: isDark
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 8,
+                          )
+                        ],
                 ),
                 child: Row(
                   children: [
@@ -259,11 +262,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                     const SizedBox(width: 10),
                     Text(
                       _formatDuration(_callDurationSeconds),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Inter',
-                        color: Colors.white,
+                        color: AppTheme.getTextColor(context),
                         fontWeight: FontWeight.w600,
-                        fontFeatures: [FontFeature.tabularFigures()],
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ],

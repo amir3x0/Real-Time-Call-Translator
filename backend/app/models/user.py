@@ -24,6 +24,9 @@ class User(Base):
     
     # Language settings
     primary_language = Column(String(10), nullable=False, default='he')  # he, en, ru
+
+    # User preferences
+    theme_preference = Column(String(10), nullable=False, default='light')  # 'light' or 'dark'
     
     # Online status
     is_online = Column(Boolean, default=False, index=True)
@@ -45,6 +48,7 @@ class User(Base):
             "phone": self.phone,
             "full_name": self.full_name,
             "primary_language": self.primary_language,
+            "theme_preference": self.theme_preference,
             "has_voice_sample": self.has_voice_sample,
             "voice_model_trained": self.voice_model_trained,
             "voice_quality_score": self.voice_quality_score,

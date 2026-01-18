@@ -28,6 +28,9 @@ class User {
   /// Primary language (determines call language when user initiates) - IMMUTABLE
   final String primaryLanguage;
 
+  /// Theme preference ('light' or 'dark')
+  final String themePreference;
+
   // Voice cloning attributes
   final bool hasVoiceSample;
   final bool voiceModelTrained;
@@ -46,6 +49,7 @@ class User {
     required this.phone,
     required this.fullName,
     required this.primaryLanguage,
+    this.themePreference = 'light',
     this.hasVoiceSample = false,
     this.voiceModelTrained = false,
     this.voiceQualityScore,
@@ -62,6 +66,7 @@ class User {
       phone: (json['phone'] ?? '') as String,
       fullName: json['full_name'] as String,
       primaryLanguage: json['primary_language'] as String? ?? 'he',
+      themePreference: json['theme_preference'] as String? ?? 'light',
       hasVoiceSample: json['has_voice_sample'] as bool? ?? false,
       voiceModelTrained: json['voice_model_trained'] as bool? ?? false,
       voiceQualityScore: json['voice_quality_score'] as int?,
@@ -85,6 +90,7 @@ class User {
       'phone': phone,
       'full_name': fullName,
       'primary_language': primaryLanguage,
+      'theme_preference': themePreference,
       'has_voice_sample': hasVoiceSample,
       'voice_model_trained': voiceModelTrained,
       'voice_quality_score': voiceQualityScore,
@@ -101,6 +107,7 @@ class User {
     String? phone,
     String? fullName,
     String? primaryLanguage,
+    String? themePreference,
     bool? hasVoiceSample,
     bool? voiceModelTrained,
     int? voiceQualityScore,
@@ -114,6 +121,7 @@ class User {
       phone: phone ?? this.phone,
       fullName: fullName ?? this.fullName,
       primaryLanguage: primaryLanguage ?? this.primaryLanguage,
+      themePreference: themePreference ?? this.themePreference,
       hasVoiceSample: hasVoiceSample ?? this.hasVoiceSample,
       voiceModelTrained: voiceModelTrained ?? this.voiceModelTrained,
       voiceQualityScore: voiceQualityScore ?? this.voiceQualityScore,

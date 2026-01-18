@@ -67,20 +67,17 @@ class _RegisterScreenState extends State<RegisterScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // Animated Gradient Background (same as login)
+          // Animated Gradient Background - Theme Aware
           AnimatedBuilder(
             animation: _backgroundController,
             builder: (context, child) {
+              final gradientColors = AppTheme.getScreenGradientColors(context);
               return Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: const [
-                      Color(0xFF0F1630),
-                      Color(0xFF1B2750),
-                      Color(0xFF2A3A6B),
-                    ],
+                    colors: gradientColors,
                     stops: [
                       0.0,
                       _backgroundController.value,
@@ -92,7 +89,7 @@ class _RegisterScreenState extends State<RegisterScreen>
             },
           ),
 
-          // Floating orbs for depth
+          // Floating orbs for depth - Theme Aware
           Positioned(
             top: -80,
             left: -80,
@@ -103,7 +100,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.secondaryPurple.withValues(alpha: 0.25),
+                    AppTheme.getOrbColor(context, AppTheme.secondaryPurple, opacity: 0.25),
                     Colors.transparent,
                   ],
                 ),
@@ -124,7 +121,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.primaryElectricBlue.withValues(alpha: 0.2),
+                    AppTheme.getOrbColor(context, AppTheme.primaryElectricBlue, opacity: 0.2),
                     Colors.transparent,
                   ],
                 ),

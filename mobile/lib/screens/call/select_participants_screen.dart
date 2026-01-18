@@ -41,20 +41,18 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final gradientColors = AppTheme.getScreenGradientColors(context);
+
     return Scaffold(
       body: Stack(
         children: [
-          // Background
+          // Background - Theme Aware
           Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF0F1630),
-                  Color(0xFF1B2750),
-                  Color(0xFF2A3A6B),
-                ],
+                colors: gradientColors,
               ),
             ),
           ),
@@ -80,29 +78,34 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
     final contactsProvider = context.watch<ContactsProvider>();
     final selectedCount = contactsProvider.selectedCount;
     const maxSelectable = ContactsProvider.maxSelectable;
+    final isDark = AppTheme.isDarkMode(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 20, 8),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+            icon: Icon(Icons.arrow_back_ios_new, color: AppTheme.getTextColor(context)),
             onPressed: () {
               // Clear selection before going back
               contactsProvider.clearSelection();
               Navigator.pop(context);
             },
           ),
-          const Expanded(
+          Expanded(
             child: Text(
               'Select Participants',
-              style: AppTheme.titleLarge,
+              style: AppTheme.titleLarge.copyWith(
+                color: AppTheme.getTextColor(context),
+              ),
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.05),
               borderRadius: AppTheme.borderRadiusPill,
             ),
             child: Text(
@@ -110,7 +113,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
               style: AppTheme.bodyMedium.copyWith(
                 color: selectedCount >= maxSelectable
                     ? AppTheme.warningOrange
-                    : AppTheme.secondaryText,
+                    : AppTheme.getSecondaryTextColor(context),
               ),
             ),
           ),
@@ -138,6 +141,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
   Widget _buildSelectedChips() {
     final contactsProvider = context.watch<ContactsProvider>();
     final selectedContacts = contactsProvider.selectedContacts;
+    final isDark = AppTheme.isDarkMode(context);
 
     if (selectedContacts.isEmpty) {
       return Padding(
@@ -145,7 +149,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
         child: Text(
           'Tap contacts to select for the call',
           style: AppTheme.bodyMedium.copyWith(
-            color: AppTheme.secondaryText.withValues(alpha: 0.7),
+            color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.7),
           ),
         ),
       ).animate().fadeIn(delay: 200.ms);
@@ -169,11 +173,13 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.close, size: 16, color: Colors.white70),
+                Icon(Icons.close, size: 16, color: isDark ? Colors.white70 : AppTheme.darkText),
                 const SizedBox(width: 4),
                 Text(
                   contact.displayName.split(' ').first,
-                  style: AppTheme.bodyMedium.copyWith(color: Colors.white),
+                  style: AppTheme.bodyMedium.copyWith(
+                    color: isDark ? Colors.white : AppTheme.darkText,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -223,19 +229,19 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
             Icon(
               Icons.people_outline,
               size: 64,
-              color: AppTheme.secondaryText.withValues(alpha: 0.5),
+              color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
               _searchQuery.isEmpty ? 'No contacts' : 'No results found',
-              style: AppTheme.titleMedium.copyWith(color: AppTheme.secondaryText),
+              style: AppTheme.titleMedium.copyWith(color: AppTheme.getSecondaryTextColor(context)),
             ),
             if (_searchQuery.isEmpty) ...[
               const SizedBox(height: 8),
               Text(
                 'Add contacts from the "Contacts" tab',
                 style: AppTheme.bodyMedium.copyWith(
-                  color: AppTheme.secondaryText.withValues(alpha: 0.7),
+                  color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.7),
                 ),
               ),
             ],
@@ -280,13 +286,13 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
           Icon(
             icon,
             size: 16,
-            color: AppTheme.secondaryText.withValues(alpha: 0.7),
+            color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.7),
           ),
           const SizedBox(width: 6),
           Text(
             title,
             style: AppTheme.bodyMedium.copyWith(
-              color: AppTheme.secondaryText.withValues(alpha: 0.7),
+              color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.7),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -298,6 +304,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
   Widget _buildContactTile(Contact contact, ContactsProvider provider, int index) {
     final isSelected = provider.isSelected(contact.id);
     final canSelect = provider.canSelectMore || isSelected;
+    final isDark = AppTheme.isDarkMode(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -306,10 +313,14 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
         padding: const EdgeInsets.all(16),
         color: isSelected
             ? AppTheme.primaryElectricBlue.withValues(alpha: 0.15)
-            : Colors.white.withValues(alpha: 0.05),
+            : isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.black.withValues(alpha: 0.03),
         borderColor: isSelected
             ? AppTheme.primaryElectricBlue
-            : Colors.white.withValues(alpha: 0.1),
+            : isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.08),
         child: Row(
           children: [
             // Avatar with language flag
@@ -323,17 +334,22 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
                     gradient: isSelected
                         ? AppTheme.primaryGradient
                         : LinearGradient(
-                            colors: [
-                              Colors.white.withValues(alpha: 0.1),
-                              Colors.white.withValues(alpha: 0.05),
-                            ],
+                            colors: isDark
+                                ? [
+                                    Colors.white.withValues(alpha: 0.1),
+                                    Colors.white.withValues(alpha: 0.05),
+                                  ]
+                                : [
+                                    Colors.black.withValues(alpha: 0.05),
+                                    Colors.black.withValues(alpha: 0.02),
+                                  ],
                           ),
                   ),
                   child: Center(
                     child: Text(
                       contact.avatarLetter,
                       style: AppTheme.titleMedium.copyWith(
-                        color: isSelected ? Colors.white : AppTheme.secondaryText,
+                        color: isSelected ? Colors.white : AppTheme.getSecondaryTextColor(context),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -345,8 +361,8 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
                   bottom: -2,
                   child: Container(
                     padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: AppTheme.darkBackground,
+                    decoration: BoxDecoration(
+                      color: AppTheme.getBackgroundColor(context),
                       shape: BoxShape.circle,
                     ),
                     child: Text(
@@ -367,7 +383,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
                         color: Colors.green,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: AppTheme.darkBackground,
+                          color: AppTheme.getBackgroundColor(context),
                           width: 2,
                         ),
                       ),
@@ -375,7 +391,7 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
                   ),
               ],
             ),
-            
+
             const SizedBox(width: 16),
 
             // Name and phone
@@ -386,7 +402,9 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
                   Text(
                     contact.displayName,
                     style: AppTheme.bodyLarge.copyWith(
-                      color: isSelected ? Colors.white : AppTheme.lightText,
+                      color: isSelected
+                          ? (isDark ? Colors.white : AppTheme.primaryElectricBlue)
+                          : AppTheme.getTextColor(context),
                       fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
@@ -397,19 +415,19 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
                       Text(
                         contact.phone ?? '',
                         style: AppTheme.bodyMedium.copyWith(
-                          color: AppTheme.secondaryText.withValues(alpha: 0.8),
+                          color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.8),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         '\u2022',
-                        style: TextStyle(color: AppTheme.secondaryText.withValues(alpha: 0.5)),
+                        style: TextStyle(color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5)),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         contact.languageName,
                         style: AppTheme.bodyMedium.copyWith(
-                          color: AppTheme.secondaryText.withValues(alpha: 0.8),
+                          color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.8),
                         ),
                       ),
                     ],
@@ -429,11 +447,15 @@ class _SelectParticipantsScreenState extends State<SelectParticipantsScreen> {
                 shape: BoxShape.circle,
                 color: isSelected
                     ? AppTheme.primaryElectricBlue
-                    : Colors.white.withValues(alpha: 0.1),
+                    : isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.black.withValues(alpha: 0.05),
                 border: Border.all(
                   color: isSelected
                       ? AppTheme.primaryElectricBlue
-                      : Colors.white.withValues(alpha: 0.3),
+                      : isDark
+                          ? Colors.white.withValues(alpha: 0.3)
+                          : Colors.black.withValues(alpha: 0.15),
                   width: 2,
                 ),
               ),

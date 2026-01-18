@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/lobby_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../widgets/voice_recorder_widget.dart';
 import '../../config/app_theme.dart';
 
@@ -63,6 +64,9 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
         if (token != null && authProvider.currentUser != null) {
           Provider.of<LobbyProvider>(context, listen: false)
               .connect(token, authProvider.currentUser!.id);
+          // Apply server theme preference (server wins)
+          Provider.of<SettingsProvider>(context, listen: false)
+              .applyServerTheme(authProvider.currentUser!.themePreference);
         }
       }
       navigator.pushReplacementNamed('/home');
@@ -81,20 +85,17 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // Animated Gradient Background
+          // Animated Gradient Background - Theme Aware
           AnimatedBuilder(
             animation: _backgroundController,
             builder: (context, child) {
+              final gradientColors = AppTheme.getScreenGradientColors(context);
               return Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: const [
-                      Color(0xFF0F1630),
-                      Color(0xFF1B2750),
-                      Color(0xFF2A3A6B),
-                    ],
+                    colors: gradientColors,
                     stops: [
                       0.0,
                       _backgroundController.value,
@@ -106,7 +107,7 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
             },
           ),
 
-          // Floating orb
+          // Floating orb - Theme Aware
           Positioned(
             top: 100,
             right: -50,
@@ -117,7 +118,7 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.secondaryPurple.withValues(alpha: 0.3),
+                    AppTheme.getOrbColor(context, AppTheme.secondaryPurple, opacity: 0.3),
                     Colors.transparent,
                   ],
                 ),
@@ -143,71 +144,18 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Header with Skip button
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.arrow_back_ios,
-                                    color: Colors.white70),
-                                onPressed: () {
-                                  // Clear pending registration when going back
-                                  final authProvider =
-                                      Provider.of<AuthProvider>(context,
-                                          listen: false);
-                                  authProvider.clearPendingRegistration();
-                                  Navigator.pop(context);
-                                },
-                              ),
-                              // Skip button - more prominent and accessible
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  borderRadius: AppTheme.borderRadiusPill,
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                  ),
-                                ),
-                                child: TextButton.icon(
-                                  key: const Key('register-skip'),
-                                  onPressed: _isRegistering
-                                      ? null
-                                      : _completeRegistration,
-                                  icon: _isRegistering
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white70,
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.skip_next_rounded,
-                                          color: Colors.white70,
-                                          size: 20,
-                                        ),
-                                  label: Text(
-                                    _isRegistering
-                                        ? 'Registering...'
-                                        : 'Skip for now',
-                                    style: AppTheme.bodyMedium.copyWith(
-                                      color: Colors.white70,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ).animate().fadeIn(duration: 300.ms),
+                          // Header with Skip button - Theme Aware
+                          _buildHeader().animate().fadeIn(duration: 300.ms),
 
                           const SizedBox(height: 16),
 
-                          // Title
+                          // Title - Theme Aware
                           Text(
                             "Voice Calibration",
-                            style:
-                                AppTheme.headlineLarge.copyWith(fontSize: 26),
+                            style: AppTheme.headlineLarge.copyWith(
+                              fontSize: 26,
+                              color: AppTheme.getTextColor(context),
+                            ),
                             textAlign: TextAlign.center,
                           )
                               .animate()
@@ -293,16 +241,88 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
     );
   }
 
+  Widget _buildHeader() {
+    final isDark = AppTheme.isDarkMode(context);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios,
+            color: isDark ? Colors.white70 : AppTheme.darkText,
+          ),
+          onPressed: () {
+            // Clear pending registration when going back
+            final authProvider =
+                Provider.of<AuthProvider>(context, listen: false);
+            authProvider.clearPendingRegistration();
+            Navigator.pop(context);
+          },
+        ),
+        // Skip button - Theme Aware
+        Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : AppTheme.primaryElectricBlue.withValues(alpha: 0.1),
+            borderRadius: AppTheme.borderRadiusPill,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : AppTheme.primaryElectricBlue.withValues(alpha: 0.3),
+            ),
+          ),
+          child: TextButton.icon(
+            key: const Key('register-skip'),
+            onPressed: _isRegistering ? null : _completeRegistration,
+            icon: _isRegistering
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: isDark ? Colors.white70 : AppTheme.primaryElectricBlue,
+                    ),
+                  )
+                : Icon(
+                    Icons.skip_next_rounded,
+                    color: isDark ? Colors.white70 : AppTheme.primaryElectricBlue,
+                    size: 20,
+                  ),
+            label: Text(
+              _isRegistering ? 'Registering...' : 'Skip for now',
+              style: AppTheme.bodyMedium.copyWith(
+                color: isDark ? Colors.white70 : AppTheme.primaryElectricBlue,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildExplanationCard() {
+    final isDark = AppTheme.isDarkMode(context);
+
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusMedium,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           padding: const EdgeInsets.all(16),
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.15),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white,
+            borderRadius: AppTheme.borderRadiusMedium,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : AppTheme.lightDivider,
+            ),
+            boxShadow: isDark ? null : AppTheme.lightCardShadow,
           ),
           child: Column(
             children: [
@@ -311,8 +331,7 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color:
-                          AppTheme.primaryElectricBlue.withValues(alpha: 0.2),
+                      color: AppTheme.primaryElectricBlue.withValues(alpha: 0.2),
                       borderRadius: AppTheme.borderRadiusSmall,
                     ),
                     child: const Icon(
@@ -328,6 +347,7 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
                       style: AppTheme.titleMedium.copyWith(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
+                        color: AppTheme.getTextColor(context),
                       ),
                     ),
                   ),
@@ -369,7 +389,7 @@ class _RegisterVoiceScreenState extends State<RegisterVoiceScreen>
           child: Text(
             text,
             style: AppTheme.bodyMedium.copyWith(
-              color: AppTheme.secondaryText,
+              color: AppTheme.getSecondaryTextColor(context),
               height: 1.3,
               fontSize: 13,
             ),

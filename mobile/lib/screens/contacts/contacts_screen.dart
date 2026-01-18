@@ -98,7 +98,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   return RefreshIndicator(
                     onRefresh: () async => await contactsProv.refreshContacts(),
                     color: AppTheme.primaryElectricBlue,
-                    backgroundColor: AppTheme.darkCard,
+                    backgroundColor: AppTheme.getCardColor(context),
                     child: ListView(
                       controller: widget.scrollController,
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -175,18 +175,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                 child: Container(
-                  decoration: AppTheme.glassDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
-                    borderColor: Colors.white.withValues(alpha: 0.1),
-                  ),
+                  decoration: AppTheme.themedGlassDecoration(context),
                   child: TextField(
                     controller: _searchController,
                     onChanged: _handleSearchChanged,
-                    style: AppTheme.bodyLarge,
+                    style: AppTheme.bodyLarge.copyWith(
+                      color: AppTheme.getTextColor(context),
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Search by name or phone',
                       hintStyle: AppTheme.bodyMedium
-                          .copyWith(color: AppTheme.secondaryText),
+                          .copyWith(color: AppTheme.getSecondaryTextColor(context)),
                       prefixIcon: const Icon(Icons.search,
                           color: AppTheme.primaryElectricBlue),
                       border: InputBorder.none,

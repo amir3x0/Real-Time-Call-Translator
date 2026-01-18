@@ -443,7 +443,7 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
                 const Icon(Icons.dns_outlined,
                     color: AppTheme.primaryElectricBlue),
                 const SizedBox(width: 12),
-                Flexible(
+                const Flexible(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
@@ -581,8 +581,8 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
                       label: Text(_isTesting ? 'Testing...' : 'Test'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.primaryElectricBlue,
-                        side:
-                            const BorderSide(color: AppTheme.primaryElectricBlue),
+                        side: const BorderSide(
+                            color: AppTheme.primaryElectricBlue),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
                       ),
@@ -593,8 +593,8 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
                       onPressed:
                           (_connectionSuccessful && !_isSaving) ? _save : null,
                       style: ElevatedButton.styleFrom(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                       ),
                       child: _isSaving
                           ? const SizedBox(

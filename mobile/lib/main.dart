@@ -32,6 +32,10 @@ void main() async {
   // Initialize AppConfig to load runtime backend host/port from SharedPreferences
   await AppConfig.initialize();
 
+  // Initialize settings provider with local theme preference
+  final settingsProvider = SettingsProvider();
+  await settingsProvider.initialize();
+
   final authService = AuthService();
   final contactService = ContactService();
   final callApiService = CallApiService();
@@ -54,7 +58,7 @@ void main() async {
             apiService: callApiService,
           ),
         ),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider.value(value: settingsProvider),
         ChangeNotifierProxyProvider<LobbyProvider, ContactsProvider>(
           create: (_) => ContactsProvider(contactService),
           update: (_, lobbyProvider, contactsProvider) =>
@@ -96,6 +100,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final lobbyProvider = Provider.of<LobbyProvider>(context, listen: false);
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
 
     final token = await authProvider.checkAuthStatus();
 
@@ -105,6 +110,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // Connect to lobby with the valid token and userId
         if (authProvider.currentUser != null) {
           lobbyProvider.connect(token, authProvider.currentUser!.id);
+          // Apply server theme preference (server wins)
+          settingsProvider.applyServerTheme(authProvider.currentUser!.themePreference);
         }
       } else {
         debugPrint('[MyApp] User is NOT authenticated, waiting for login...');

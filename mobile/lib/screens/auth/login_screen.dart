@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/lobby_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../config/app_theme.dart';
 import '../../widgets/flash_bar.dart';
 import '../../widgets/server_config_widget.dart';
@@ -50,20 +51,17 @@ class _LoginScreenState extends State<LoginScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // Animated Gradient Background
+          // Animated Gradient Background - Theme Aware
           AnimatedBuilder(
             animation: _backgroundController,
             builder: (context, child) {
+              final gradientColors = AppTheme.getScreenGradientColors(context);
               return Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: const [
-                      Color(0xFF0F1630),
-                      Color(0xFF1B2750),
-                      Color(0xFF2A3A6B),
-                    ],
+                    colors: gradientColors,
                     stops: [
                       0.0,
                       _backgroundController.value,
@@ -75,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen>
             },
           ),
 
-          // Floating orbs for depth
+          // Floating orbs for depth - Theme Aware
           Positioned(
             top: -100,
             right: -100,
@@ -86,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.primaryElectricBlue.withValues(alpha: 0.3),
+                    AppTheme.getOrbColor(context, AppTheme.primaryElectricBlue, opacity: 0.3),
                     Colors.transparent,
                   ],
                 ),
@@ -110,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.secondaryPurple.withValues(alpha: 0.2),
+                    AppTheme.getOrbColor(context, AppTheme.secondaryPurple, opacity: 0.2),
                     Colors.transparent,
                   ],
                 ),
@@ -133,35 +131,22 @@ class _LoginScreenState extends State<LoginScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Logo with glow effect
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: AppTheme.primaryGradient,
-                        boxShadow:
-                            AppTheme.glowShadow(AppTheme.primaryElectricBlue),
-                      ),
-                      child: const Icon(
-                        Icons.translate,
-                        size: 50,
-                        color: Colors.white,
-                      ),
-                    )
+                    // Logo with glow effect - Theme Aware
+                    _buildLogo()
                         .animate()
                         .fadeIn(duration: 600.ms)
                         .scale(delay: 200.ms, duration: 400.ms),
 
                     const SizedBox(height: 24),
 
-                    // Title
+                    // Title - Theme Aware
                     Text(
                       "Real-Time\nCall Translator",
                       textAlign: TextAlign.center,
                       style: AppTheme.headlineLarge.copyWith(
                         fontSize: 36,
                         height: 1.2,
+                        color: AppTheme.getTextColor(context),
                       ),
                     )
                         .animate()
@@ -174,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen>
                       "Break language barriers with AI",
                       textAlign: TextAlign.center,
                       style: AppTheme.bodyMedium.copyWith(
-                        color: AppTheme.secondaryText,
+                        color: AppTheme.getSecondaryTextColor(context),
                       ),
                     ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
 
@@ -236,23 +221,27 @@ class _LoginScreenState extends State<LoginScreen>
 
                     const SizedBox(height: 16),
 
-                    // Divider
+                    // Divider - Theme Aware
                     Row(
                       children: [
                         Expanded(
                             child: Divider(
-                                color: Colors.white.withValues(alpha: 0.2))),
+                                color: AppTheme.isDarkMode(context)
+                                    ? Colors.white.withValues(alpha: 0.2)
+                                    : AppTheme.lightDivider)),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
                             "OR",
                             style: AppTheme.bodyMedium
-                                .copyWith(color: AppTheme.secondaryText),
+                                .copyWith(color: AppTheme.getSecondaryTextColor(context)),
                           ),
                         ),
                         Expanded(
                             child: Divider(
-                                color: Colors.white.withValues(alpha: 0.2))),
+                                color: AppTheme.isDarkMode(context)
+                                    ? Colors.white.withValues(alpha: 0.2)
+                                    : AppTheme.lightDivider)),
                       ],
                     ).animate().fadeIn(delay: 1400.ms),
 
@@ -280,23 +269,37 @@ class _LoginScreenState extends State<LoginScreen>
     bool obscureText = false,
     TextInputType? keyboardType,
   }) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusMedium,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.2),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white,
+            borderRadius: AppTheme.borderRadiusMedium,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : AppTheme.lightDivider,
+            ),
+            boxShadow: isDark ? null : AppTheme.lightCardShadow,
           ),
           child: TextField(
             controller: controller,
             obscureText: obscureText,
             keyboardType: keyboardType,
-            style: AppTheme.bodyLarge,
+            style: AppTheme.bodyLarge.copyWith(
+              color: AppTheme.getTextColor(context),
+            ),
             decoration: InputDecoration(
               labelText: label,
-              labelStyle: AppTheme.bodyMedium,
+              labelStyle: AppTheme.bodyMedium.copyWith(
+                color: AppTheme.getSecondaryTextColor(context),
+              ),
               prefixIcon: Icon(icon, color: AppTheme.primaryElectricBlue),
               border: InputBorder.none,
               contentPadding:
@@ -347,28 +350,91 @@ class _LoginScreenState extends State<LoginScreen>
 
   // Google sign-in button intentionally removed (not implemented).
 
+  Widget _buildLogo() {
+    final isDark = AppTheme.isDarkMode(context);
+
+    if (isDark) {
+      // Dark mode: Gradient filled circle with white icon
+      return Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: AppTheme.primaryGradient,
+          boxShadow: AppTheme.glowShadow(AppTheme.primaryElectricBlue),
+        ),
+        child: const Icon(
+          Icons.translate,
+          size: 50,
+          color: Colors.white,
+        ),
+      );
+    } else {
+      // Light mode: Light blue circle with blue icon (matching design)
+      return Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppTheme.primaryElectricBlue.withValues(alpha: 0.1),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryElectricBlue.withValues(alpha: 0.15),
+              blurRadius: 20,
+              spreadRadius: 5,
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.translate,
+          size: 50,
+          color: AppTheme.primaryElectricBlue,
+        ),
+      );
+    }
+  }
+
   Widget _buildCreateAccountButton() {
+    final isDark = AppTheme.isDarkMode(context);
+
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusMedium,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           height: 56,
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.2),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : AppTheme.primaryElectricBlue.withValues(alpha: 0.1),
+            borderRadius: AppTheme.borderRadiusMedium,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : AppTheme.primaryElectricBlue.withValues(alpha: 0.3),
+            ),
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               key: const Key('login-create-account'),
               onTap: () => Navigator.pushNamed(context, '/register'),
-              child: const Row(
+              borderRadius: AppTheme.borderRadiusMedium,
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.person_add, size: 28, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('Create account', style: AppTheme.labelLarge),
+                  Icon(
+                    Icons.person_add,
+                    size: 28,
+                    color: isDark ? Colors.white : AppTheme.primaryElectricBlue,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Create account',
+                    style: AppTheme.labelLarge.copyWith(
+                      color: isDark ? Colors.white : AppTheme.primaryElectricBlue,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -410,6 +476,9 @@ class _LoginScreenState extends State<LoginScreen>
         if (token != null && authProvider.currentUser != null) {
           Provider.of<LobbyProvider>(context, listen: false)
               .connect(token, authProvider.currentUser!.id);
+          // Apply server theme preference (server wins)
+          Provider.of<SettingsProvider>(context, listen: false)
+              .applyServerTheme(authProvider.currentUser!.themePreference);
         }
       }
       navigator.pushReplacementNamed('/home');

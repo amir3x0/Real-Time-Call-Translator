@@ -24,6 +24,7 @@ class AuthService extends BaseApiService {
         phone: phone,
         fullName: data['full_name'] ?? 'User',
         primaryLanguage: data['primary_language'] ?? 'he',
+        themePreference: data['theme_preference'] ?? 'light',
         createdAt: DateTime.now(),
       );
     }
@@ -73,6 +74,7 @@ class AuthService extends BaseApiService {
           phone: (data['phone'] ?? '') as String,
           fullName: data['full_name'] ?? 'User',
           primaryLanguage: data['primary_language'] ?? 'he',
+          themePreference: data['theme_preference'] ?? 'light',
           isOnline: data['is_online'] ?? false,
           hasVoiceSample: data['has_voice_sample'] ?? false,
           voiceModelTrained: data['voice_model_trained'] ?? false,
@@ -105,6 +107,7 @@ class AuthService extends BaseApiService {
         phone: (data['phone'] ?? '') as String,
         fullName: data['full_name'] ?? 'User',
         primaryLanguage: data['primary_language'] ?? 'he',
+        themePreference: data['theme_preference'] ?? 'light',
         isOnline: data['is_online'] ?? false,
         hasVoiceSample: data['has_voice_sample'] ?? false,
         voiceModelTrained: data['voice_model_trained'] ?? false,
@@ -115,5 +118,17 @@ class AuthService extends BaseApiService {
     final error =
         jsonDecode(resp.body)['detail'] ?? 'Failed to update language';
     throw Exception(error);
+  }
+
+  Future<void> updateThemePreference(String theme) async {
+    final resp = await patch('/api/auth/profile', body: {
+      'theme_preference': theme,
+    });
+
+    if (resp.statusCode != 200) {
+      final error =
+          jsonDecode(resp.body)['detail'] ?? 'Failed to update theme';
+      throw Exception(error);
+    }
   }
 }

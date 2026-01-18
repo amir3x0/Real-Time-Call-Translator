@@ -36,10 +36,19 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? Colors.white.withValues(alpha: 0.05);
-    final effectiveBorderColor = borderColor ?? Colors.white.withValues(alpha: 0.1);
+    final isDark = AppTheme.isDarkMode(context);
+
+    // Theme-aware default colors
+    final effectiveColor = color ??
+        (isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.white);
+    final effectiveBorderColor = borderColor ??
+        (isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : AppTheme.lightDivider);
     final effectiveRadius = borderRadius ?? AppTheme.radiusMedium;
-    
+
     Widget content = Container(
       width: width,
       height: height,
@@ -51,7 +60,7 @@ class GlassCard extends StatelessWidget {
           color: effectiveBorderColor,
           width: borderWidth,
         ),
-        boxShadow: AppTheme.cardShadow,
+        boxShadow: isDark ? AppTheme.cardShadow : AppTheme.lightCardShadow,
       ),
       child: child,
     );
@@ -63,11 +72,13 @@ class GlassCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(effectiveRadius),
-          splashColor: enableTapEffect 
+          splashColor: enableTapEffect
               ? AppTheme.primaryElectricBlue.withValues(alpha: 0.1)
               : Colors.transparent,
           highlightColor: enableTapEffect
-              ? Colors.white.withValues(alpha: 0.05)
+              ? (isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.03))
               : Colors.transparent,
           child: content,
         ),
@@ -127,10 +138,7 @@ class GlassTextField extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.2),
-          ),
+          decoration: AppTheme.themedGlassDecoration(context),
           child: TextFormField(
             controller: controller,
             obscureText: obscureText,
@@ -141,13 +149,17 @@ class GlassTextField extends StatelessWidget {
             focusNode: focusNode,
             textInputAction: textInputAction,
             onEditingComplete: onEditingComplete,
-            style: AppTheme.bodyLarge,
+            style: AppTheme.bodyLarge.copyWith(
+              color: AppTheme.getTextColor(context),
+            ),
             decoration: InputDecoration(
               labelText: label,
               hintText: hint,
-              labelStyle: AppTheme.bodyMedium,
+              labelStyle: AppTheme.bodyMedium.copyWith(
+                color: AppTheme.getSecondaryTextColor(context),
+              ),
               hintStyle: AppTheme.bodyMedium.copyWith(
-                color: AppTheme.secondaryText.withValues(alpha: 0.5),
+                color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
               ),
               prefixIcon: prefixIcon != null
                   ? Icon(prefixIcon, color: AppTheme.primaryElectricBlue)
@@ -256,28 +268,39 @@ class GlassButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return GlassCard(
       height: height,
-      borderColor: Colors.white.withValues(alpha: 0.2),
+      borderColor: isDark
+          ? Colors.white.withValues(alpha: 0.2)
+          : Colors.black.withValues(alpha: 0.1),
       onTap: isLoading ? null : onPressed,
       child: Center(
         child: isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppTheme.getTextColor(context),
+                  ),
                 ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (icon != null) ...[
-                    Icon(icon, size: 28, color: Colors.white),
+                    Icon(icon, size: 28, color: AppTheme.getTextColor(context)),
                     const SizedBox(width: 12),
                   ],
-                  Text(label, style: AppTheme.labelLarge),
+                  Text(
+                    label,
+                    style: AppTheme.labelLarge.copyWith(
+                      color: AppTheme.getTextColor(context),
+                    ),
+                  ),
                 ],
               ),
       ),

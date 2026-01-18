@@ -24,12 +24,17 @@ class CallConfirmationScreen extends StatelessWidget {
     final contactsProvider = context.watch<ContactsProvider>();
     final selectedContacts = contactsProvider.selectedContacts;
     final currentUser = context.read<AuthProvider>().currentUser!;
+    final gradientColors = AppTheme.getScreenGradientColors(context);
 
     return Scaffold(
-      backgroundColor: AppTheme.darkSurface,
+      backgroundColor: AppTheme.getSurfaceColor(context),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: gradientColors,
+          ),
         ),
         child: SafeArea(
           child: Column(
@@ -66,6 +71,7 @@ class CallConfirmationScreen extends StatelessWidget {
                       // Translation flow indicator
                       if (selectedContacts.isNotEmpty) ...[
                         _buildTranslationFlowIndicator(
+                          context,
                           currentUser.primaryLanguage,
                           selectedContacts
                               .map((c) => c.language)
@@ -93,7 +99,7 @@ class CallConfirmationScreen extends StatelessWidget {
                       if (selectedContacts.isNotEmpty) ...[
                         const SizedBox(height: 24),
                         _buildLanguagesSummary(
-                            currentUser.primaryLanguage, selectedContacts),
+                            context, currentUser.primaryLanguage, selectedContacts),
                       ],
                     ],
                   ),
@@ -115,13 +121,15 @@ class CallConfirmationScreen extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: AppTheme.getTextColor(context)),
             onPressed: () => Navigator.of(context).pop(),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
               'Confirm Call',
-              style: AppTheme.titleLarge,
+              style: AppTheme.titleLarge.copyWith(
+                color: AppTheme.getTextColor(context),
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -139,17 +147,23 @@ class CallConfirmationScreen extends StatelessWidget {
     required bool isCurrentUser,
     VoidCallback? onRemove,
   }) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isCurrentUser
             ? AppTheme.accentCyan.withValues(alpha: 0.1)
-            : Colors.white.withValues(alpha: 0.05),
+            : isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.black.withValues(alpha: 0.03),
         borderRadius: AppTheme.borderRadiusMedium,
         border: Border.all(
           color: isCurrentUser
               ? AppTheme.accentCyan.withValues(alpha: 0.3)
-              : Colors.white.withValues(alpha: 0.1),
+              : isDark
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.08),
         ),
       ),
       child: Row(
@@ -170,6 +184,7 @@ class CallConfirmationScreen extends StatelessWidget {
                         name,
                         style: AppTheme.titleMedium.copyWith(
                           fontWeight: FontWeight.w600,
+                          color: AppTheme.getTextColor(context),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -208,7 +223,7 @@ class CallConfirmationScreen extends StatelessWidget {
                     Text(
                       LanguageUtils.getName(language),
                       style: AppTheme.bodyMedium.copyWith(
-                        color: AppTheme.secondaryText,
+                        color: AppTheme.getSecondaryTextColor(context),
                       ),
                     ),
                   ],
@@ -223,7 +238,9 @@ class CallConfirmationScreen extends StatelessWidget {
               onPressed: onRemove,
               icon: Icon(
                 Icons.close,
-                color: Colors.white.withValues(alpha: 0.5),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.5)
+                    : Colors.black.withValues(alpha: 0.4),
                 size: 20,
               ),
             ),
@@ -265,6 +282,7 @@ class CallConfirmationScreen extends StatelessWidget {
 
   /// Build translation flow indicator showing language arrows
   Widget _buildTranslationFlowIndicator(
+    BuildContext context,
     String sourceLanguage,
     List<String> targetLanguages,
   ) {
@@ -323,7 +341,7 @@ class CallConfirmationScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Source language
-              _buildLanguageChip(sourceLanguage),
+              _buildLanguageChip(context, sourceLanguage),
 
               // Arrow
               Padding(
@@ -341,14 +359,14 @@ class CallConfirmationScreen extends StatelessWidget {
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildLanguageChip(entry.value),
+                    _buildLanguageChip(context, entry.value),
                     if (!isLast)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: Text(
                           '+',
                           style: TextStyle(
-                            color: AppTheme.secondaryText,
+                            color: AppTheme.getSecondaryTextColor(context),
                             fontSize: 16,
                           ),
                         ),
@@ -364,11 +382,15 @@ class CallConfirmationScreen extends StatelessWidget {
   }
 
   /// Build language chip widget
-  Widget _buildLanguageChip(String languageCode) {
+  Widget _buildLanguageChip(BuildContext context, String languageCode) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -381,8 +403,8 @@ class CallConfirmationScreen extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             LanguageUtils.getName(languageCode),
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppTheme.getTextColor(context),
               fontSize: 13,
             ),
           ),
@@ -393,7 +415,8 @@ class CallConfirmationScreen extends StatelessWidget {
 
   /// Build languages summary section
   Widget _buildLanguagesSummary(
-      String currentUserLang, List<Contact> contacts) {
+      BuildContext context, String currentUserLang, List<Contact> contacts) {
+    final isDark = AppTheme.isDarkMode(context);
     final allLanguages = <String>{currentUserLang};
     for (final contact in contacts) {
       allLanguages.add(contact.language);
@@ -402,7 +425,9 @@ class CallConfirmationScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.03)
+            : Colors.black.withValues(alpha: 0.02),
         borderRadius: AppTheme.borderRadiusMedium,
       ),
       child: Column(
@@ -410,16 +435,16 @@ class CallConfirmationScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.translate,
-                color: AppTheme.secondaryText,
+                color: AppTheme.getSecondaryTextColor(context),
                 size: 18,
               ),
               const SizedBox(width: 8),
               Text(
                 'Languages Summary',
                 style: AppTheme.bodyMedium.copyWith(
-                  color: AppTheme.secondaryText,
+                  color: AppTheme.getSecondaryTextColor(context),
                 ),
               ),
             ],
@@ -435,13 +460,15 @@ class CallConfirmationScreen extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
                         LanguageUtils.formatDisplay(lang),
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: AppTheme.getTextColor(context),
                           fontSize: 13,
                         ),
                       ),
@@ -453,7 +480,7 @@ class CallConfirmationScreen extends StatelessWidget {
             Text(
               'Call will be auto-translated between ${allLanguages.length} languages',
               style: AppTheme.bodyMedium.copyWith(
-                color: AppTheme.secondaryText,
+                color: AppTheme.getSecondaryTextColor(context),
                 fontStyle: FontStyle.italic,
                 fontSize: 12,
               ),
@@ -466,13 +493,15 @@ class CallConfirmationScreen extends StatelessWidget {
 
   /// Build bottom action buttons
   Widget _buildActionButtons(BuildContext context, bool hasParticipants) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.darkCard,
+        color: AppTheme.getCardColor(context),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -489,18 +518,22 @@ class CallConfirmationScreen extends StatelessWidget {
                 Navigator.of(context).pop();
               },
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                foregroundColor: AppTheme.getTextColor(context),
+                side: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.3)
+                        : Colors.black.withValues(alpha: 0.2)),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: AppTheme.borderRadiusMedium,
                 ),
               ),
-              child: const Text(
+              child: Text(
                 'Cancel',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
+                  color: AppTheme.getTextColor(context),
                 ),
               ),
             ),

@@ -26,6 +26,36 @@ class ChatMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
+    // Theme-aware bubble gradients
+    const selfGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFF0D7377), // Teal
+        Color(0xFF14919B), // Cyan
+      ],
+    );
+
+    const otherGradientDark = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFF2D2D4A),
+        Color(0xFF1E1E35),
+      ],
+    );
+
+    final otherGradientLight = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Colors.grey.shade100,
+        Colors.grey.shade200,
+      ],
+    );
+
     final bubble = Align(
       alignment: isSelf ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -64,24 +94,8 @@ class ChatMessageBubble extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: isSelf
-                    // Self bubbles: teal/cyan gradient for distinction
-                    ? const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF0D7377), // Teal
-                          Color(0xFF14919B), // Cyan
-                        ],
-                      )
-                    // Other participant bubbles: dark purple
-                    : const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF2D2D4A),
-                          Color(0xFF1E1E35),
-                        ],
-                      ),
+                    ? selfGradient
+                    : (isDark ? otherGradientDark : otherGradientLight),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(18),
                   topRight: const Radius.circular(18),
@@ -91,7 +105,7 @@ class ChatMessageBubble extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: (isSelf ? AppTheme.accentCyan : Colors.black)
-                        .withValues(alpha: 0.2),
+                        .withValues(alpha: isDark ? 0.2 : 0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -104,7 +118,9 @@ class ChatMessageBubble extends StatelessWidget {
                   Text(
                     _getPrimaryText(),
                     style: AppTheme.bodyMedium.copyWith(
-                      color: Colors.white,
+                      color: isSelf
+                          ? Colors.white
+                          : (isDark ? Colors.white : AppTheme.darkText),
                       fontSize: 15,
                       height: 1.4,
                     ),
@@ -116,7 +132,11 @@ class ChatMessageBubble extends StatelessWidget {
                       child: Text(
                         '(${entry.originalText})',
                         style: AppTheme.bodySmall.copyWith(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: isSelf
+                              ? Colors.white.withValues(alpha: 0.6)
+                              : (isDark
+                                  ? Colors.white.withValues(alpha: 0.6)
+                                  : AppTheme.lightSecondaryText),
                           fontSize: 12,
                           fontStyle: FontStyle.italic,
                         ),
@@ -135,7 +155,8 @@ class ChatMessageBubble extends StatelessWidget {
               child: Text(
                 _formatTime(entry.timestamp),
                 style: AppTheme.bodySmall.copyWith(
-                  color: AppTheme.secondaryText.withValues(alpha: 0.6),
+                  color: AppTheme.getSecondaryTextColor(context)
+                      .withValues(alpha: 0.6),
                   fontSize: 10,
                 ),
               ),

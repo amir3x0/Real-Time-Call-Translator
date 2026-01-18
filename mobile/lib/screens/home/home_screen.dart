@@ -94,20 +94,17 @@ class _HomeScreenState extends State<HomeScreen>
       resizeToAvoidBottomInset: false, // Prevent keyboard from pushing nav bar
       body: Stack(
         children: [
-          // Animated Gradient Background
+          // Animated Gradient Background - Theme Aware
           AnimatedBuilder(
             animation: _backgroundController,
             builder: (context, child) {
+              final gradientColors = AppTheme.getScreenGradientColors(context);
               return Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: const [
-                      Color(0xFF0F1630),
-                      Color(0xFF1B2750),
-                      Color(0xFF2A3A6B),
-                    ],
+                    colors: gradientColors,
                     stops: [
                       0.0,
                       _backgroundController.value,
@@ -119,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen>
             },
           ),
 
-          // Floating orbs for depth
+          // Floating orbs for depth - Theme Aware
           Positioned(
             top: -100,
             right: -100,
@@ -130,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.primaryElectricBlue.withValues(alpha: 0.15),
+                    AppTheme.getOrbColor(context, AppTheme.primaryElectricBlue),
                     Colors.transparent,
                   ],
                 ),
@@ -148,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.secondaryPurple.withValues(alpha: 0.12),
+                    AppTheme.getOrbColor(context, AppTheme.secondaryPurple, opacity: 0.12),
                     Colors.transparent,
                   ],
                 ),
@@ -217,13 +214,15 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 Text(
                   'Voice Translator',
-                  style: AppTheme.titleMedium
-                      .copyWith(fontWeight: FontWeight.w600),
+                  style: AppTheme.titleMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.getTextColor(context),
+                  ),
                 ),
                 Text(
                   _getSubtitle(),
                   style: AppTheme.bodyMedium.copyWith(
-                    color: AppTheme.secondaryText,
+                    color: AppTheme.getSecondaryTextColor(context),
                     fontSize: 12,
                   ),
                 ),
@@ -295,6 +294,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildFloatingNavBar() {
+    final isDark = AppTheme.isDarkMode(context);
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusPill,
       child: BackdropFilter(
@@ -302,15 +302,19 @@ class _HomeScreenState extends State<HomeScreen>
         child: Container(
           height: 70,
           decoration: BoxDecoration(
-            color: AppTheme.darkCard.withValues(alpha: 0.8),
+            color: isDark
+                ? AppTheme.darkCard.withValues(alpha: 0.8)
+                : AppTheme.lightSurface.withValues(alpha: 0.95),
             borderRadius: AppTheme.borderRadiusPill,
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.1),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : AppTheme.lightDivider,
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
+                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -335,6 +339,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildNavItem(
       int index, IconData icon, IconData activeIcon, String label) {
     final isActive = _currentIndex == index;
+    final inactiveColor = AppTheme.getSecondaryTextColor(context);
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
       behavior: HitTestBehavior.opaque,
@@ -352,18 +357,14 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             Icon(
               isActive ? activeIcon : icon,
-              color: isActive
-                  ? AppTheme.primaryElectricBlue
-                  : AppTheme.secondaryText,
+              color: isActive ? AppTheme.primaryElectricBlue : inactiveColor,
               size: 24,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isActive
-                    ? AppTheme.primaryElectricBlue
-                    : AppTheme.secondaryText,
+                color: isActive ? AppTheme.primaryElectricBlue : inactiveColor,
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
               ),

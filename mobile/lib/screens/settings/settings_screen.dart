@@ -83,15 +83,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Section: Appearance (Theme)
+          _buildSectionHeader('Appearance', Icons.palette_outlined)
+              .animate()
+              .fadeIn(delay: 50.ms, duration: 400.ms),
+          const SizedBox(height: 12),
+
+          _buildThemeSelector()
+              .animate()
+              .fadeIn(delay: 100.ms, duration: 400.ms),
+
+          const SizedBox(height: 24),
+
           // Section: Language
           _buildSectionHeader('Language', Icons.translate)
               .animate()
-              .fadeIn(delay: 100.ms, duration: 400.ms),
+              .fadeIn(delay: 150.ms, duration: 400.ms),
           const SizedBox(height: 12),
 
           _buildLanguageSelector()
               .animate()
-              .fadeIn(delay: 300.ms, duration: 400.ms),
+              .fadeIn(delay: 200.ms, duration: 400.ms),
 
           const SizedBox(height: 24),
 
@@ -168,10 +180,118 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title,
           style: AppTheme.titleMedium.copyWith(
             fontWeight: FontWeight.w600,
-            color: AppTheme.secondaryText,
+            color: AppTheme.getSecondaryTextColor(context),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildThemeSelector() {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final isDark = settingsProvider.isDarkMode;
+
+    return ClipRRect(
+      borderRadius: AppTheme.borderRadiusMedium,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: AppTheme.themedGlassDecoration(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Theme',
+                style: AppTheme.titleMedium.copyWith(
+                  color: AppTheme.getTextColor(context),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Segmented Button
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.getGlassColor(context, opacity: 0.1),
+                  borderRadius: AppTheme.borderRadiusPill,
+                ),
+                child: Row(
+                  children: [
+                    // Light button
+                    Expanded(
+                      child: _buildThemeOption(
+                        icon: Icons.light_mode,
+                        label: 'Light',
+                        isSelected: !isDark,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          settingsProvider.setTheme(ThemeMode.light);
+                        },
+                      ),
+                    ),
+                    // Dark button
+                    Expanded(
+                      child: _buildThemeOption(
+                        icon: Icons.dark_mode,
+                        label: 'Dark',
+                        isSelected: isDark,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          settingsProvider.setTheme(ThemeMode.dark);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeOption({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final secondaryColor = AppTheme.getSecondaryTextColor(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.primaryElectricBlue.withValues(alpha: 0.25)
+              : Colors.transparent,
+          borderRadius: AppTheme.borderRadiusPill,
+          border: isSelected
+              ? Border.all(color: AppTheme.primaryElectricBlue, width: 1.5)
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? AppTheme.primaryElectricBlue : secondaryColor,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: AppTheme.bodyMedium.copyWith(
+                color: isSelected
+                    ? AppTheme.primaryElectricBlue
+                    : secondaryColor,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -187,10 +307,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
               padding: const EdgeInsets.all(24),
-              decoration: AppTheme.glassDecoration(
-                color: AppTheme.darkCard.withValues(alpha: 0.9),
-                borderColor: Colors.white.withValues(alpha: 0.1),
-              ),
+              decoration: AppTheme.themedGlassDecoration(ctx, opacity: 0.9),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -209,11 +326,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Change Language', style: AppTheme.titleLarge),
+                  Text(
+                    'Change Language',
+                    style: AppTheme.titleLarge.copyWith(
+                      color: AppTheme.getTextColor(ctx),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'Are you sure you want to change your primary language to $langName?\n\nThis will update your profile and other users will see this change.',
-                    style: AppTheme.bodyMedium,
+                    style: AppTheme.bodyMedium.copyWith(
+                      color: AppTheme.getSecondaryTextColor(ctx),
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
@@ -225,7 +349,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Text(
                             'Cancel',
                             style: AppTheme.labelLarge
-                                .copyWith(color: AppTheme.secondaryText),
+                                .copyWith(color: AppTheme.getSecondaryTextColor(ctx)),
                           ),
                         ),
                       ),

@@ -50,6 +50,7 @@ class LoginResponse(BaseModel):
     token: str
     full_name: str
     primary_language: str
+    theme_preference: str
 
 
 class UserResponse(BaseModel):
@@ -57,6 +58,7 @@ class UserResponse(BaseModel):
     phone: str
     full_name: str
     primary_language: str
+    theme_preference: str
     is_online: bool
     has_voice_sample: bool
     voice_model_trained: bool
@@ -155,6 +157,7 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
         token=token,
         full_name=user.full_name,
         primary_language=user.primary_language,
+        theme_preference=user.theme_preference,
     )
 
 
@@ -166,6 +169,7 @@ async def me(current_user: User = Depends(get_current_user)):
         phone=current_user.phone,
         full_name=current_user.full_name,
         primary_language=current_user.primary_language,
+        theme_preference=current_user.theme_preference,
         is_online=current_user.is_online,
         has_voice_sample=current_user.has_voice_sample,
         voice_model_trained=current_user.voice_model_trained,
@@ -188,12 +192,20 @@ async def logout(
 class UpdateProfileRequest(BaseModel):
     full_name: Optional[str] = None
     primary_language: Optional[str] = None
-    
+    theme_preference: Optional[str] = None
+
     @field_validator("primary_language")
     @classmethod
     def validate_language(cls, v):
         if v is not None and v not in ["he", "en", "ru"]:
             raise ValueError("Unsupported language. Use: he, en, ru")
+        return v
+
+    @field_validator("theme_preference")
+    @classmethod
+    def validate_theme(cls, v):
+        if v is not None and v not in ["light", "dark"]:
+            raise ValueError("Theme must be 'light' or 'dark'")
         return v
 
 
@@ -203,22 +215,26 @@ async def update_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update user profile (name and/or language)."""
+    """Update user profile (name, language, and/or theme)."""
     if request.full_name is not None:
         current_user.full_name = request.full_name
-    
+
     if request.primary_language is not None:
         current_user.primary_language = request.primary_language
-    
+
+    if request.theme_preference is not None:
+        current_user.theme_preference = request.theme_preference
+
     current_user.updated_at = datetime.utcnow()
     await db.commit()
     await db.refresh(current_user)
-    
+
     return UserResponse(
         id=current_user.id,
         phone=current_user.phone,
         full_name=current_user.full_name,
         primary_language=current_user.primary_language,
+        theme_preference=current_user.theme_preference,
         is_online=current_user.is_online,
         has_voice_sample=current_user.has_voice_sample,
         voice_model_trained=current_user.voice_model_trained,
