@@ -341,7 +341,9 @@ class CallConfirmationScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Source language
-              _buildLanguageChip(context, sourceLanguage),
+              Flexible(
+                child: _buildLanguageChip(context, sourceLanguage),
+              ),
 
               // Arrow
               Padding(
@@ -354,26 +356,34 @@ class CallConfirmationScreen extends StatelessWidget {
               ),
 
               // Target languages
-              ...uniqueTargets.asMap().entries.map((entry) {
-                final isLast = entry.key == uniqueTargets.length - 1;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildLanguageChip(context, entry.value),
-                    if (!isLast)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(
-                          '+',
-                          style: TextStyle(
-                            color: AppTheme.getSecondaryTextColor(context),
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              }),
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: uniqueTargets.asMap().entries.map((entry) {
+                      final isLast = entry.key == uniqueTargets.length - 1;
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildLanguageChip(context, entry.value),
+                          if (!isLast)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                '+',
+                                style: TextStyle(
+                                  color: AppTheme.getSecondaryTextColor(context),
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
