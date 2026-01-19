@@ -81,7 +81,7 @@ class LanguageSelector extends StatelessWidget {
           Text(
             label!,
             style: AppTheme.bodyMedium.copyWith(
-              color: AppTheme.secondaryText,
+              color: AppTheme.getSecondaryTextColor(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -123,6 +123,8 @@ class _LanguageChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return GlassCard(
       onTap: onTap,
       padding: EdgeInsets.symmetric(
@@ -130,11 +132,11 @@ class _LanguageChip extends StatelessWidget {
         vertical: compact ? 8 : 12,
       ),
       color: isSelected
-          ? AppTheme.primaryElectricBlue.withValues(alpha: 0.3)
-          : Colors.white.withValues(alpha: 0.05),
+          ? AppTheme.primaryElectricBlue.withValues(alpha: isDark ? 0.3 : 0.15)
+          : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white),
       borderColor: isSelected
           ? AppTheme.primaryElectricBlue
-          : Colors.white.withValues(alpha: 0.1),
+          : (isDark ? Colors.white.withValues(alpha: 0.1) : AppTheme.lightDivider),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -147,7 +149,9 @@ class _LanguageChip extends StatelessWidget {
             showNativeName ? language.name : language.englishName,
             style:
                 (compact ? AppTheme.bodyMedium : AppTheme.bodyLarge).copyWith(
-              color: isSelected ? Colors.white : AppTheme.secondaryText,
+              color: isSelected
+                  ? (isDark ? Colors.white : AppTheme.primaryElectricBlue)
+                  : AppTheme.getSecondaryTextColor(context),
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
@@ -180,6 +184,8 @@ class LanguageDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: DropdownButtonHideUnderline(
@@ -188,12 +194,12 @@ class LanguageDropdown extends StatelessWidget {
           hint: Text(
             hint ?? 'Select language',
             style: AppTheme.bodyMedium.copyWith(
-              color: AppTheme.secondaryText.withValues(alpha: 0.7),
+              color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.7),
             ),
           ),
-          icon: const Icon(Icons.keyboard_arrow_down,
-              color: AppTheme.secondaryText),
-          dropdownColor: AppTheme.darkCard,
+          icon: Icon(Icons.keyboard_arrow_down,
+              color: AppTheme.getSecondaryTextColor(context)),
+          dropdownColor: isDark ? AppTheme.darkCard : Colors.white,
           borderRadius: AppTheme.borderRadiusMedium,
           isExpanded: true,
           items: LanguageData.supportedLanguages.map((lang) {
@@ -205,7 +211,9 @@ class LanguageDropdown extends StatelessWidget {
                   const SizedBox(width: 12),
                   Text(
                     lang.name,
-                    style: AppTheme.bodyLarge.copyWith(color: Colors.white),
+                    style: AppTheme.bodyLarge.copyWith(
+                      color: AppTheme.getTextColor(context),
+                    ),
                   ),
                 ],
               ),
@@ -219,7 +227,9 @@ class LanguageDropdown extends StatelessWidget {
                   const SizedBox(width: 12),
                   Text(
                     lang.name,
-                    style: AppTheme.bodyLarge.copyWith(color: Colors.white),
+                    style: AppTheme.bodyLarge.copyWith(
+                      color: AppTheme.getTextColor(context),
+                    ),
                   ),
                 ],
               );
@@ -251,6 +261,7 @@ class LanguageBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
     final language = LanguageData.getByCode(languageCode);
     final flag = language?.flag ?? '\u{1F310}';
     final name = language?.name ?? languageCode.toUpperCase();
@@ -258,7 +269,9 @@ class LanguageBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.grey.shade100,
         borderRadius: AppTheme.borderRadiusSmall,
       ),
       child: Row(
@@ -271,6 +284,7 @@ class LanguageBadge extends StatelessWidget {
               name,
               style: AppTheme.bodyMedium.copyWith(
                 fontSize: (size ?? 16) * 0.75,
+                color: AppTheme.getTextColor(context),
               ),
             ),
           ],

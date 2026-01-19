@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/live_caption.dart';
+import '../../config/app_theme.dart';
 
 /// Stylized bubble that floats above the active participant.
 class LiveCaptionBubble extends StatelessWidget {
@@ -16,6 +17,7 @@ class LiveCaptionBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
     final theme = Theme.of(context);
     final textStyle = theme.textTheme.bodyMedium?.copyWith(
       color: Colors.white,
@@ -31,13 +33,15 @@ class LiveCaptionBubble extends StatelessWidget {
           margin: const EdgeInsets.symmetric(vertical: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF4C1D95), Color(0xFF6D28D9)],
+            gradient: LinearGradient(
+              colors: isDark
+                  ? const [Color(0xFF4C1D95), Color(0xFF6D28D9)]
+                  : [AppTheme.primaryElectricBlue, AppTheme.secondaryPurple],
             ),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
+                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.15),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),

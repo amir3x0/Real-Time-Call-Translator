@@ -143,8 +143,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                   Align(
                     alignment: Alignment.centerLeft,
                     child: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios,
-                          color: Colors.white70),
+                      icon: Icon(Icons.arrow_back_ios,
+                          color: AppTheme.isDarkMode(context) ? Colors.white70 : AppTheme.darkText),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ).animate().fadeIn(duration: 300.ms),
@@ -154,7 +154,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                   // Title
                   Text(
                     "Create Account",
-                    style: AppTheme.headlineLarge.copyWith(fontSize: 32),
+                    style: AppTheme.headlineLarge.copyWith(
+                      fontSize: 32,
+                      color: AppTheme.getTextColor(context),
+                    ),
                   )
                       .animate()
                       .fadeIn(delay: 200.ms, duration: 500.ms)
@@ -165,7 +168,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   Text(
                     "Join the future of multilingual communication",
                     style: AppTheme.bodyMedium
-                        .copyWith(color: AppTheme.secondaryText),
+                        .copyWith(color: AppTheme.getSecondaryTextColor(context)),
                   ).animate().fadeIn(delay: 400.ms, duration: 500.ms),
 
                   const SizedBox(height: 32),
@@ -219,7 +222,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                   Text(
                     "Primary Language",
                     style: AppTheme.bodyMedium
-                        .copyWith(color: AppTheme.secondaryText),
+                        .copyWith(color: AppTheme.getSecondaryTextColor(context)),
                   ).animate().fadeIn(delay: 800.ms, duration: 400.ms),
 
                   const SizedBox(height: 12),
@@ -255,7 +258,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                       child: RichText(
                         text: TextSpan(
                           text: "Already have an account? ",
-                          style: AppTheme.bodyMedium,
+                          style: AppTheme.bodyMedium.copyWith(
+                            color: AppTheme.getSecondaryTextColor(context),
+                          ),
                           children: [
                             TextSpan(
                               text: "Sign In",
@@ -285,23 +290,37 @@ class _RegisterScreenState extends State<RegisterScreen>
     bool obscureText = false,
     TextInputType? keyboardType,
   }) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusMedium,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.15),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white,
+            borderRadius: AppTheme.borderRadiusMedium,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : AppTheme.lightDivider,
+            ),
+            boxShadow: isDark ? null : AppTheme.lightCardShadow,
           ),
           child: TextField(
             controller: controller,
             obscureText: obscureText,
             keyboardType: keyboardType,
-            style: AppTheme.bodyLarge,
+            style: AppTheme.bodyLarge.copyWith(
+              color: AppTheme.getTextColor(context),
+            ),
             decoration: InputDecoration(
               labelText: label,
-              labelStyle: AppTheme.bodyMedium,
+              labelStyle: AppTheme.bodyMedium.copyWith(
+                color: AppTheme.getSecondaryTextColor(context),
+              ),
               prefixIcon: Icon(icon, color: AppTheme.primaryElectricBlue),
               border: InputBorder.none,
               contentPadding:
@@ -334,7 +353,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           size: 16,
           color: isValid
               ? AppTheme.successGreen
-              : AppTheme.secondaryText.withValues(alpha: 0.5),
+              : AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
         ),
         const SizedBox(width: 4),
         Text(
@@ -343,7 +362,7 @@ class _RegisterScreenState extends State<RegisterScreen>
             fontSize: 12,
             color: isValid
                 ? AppTheme.successGreen
-                : AppTheme.secondaryText.withValues(alpha: 0.5),
+                : AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
           ),
         ),
       ],
@@ -351,15 +370,25 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 
   Widget _buildLanguageSelector() {
+    final isDark = AppTheme.isDarkMode(context);
+
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusMedium,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           padding: const EdgeInsets.all(8),
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.15),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white,
+            borderRadius: AppTheme.borderRadiusMedium,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : AppTheme.lightDivider,
+            ),
+            boxShadow: isDark ? null : AppTheme.lightCardShadow,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -374,7 +403,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                         const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppTheme.primaryElectricBlue.withValues(alpha: 0.3)
+                          ? AppTheme.primaryElectricBlue.withValues(alpha: isDark ? 0.3 : 0.15)
                           : Colors.transparent,
                       borderRadius: AppTheme.borderRadiusSmall,
                       border: isSelected
@@ -393,8 +422,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                           lang['name']!,
                           style: AppTheme.bodyMedium.copyWith(
                             color: isSelected
-                                ? Colors.white
-                                : AppTheme.secondaryText,
+                                ? (isDark ? Colors.white : AppTheme.primaryElectricBlue)
+                                : AppTheme.getSecondaryTextColor(context),
                             fontWeight: isSelected
                                 ? FontWeight.w600
                                 : FontWeight.normal,
@@ -418,7 +447,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
+        gradient: AppTheme.getButtonGradient(context),
         borderRadius: AppTheme.borderRadiusPill,
         boxShadow: AppTheme.buttonShadow,
       ),

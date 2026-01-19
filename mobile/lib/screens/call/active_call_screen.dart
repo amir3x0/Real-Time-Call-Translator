@@ -291,12 +291,12 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                   decoration: BoxDecoration(
                     color: _useChatStyleUI
                         ? AppTheme.accentCyan.withValues(alpha: 0.2)
-                        : Colors.white.withValues(alpha: 0.1),
+                        : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: _useChatStyleUI
                           ? AppTheme.accentCyan.withValues(alpha: 0.5)
-                          : Colors.white.withValues(alpha: 0.2),
+                          : (isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.1)),
                     ),
                   ),
                   child: Row(
@@ -304,14 +304,14 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                     children: [
                       Icon(
                         _useChatStyleUI ? Icons.chat_bubble : Icons.view_list,
-                        color: _useChatStyleUI ? AppTheme.accentCyan : Colors.white70,
+                        color: _useChatStyleUI ? AppTheme.accentCyan : AppTheme.getSecondaryTextColor(context),
                         size: 14,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         _useChatStyleUI ? 'Chat' : 'Panel',
                         style: TextStyle(
-                          color: _useChatStyleUI ? AppTheme.accentCyan : Colors.white70,
+                          color: _useChatStyleUI ? AppTheme.accentCyan : AppTheme.getSecondaryTextColor(context),
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -361,8 +361,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                 Expanded(
                   child: Text(
                     callProvider.liveTranscription,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppTheme.getTextColor(context),
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       fontStyle: FontStyle.italic,
@@ -421,7 +421,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                       : Icons.phone_in_talk,
                   isActive: callProvider.isSpeakerOn,
                   activeColor: AppTheme.primaryElectricBlue,
-                  inactiveColor: Colors.white70,
+                  inactiveColor: Colors.white.withValues(alpha: 0.7),
                   onTap: () {
                     HapticFeedback.lightImpact();
                     callProvider.toggleSpeaker();

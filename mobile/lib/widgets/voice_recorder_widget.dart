@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 
 import 'audio/voice_visualizer.dart';
 import '../services/voice_recording_service.dart';
+import '../config/app_theme.dart';
 
 enum RecorderState { idle, recording, reviewing, uploading, playing }
 
@@ -222,14 +223,21 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final isDark = AppTheme.isDarkMode(context);
+
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF0F1630), Color(0xFF1B2750)],
+          colors: isDark
+              ? [const Color(0xFF0F1630), const Color(0xFF1B2750)]
+              : [const Color(0xFFF8FAFC), const Color(0xFFEEF2F7)],
         ),
+        borderRadius: AppTheme.borderRadiusMedium,
+        border: isDark ? null : Border.all(color: AppTheme.lightDivider),
+        boxShadow: isDark ? null : AppTheme.lightCardShadow,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 24),
@@ -244,8 +252,8 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                       : _state == RecorderState.playing
                           ? 'Playing...'
                           : 'Voice Calibration',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppTheme.getTextColor(context),
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
@@ -261,7 +269,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                   style: TextStyle(
                     color: _state == RecorderState.recording
                         ? Colors.redAccent
-                        : Colors.white70,
+                        : AppTheme.getSecondaryTextColor(context),
                     fontSize: 24,
                     fontWeight: FontWeight.w600,
                     fontFeatures: const [FontFeature.tabularFigures()],
@@ -290,7 +298,9 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                               height: size.width * 0.32,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Colors.white.withAlpha(15),
+                                color: isDark
+                                    ? Colors.white.withAlpha(15)
+                                    : AppTheme.primaryElectricBlue.withAlpha(25),
                               ),
                             ),
                           );
@@ -307,7 +317,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                         child: CircularProgressIndicator(
                           value: _progress,
                           strokeWidth: 8,
-                          backgroundColor: Colors.white10,
+                          backgroundColor: isDark ? Colors.white10 : Colors.grey.shade200,
                           valueColor: const AlwaysStoppedAnimation<Color>(
                               Colors.redAccent),
                         ),
@@ -337,13 +347,17 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                         gradient: LinearGradient(
                           colors: _state == RecorderState.recording
                               ? [Colors.red.shade700, Colors.redAccent]
-                              : const [Color(0xFF2E2E80), Color(0xFF7C3AED)],
+                              : isDark
+                                  ? const [Color(0xFF2E2E80), Color(0xFF7C3AED)]
+                                  : [AppTheme.primaryElectricBlue, AppTheme.secondaryPurple],
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: _state == RecorderState.recording
                                 ? Colors.redAccent.withAlpha(89)
-                                : Colors.purpleAccent.withAlpha(89),
+                                : (isDark
+                                    ? Colors.purpleAccent.withAlpha(89)
+                                    : AppTheme.primaryElectricBlue.withAlpha(60)),
                             blurRadius: 24,
                             spreadRadius: 8,
                           ),
@@ -373,8 +387,8 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
               spacing: 3,
               activeColor: _state == RecorderState.recording
                   ? Colors.redAccent
-                  : Colors.purpleAccent,
-              inactiveColor: Colors.white12,
+                  : (isDark ? Colors.purpleAccent : AppTheme.primaryElectricBlue),
+              inactiveColor: isDark ? Colors.white12 : Colors.grey.shade300,
             ),
             const SizedBox(height: 20),
             Text(
@@ -386,7 +400,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                           ? 'Playing your recording...'
                           : (widget.prompt ??
                               'Tap the mic and speak naturally'),
-              style: const TextStyle(color: Colors.white70),
+              style: TextStyle(color: AppTheme.getSecondaryTextColor(context)),
               textAlign: TextAlign.center,
             ),
 
@@ -420,8 +434,8 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
 
             // uploading indicator
             if (_state == RecorderState.uploading)
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -429,11 +443,12 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 3, color: Colors.purpleAccent),
+                          strokeWidth: 3,
+                          color: isDark ? Colors.purpleAccent : AppTheme.primaryElectricBlue),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text('Uploading your voice sample...',
-                        style: TextStyle(color: Colors.white70)),
+                        style: TextStyle(color: AppTheme.getSecondaryTextColor(context))),
                   ],
                 ),
               ),
@@ -445,6 +460,12 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
 
   Widget _pillButton(IconData icon, String label, VoidCallback onTap,
       {Key? key, bool isPrimary = false}) {
+    final isDark = AppTheme.isDarkMode(context);
+    final primaryColor = isDark ? Colors.purpleAccent : AppTheme.primaryElectricBlue;
+    final defaultColor = isDark ? Colors.white : AppTheme.darkText;
+    final defaultBgColor = isDark ? Colors.white.withAlpha(20) : Colors.grey.shade200;
+    final defaultBorderColor = isDark ? Colors.white12 : Colors.grey.shade300;
+
     return InkWell(
       key: key,
       onTap: onTap,
@@ -453,21 +474,21 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isPrimary
-              ? Colors.purpleAccent.withAlpha(50)
-              : Colors.white.withAlpha(20),
+              ? primaryColor.withAlpha(50)
+              : defaultBgColor,
           border: Border.all(
-            color: isPrimary ? Colors.purpleAccent : Colors.white12,
+            color: isPrimary ? primaryColor : defaultBorderColor,
           ),
           borderRadius: BorderRadius.circular(24),
         ),
         child: Row(
           children: [
-            Icon(icon, color: isPrimary ? Colors.purpleAccent : Colors.white),
+            Icon(icon, color: isPrimary ? primaryColor : defaultColor),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: isPrimary ? Colors.purpleAccent : Colors.white,
+                color: isPrimary ? primaryColor : defaultColor,
                 fontWeight: isPrimary ? FontWeight.w600 : FontWeight.normal,
               ),
             ),

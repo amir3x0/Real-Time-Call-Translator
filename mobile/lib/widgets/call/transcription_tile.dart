@@ -26,20 +26,20 @@ class TranscriptionTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Speaker name and time
-          _buildHeader(),
+          _buildHeader(context),
           const SizedBox(height: 4),
           // Original text (if enabled)
           if (showOriginal && entry.originalText.isNotEmpty)
-            _buildOriginalText(),
+            _buildOriginalText(context),
           // Translated text (if enabled)
           if (showTranslated && entry.translatedText.isNotEmpty)
-            _buildTranslatedText(),
+            _buildTranslatedText(context),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Row(
       children: [
         Container(
@@ -62,8 +62,8 @@ class TranscriptionTile extends StatelessWidget {
         Text(
           _formatLanguages(),
           style: AppTheme.bodySmall.copyWith(
-            color: AppTheme.secondaryText
-                .withValues(alpha: 0.6), // Using withValues for alpha
+            color: AppTheme.getSecondaryTextColor(context)
+                .withValues(alpha: 0.6),
             fontSize: 10,
           ),
         ),
@@ -77,12 +77,14 @@ class TranscriptionTile extends StatelessWidget {
     return '$source → $target';
   }
 
-  Widget _buildOriginalText() {
+  Widget _buildOriginalText(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppTheme.glassLight, // Use defined glass color
+        color: isDark ? AppTheme.glassLight : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -97,7 +99,7 @@ class TranscriptionTile extends StatelessWidget {
             child: Text(
               entry.originalText,
               style: AppTheme.bodySmall.copyWith(
-                color: AppTheme.secondaryText,
+                color: AppTheme.getSecondaryTextColor(context),
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -107,12 +109,14 @@ class TranscriptionTile extends StatelessWidget {
     );
   }
 
-  Widget _buildTranslatedText() {
+  Widget _buildTranslatedText(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: AppTheme.primaryElectricBlue
-            .withValues(alpha: 0.12), // ~30 alpha in 0-255 is ~0.12
+            .withValues(alpha: isDark ? 0.12 : 0.08),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
             color: AppTheme.primaryElectricBlue.withValues(alpha: 0.2)),
@@ -129,7 +133,7 @@ class TranscriptionTile extends StatelessWidget {
             child: Text(
               entry.translatedText,
               style: AppTheme.bodyMedium.copyWith(
-                color: Colors.white,
+                color: isDark ? Colors.white : AppTheme.darkText,
                 fontWeight: FontWeight.w500,
               ),
             ),

@@ -23,14 +23,18 @@ class CircleControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     final child = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: backgroundColor == null
-            ? const LinearGradient(
-                colors: [Color(0xFF2E2E80), Color(0xFF7C3AED)],
+            ? LinearGradient(
+                colors: isDark
+                    ? const [Color(0xFF2E2E80), Color(0xFF7C3AED)]
+                    : [AppTheme.primaryElectricBlue, AppTheme.secondaryPurple],
               )
             : null,
         color: backgroundColor,

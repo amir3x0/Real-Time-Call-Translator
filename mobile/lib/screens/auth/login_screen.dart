@@ -8,6 +8,7 @@ import '../../providers/settings_provider.dart';
 import '../../config/app_theme.dart';
 import '../../widgets/flash_bar.dart';
 import '../../widgets/server_config_widget.dart';
+import '../../widgets/shared/app_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -132,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Logo with glow effect - Theme Aware
-                    _buildLogo()
+                    const Center(child: AppLogo.xlarge(showGlow: true))
                         .animate()
                         .fadeIn(duration: 600.ms)
                         .scale(delay: 200.ms, duration: 400.ms),
@@ -319,7 +320,7 @@ class _LoginScreenState extends State<LoginScreen>
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
+        gradient: AppTheme.getButtonGradient(context),
         borderRadius: AppTheme.borderRadiusPill,
         boxShadow: AppTheme.buttonShadow,
       ),
@@ -346,52 +347,6 @@ class _LoginScreenState extends State<LoginScreen>
         ),
       ),
     );
-  }
-
-  // Google sign-in button intentionally removed (not implemented).
-
-  Widget _buildLogo() {
-    final isDark = AppTheme.isDarkMode(context);
-
-    if (isDark) {
-      // Dark mode: Gradient filled circle with white icon
-      return Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: AppTheme.primaryGradient,
-          boxShadow: AppTheme.glowShadow(AppTheme.primaryElectricBlue),
-        ),
-        child: const Icon(
-          Icons.translate,
-          size: 50,
-          color: Colors.white,
-        ),
-      );
-    } else {
-      // Light mode: Light blue circle with blue icon (matching design)
-      return Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppTheme.primaryElectricBlue.withValues(alpha: 0.1),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.primaryElectricBlue.withValues(alpha: 0.15),
-              blurRadius: 20,
-              spreadRadius: 5,
-            ),
-          ],
-        ),
-        child: const Icon(
-          Icons.translate,
-          size: 50,
-          color: AppTheme.primaryElectricBlue,
-        ),
-      );
-    }
   }
 
   Widget _buildCreateAccountButton() {

@@ -23,12 +23,14 @@ class ParticipantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isCompact) {
-      return _buildCompactCard();
+      return _buildCompactCard(context);
     }
-    return _buildFullCard();
+    return _buildFullCard(context);
   }
 
-  Widget _buildCompactCard() {
+  Widget _buildCompactCard(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -55,12 +57,12 @@ class ParticipantCard extends StatelessWidget {
                 border: Border.all(
                   color: isSpeaking
                       ? AppTheme.secondaryPurple
-                      : Colors.white.withValues(alpha: 0.1),
+                      : (isDark ? Colors.white.withValues(alpha: 0.1) : AppTheme.lightDivider),
                   width: isSpeaking ? 2 : 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -90,7 +92,7 @@ class ParticipantCard extends StatelessWidget {
                     color: AppTheme.errorRed,
                     shape: BoxShape.circle,
                     border:
-                        Border.all(color: AppTheme.darkBackground, width: 2),
+                        Border.all(color: AppTheme.getBackgroundColor(context), width: 2),
                   ),
                   child:
                       const Icon(Icons.mic_off, size: 12, color: Colors.white),
@@ -106,7 +108,7 @@ class ParticipantCard extends StatelessWidget {
             Text(
               mockName,
               style: AppTheme.bodySmall.copyWith(
-                color: Colors.white.withValues(alpha: 0.9),
+                color: AppTheme.getTextColor(context).withValues(alpha: 0.9),
                 fontWeight: FontWeight.w500,
               ),
               maxLines: 1,
@@ -123,7 +125,8 @@ class ParticipantCard extends StatelessWidget {
     );
   }
 
-  Widget _buildFullCard() {
+  Widget _buildFullCard(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
     final avatarRadius = isFullScreen ? 80.0 : 50.0;
     final fontSize = isFullScreen ? 50.0 : 30.0;
 
@@ -134,16 +137,22 @@ class ParticipantCard extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppTheme.darkCard.withValues(alpha: 0.8),
-              AppTheme.darkSurface.withValues(alpha: 0.6),
-            ],
+            colors: isDark
+                ? [
+                    AppTheme.darkCard.withValues(alpha: 0.8),
+                    AppTheme.darkSurface.withValues(alpha: 0.6),
+                  ]
+                : [
+                    Colors.white.withValues(alpha: 0.95),
+                    Colors.grey.shade100.withValues(alpha: 0.9),
+                  ],
           ),
           borderRadius: AppTheme.borderRadiusLarge,
           border: Border.all(
             color: _getBorderColor(),
             width: isSpeaking ? 3 : 2,
           ),
+          boxShadow: isDark ? null : AppTheme.lightCardShadow,
         ),
         child: Stack(
           children: [
@@ -156,10 +165,15 @@ class ParticipantCard extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.05),
-                        Colors.white.withValues(alpha: 0.02),
-                      ],
+                      colors: isDark
+                          ? [
+                              Colors.white.withValues(alpha: 0.05),
+                              Colors.white.withValues(alpha: 0.02),
+                            ]
+                          : [
+                              Colors.white.withValues(alpha: 0.3),
+                              Colors.white.withValues(alpha: 0.1),
+                            ],
                     ),
                   ),
                 ),
@@ -201,11 +215,16 @@ class ParticipantCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
+                      color: isDark
+                          ? Colors.black.withValues(alpha: 0.3)
+                          : Colors.white.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : AppTheme.lightDivider,
                       ),
+                      boxShadow: isDark ? null : AppTheme.lightCardShadow,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -213,7 +232,7 @@ class ParticipantCard extends StatelessWidget {
                         Text(
                           mockName,
                           style: AppTheme.bodyMedium.copyWith(
-                            color: Colors.white,
+                            color: isDark ? Colors.white : AppTheme.darkText,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

@@ -64,7 +64,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
   @override
   Widget build(BuildContext context) {
     final contactsProv = Provider.of<ContactsProvider>(context);
-    final callProv = Provider.of<CallProvider>(context, listen: false);
 
     return Stack(
       children: [
@@ -141,7 +140,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                               onDismissed: (_) =>
                                   _handleContactDismissed(c, contactsProv),
                               child: _buildContactCard(
-                                  c, callProv, contactsProv, index),
+                                  c, contactsProv, index),
                             );
                           }),
                         ],
@@ -200,7 +199,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           const SizedBox(width: 12),
           Container(
             decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
+              gradient: AppTheme.getButtonGradient(context),
               shape: BoxShape.circle,
               boxShadow: AppTheme.buttonShadow,
             ),
@@ -273,6 +272,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Widget _buildSelectedChip(Contact contact, ContactsProvider contactsProv) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -291,7 +292,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
           const SizedBox(width: 6),
           Text(
             contact.displayName.split(' ').first,
-            style: AppTheme.bodyMedium.copyWith(color: Colors.white),
+            style: AppTheme.bodyMedium.copyWith(
+              color: isDark ? Colors.white : AppTheme.primaryElectricBlue,
+            ),
           ),
           const SizedBox(width: 6),
           GestureDetector(
@@ -299,7 +302,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
             child: Icon(
               Icons.close,
               size: 16,
-              color: Colors.white.withValues(alpha: 0.7),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.7)
+                  : AppTheme.primaryElectricBlue.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -331,7 +336,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             style: AppTheme.labelLarge.copyWith(
               color: isPending
                   ? AppTheme.primaryElectricBlue
-                  : AppTheme.secondaryText,
+                  : AppTheme.getSecondaryTextColor(context),
             ),
           ),
         ],
@@ -340,6 +345,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isDark = AppTheme.isDarkMode(context);
+
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.4,
       child: Center(
@@ -349,22 +356,29 @@ class _ContactsScreenState extends State<ContactsScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.grey.shade100,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.contacts_outlined,
                 size: 48,
-                color: Colors.white.withValues(alpha: 0.4),
+                color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.4),
               ),
             ),
             const SizedBox(height: 16),
-            const Text('No contacts yet', style: AppTheme.titleMedium),
+            Text(
+              'No contacts yet',
+              style: AppTheme.titleMedium.copyWith(
+                color: AppTheme.getTextColor(context),
+              ),
+            ),
             const SizedBox(height: 6),
             Text(
               'Tap the + button to add one',
               style:
-                  AppTheme.bodyMedium.copyWith(color: AppTheme.secondaryText),
+                  AppTheme.bodyMedium.copyWith(color: AppTheme.getSecondaryTextColor(context)),
             ),
           ],
         ).animate().fadeIn().scale(),
@@ -391,7 +405,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     messenger.showSnackBar(
       SnackBar(
         content: Text('Deleted ${c.displayName}'),
-        backgroundColor: AppTheme.darkCard,
+        backgroundColor: AppTheme.getCardColor(context),
         action: SnackBarAction(
           label: 'Undo',
           textColor: AppTheme.primaryElectricBlue,
@@ -422,7 +436,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return FloatingActionButton(
       onPressed: _toggleMultiSelectMode,
       backgroundColor: _isMultiSelectMode
-          ? AppTheme.secondaryText
+          ? AppTheme.getSecondaryTextColor(context)
           : AppTheme.primaryElectricBlue,
       child: Icon(
         _isMultiSelectMode ? Icons.close : Icons.group_add,
@@ -458,7 +472,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 Text(
                   'Wants to be your friend',
                   style: AppTheme.bodySmall
-                      .copyWith(color: AppTheme.secondaryText),
+                      .copyWith(color: AppTheme.getSecondaryTextColor(context)),
                 ),
               ],
             ),
@@ -490,7 +504,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildContactCard(
     Contact c,
-    CallProvider callProv,
     ContactsProvider contactsProv,
     int index,
   ) {
@@ -507,38 +520,28 @@ class _ContactsScreenState extends State<ContactsScreen> {
             decoration: BoxDecoration(
               color: isSelected
                   ? AppTheme.primaryElectricBlue.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.05),
+                  : (AppTheme.isDarkMode(context)
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.white),
               borderRadius: AppTheme.borderRadiusMedium,
               border: Border.all(
                 color: isSelected
                     ? AppTheme.primaryElectricBlue
-                    : Colors.white.withValues(alpha: 0.1),
+                    : (AppTheme.isDarkMode(context)
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : AppTheme.lightDivider),
                 width: isSelected ? 2 : 1,
               ),
+              boxShadow: AppTheme.isDarkMode(context) ? null : AppTheme.lightCardShadow,
             ),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: AppTheme.borderRadiusMedium,
-                onTap: () {
-                  if (_isMultiSelectMode) {
-                    if (canSelect) {
-                      contactsProv.toggleSelection(c.id);
-                    }
-                  } else {
-                    // Navigate to participant selection for single call
-                    contactsProv.clearSelection();
-                    contactsProv.selectContact(c.id);
-                    Navigator.pushNamed(context, '/call/select');
-                  }
-                },
-                onLongPress: () {
-                  // Enter multi-select mode on long press
-                  if (!_isMultiSelectMode) {
-                    _toggleMultiSelectMode();
-                    contactsProv.selectContact(c.id);
-                  }
-                },
+                // Only respond to tap in multi-select mode
+                onTap: _isMultiSelectMode && canSelect
+                    ? () => contactsProv.toggleSelection(c.id)
+                    : null,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
@@ -557,7 +560,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             border: Border.all(
                               color: isSelected
                                   ? AppTheme.primaryElectricBlue
-                                  : Colors.white.withValues(alpha: 0.5),
+                                  : AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
                               width: 2,
                             ),
                           ),
@@ -592,30 +595,44 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       ),
                       // Quick call button (only when not in multi-select mode)
                       if (!_isMultiSelectMode)
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                AppTheme.successGreen,
-                                Color(0xFF059669)
-                              ],
-                            ),
-                            shape: BoxShape.circle,
-                            boxShadow: AppTheme.glowShadow(
-                              AppTheme.successGreen.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.call,
-                                color: Colors.white, size: 20),
-                            onPressed: () {
-                              contactsProv.clearSelection();
-                              contactsProv.selectContact(c.id);
-                              _initiateCall(context, c);
-                            },
-                          ),
+                        Builder(
+                          builder: (context) {
+                            final isDark = AppTheme.isDarkMode(context);
+                            return Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: isDark
+                                      ? const [
+                                          AppTheme.successGreen,
+                                          Color(0xFF059669)
+                                        ]
+                                      : const [
+                                          Color(0xFF34D399), // Brighter green
+                                          Color(0xFF10B981), // Emerald
+                                        ],
+                                ),
+                                shape: BoxShape.circle,
+                                boxShadow: isDark
+                                    ? AppTheme.glowShadow(
+                                        AppTheme.successGreen.withValues(alpha: 0.3),
+                                      )
+                                    : [
+                                        BoxShadow(
+                                          color: AppTheme.successGreen.withValues(alpha: 0.35),
+                                          blurRadius: 12,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                              ),
+                              child: IconButton(
+                                icon: const Icon(Icons.call,
+                                    color: Colors.white, size: 20),
+                                onPressed: () => _initiateCall(context, c),
+                              ),
+                            );
+                          },
                         ),
                     ],
                   ),
@@ -641,6 +658,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<bool> _showDeleteDialog(BuildContext context, String name) async {
+    final isDark = AppTheme.isDarkMode(context);
+
     return await showDialog<bool>(
           context: context,
           builder: (ctx) => Dialog(
@@ -651,9 +670,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                 child: Container(
                   padding: const EdgeInsets.all(24),
-                  decoration: AppTheme.glassDecoration(
-                    color: AppTheme.darkCard.withValues(alpha: 0.9),
-                    borderColor: Colors.white.withValues(alpha: 0.1),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppTheme.darkCard.withValues(alpha: 0.9)
+                        : Colors.white.withValues(alpha: 0.95),
+                    borderRadius: AppTheme.borderRadiusMedium,
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : AppTheme.lightDivider,
+                    ),
+                    boxShadow: isDark ? null : AppTheme.lightCardShadow,
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -672,11 +699,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text('Delete Contact', style: AppTheme.titleLarge),
+                      Text(
+                        'Delete Contact',
+                        style: AppTheme.titleLarge.copyWith(
+                          color: AppTheme.getTextColor(ctx),
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         'Are you sure you want to delete $name?',
-                        style: AppTheme.bodyMedium,
+                        style: AppTheme.bodyMedium.copyWith(
+                          color: AppTheme.getSecondaryTextColor(ctx),
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
@@ -688,7 +722,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                               child: Text(
                                 'Cancel',
                                 style: AppTheme.labelLarge
-                                    .copyWith(color: AppTheme.secondaryText),
+                                    .copyWith(color: AppTheme.getSecondaryTextColor(ctx)),
                               ),
                             ),
                           ),
@@ -734,7 +768,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
     try {
       final currentUser = authProvider.currentUser!;
-      final token = await authProvider.checkAuthStatus(); // Get the token
+      final token = await authProvider.checkAuthStatus();
 
       if (token == null) {
         throw Exception('Not authenticated');
@@ -742,7 +776,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
       await callProvider.startCall(
         [contact.contactUserId],
-        currentUserId: currentUser.id, // Should pass checked non-null id
+        currentUserId: currentUser.id,
         token: token,
       );
 
@@ -811,7 +845,10 @@ class _OnlineIndicator extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           isOnline ? 'Online' : 'Offline',
-          style: AppTheme.bodyMedium.copyWith(fontSize: 12),
+          style: AppTheme.bodyMedium.copyWith(
+            fontSize: 12,
+            color: AppTheme.getSecondaryTextColor(context),
+          ),
         ),
       ],
     );
@@ -861,15 +898,17 @@ class _LanguageChip extends StatelessWidget {
 class _ShimmerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Shimmer.fromColors(
-      baseColor: AppTheme.darkCard,
-      highlightColor: AppTheme.darkSurface,
+      baseColor: isDark ? AppTheme.darkCard : Colors.grey.shade200,
+      highlightColor: isDark ? AppTheme.darkSurface : Colors.grey.shade100,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
         child: Container(
           height: 72,
           decoration: BoxDecoration(
-            color: AppTheme.darkCard,
+            color: isDark ? AppTheme.darkCard : Colors.grey.shade200,
             borderRadius: AppTheme.borderRadiusMedium,
           ),
         ),

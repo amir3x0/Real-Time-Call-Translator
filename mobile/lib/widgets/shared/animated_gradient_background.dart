@@ -6,25 +6,21 @@ import '../../config/app_theme.dart';
 /// Eliminates duplicate AnimatedBuilder + gradient code from
 /// login_screen, register_screen, and register_voice_screen.
 class AnimatedGradientBackground extends StatefulWidget {
-  /// Primary gradient colors (usually 3)
-  final List<Color> colors;
-  
+  /// Primary gradient colors (usually 3). If null, uses theme-aware defaults.
+  final List<Color>? colors;
+
   /// Animation duration for the gradient movement
   final Duration duration;
-  
+
   /// Whether to show floating orbs for depth effect
   final bool showOrbs;
-  
+
   /// Optional child widget to display on top
   final Widget? child;
 
   const AnimatedGradientBackground({
     super.key,
-    this.colors = const [
-      Color(0xFF0F1630),
-      Color(0xFF1B2750),
-      Color(0xFF2A3A6B),
-    ],
+    this.colors,
     this.duration = const Duration(seconds: 10),
     this.showOrbs = true,
     this.child,
@@ -56,6 +52,9 @@ class _AnimatedGradientBackgroundState extends State<AnimatedGradientBackground>
 
   @override
   Widget build(BuildContext context) {
+    // Use theme-aware colors if not provided
+    final gradientColors = widget.colors ?? AppTheme.getScreenGradientColors(context);
+
     return Stack(
       children: [
         // Animated Gradient
@@ -67,7 +66,7 @@ class _AnimatedGradientBackgroundState extends State<AnimatedGradientBackground>
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: widget.colors,
+                  colors: gradientColors,
                   stops: [
                     0.0,
                     _controller.value,
@@ -141,29 +140,29 @@ class _AnimatedGradientBackgroundState extends State<AnimatedGradientBackground>
 
 /// A simpler static gradient background for screens that don't need animation
 class GradientBackground extends StatelessWidget {
-  final List<Color> colors;
+  /// Gradient colors. If null, uses theme-aware defaults.
+  final List<Color>? colors;
   final Widget? child;
   final bool showOrbs;
 
   const GradientBackground({
     super.key,
-    this.colors = const [
-      Color(0xFF0F1630),
-      Color(0xFF1B2750),
-      Color(0xFF2A3A6B),
-    ],
+    this.colors,
     this.child,
     this.showOrbs = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Use theme-aware colors if not provided
+    final gradientColors = colors ?? AppTheme.getScreenGradientColors(context);
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: colors,
+          colors: gradientColors,
         ),
       ),
       child: showOrbs

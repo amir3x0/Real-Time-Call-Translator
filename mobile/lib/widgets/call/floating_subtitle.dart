@@ -19,6 +19,8 @@ class FloatingSubtitleBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusMedium,
       child: BackdropFilter(
@@ -29,10 +31,15 @@ class FloatingSubtitleBubble extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: 0.15),
-                Colors.white.withValues(alpha: 0.05),
-              ],
+              colors: isDark
+                  ? [
+                      Colors.white.withValues(alpha: 0.15),
+                      Colors.white.withValues(alpha: 0.05),
+                    ]
+                  : [
+                      Colors.white.withValues(alpha: 0.95),
+                      Colors.white.withValues(alpha: 0.85),
+                    ],
             ),
             borderRadius: AppTheme.borderRadiusMedium,
             border: Border.all(
@@ -41,7 +48,7 @@ class FloatingSubtitleBubble extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
+                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.15),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -70,7 +77,7 @@ class FloatingSubtitleBubble extends StatelessWidget {
                   Text(
                     speakerName,
                     style: AppTheme.bodyMedium.copyWith(
-                      color: AppTheme.secondaryText,
+                      color: AppTheme.getSecondaryTextColor(context),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -78,13 +85,13 @@ class FloatingSubtitleBubble extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
-              
+
               // Translation text
               Text(
                 text,
                 textAlign: TextAlign.start,
                 style: AppTheme.bodyLarge.copyWith(
-                  color: Colors.white,
+                  color: isDark ? Colors.white : AppTheme.darkText,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                   height: 1.4,

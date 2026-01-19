@@ -295,7 +295,7 @@ class _AddContactScreenState extends State<AddContactScreen> {
   Widget _buildSearchButton() {
     return Container(
       decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
+        gradient: AppTheme.getButtonGradient(context),
         borderRadius: AppTheme.borderRadiusMedium,
         boxShadow: AppTheme.buttonShadow,
       ),

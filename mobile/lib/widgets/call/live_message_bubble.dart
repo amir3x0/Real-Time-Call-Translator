@@ -139,7 +139,7 @@ class _LiveMessageBubbleState extends State<LiveMessageBubble>
                     child: Text(
                       displayText,
                       style: AppTheme.bodyMedium.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
+                        color: AppTheme.getTextColor(context).withValues(alpha: 0.85),
                         fontSize: 15,
                         fontStyle: FontStyle.italic,
                         height: 1.4,
@@ -182,7 +182,7 @@ class _LiveMessageBubbleState extends State<LiveMessageBubble>
           height: 4,
           margin: const EdgeInsets.symmetric(horizontal: 1),
           decoration: BoxDecoration(
-            color: AppTheme.secondaryText.withValues(alpha: 0.5),
+            color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
             shape: BoxShape.circle,
           ),
         )

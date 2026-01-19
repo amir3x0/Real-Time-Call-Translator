@@ -428,16 +428,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
         child: Container(
           padding: const EdgeInsets.all(12),
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.1),
-          ),
+          decoration: AppTheme.themedGlassDecoration(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Primary Language',
-                style: AppTheme.titleMedium,
+                style: AppTheme.titleMedium.copyWith(
+                  color: AppTheme.getTextColor(context),
+                ),
               ),
               const SizedBox(height: 12),
               Row(
@@ -469,7 +468,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   color: AppTheme.primaryElectricBlue,
                                   width: 1.5)
                               : Border.all(
-                                  color: Colors.white.withValues(alpha: 0.1)),
+                                  color: AppTheme.getGlassColor(context, opacity: 0.1)),
                         ),
                         child: Column(
                           children: [
@@ -482,8 +481,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               lang['name']!,
                               style: AppTheme.bodyMedium.copyWith(
                                 color: isSelected
-                                    ? Colors.white
-                                    : AppTheme.secondaryText,
+                                    ? AppTheme.primaryElectricBlue
+                                    : AppTheme.getSecondaryTextColor(context),
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.normal,
@@ -512,10 +511,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
         child: Container(
           padding: const EdgeInsets.all(16),
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.1),
-          ),
+          decoration: AppTheme.themedGlassDecoration(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -533,8 +529,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           : AppTheme.purpleGradient,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      _hasVoiceSample ? Icons.check : Icons.record_voice_over,
+                    child: const Icon(
+                      Icons.record_voice_over,
                       color: Colors.white,
                     ),
                   ),
@@ -543,12 +539,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Voice Sample', style: AppTheme.titleMedium),
+                        Text('Voice Sample', style: AppTheme.titleMedium.copyWith(
+                          color: AppTheme.getTextColor(context),
+                        )),
                         _isLoadingVoiceStatus
                             ? Text(
                                 'Loading...',
                                 style: AppTheme.bodyMedium.copyWith(
-                                  color: AppTheme.secondaryText,
+                                  color: AppTheme.getSecondaryTextColor(context),
                                   fontSize: 12,
                                 ),
                               )
@@ -559,7 +557,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 style: AppTheme.bodyMedium.copyWith(
                                   color: _hasVoiceSample
                                       ? AppTheme.successGreen
-                                      : AppTheme.secondaryText,
+                                      : AppTheme.getSecondaryTextColor(context),
                                   fontSize: 12,
                                 ),
                               ),
@@ -649,10 +647,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
         child: Container(
           padding: const EdgeInsets.all(16),
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.1),
-          ),
+          decoration: AppTheme.themedGlassDecoration(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -665,14 +660,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     decoration: BoxDecoration(
                       color: _showInterimCaptions
                           ? AppTheme.accentCyan.withValues(alpha: 0.2)
-                          : Colors.white.withValues(alpha: 0.1),
+                          : AppTheme.getGlassColor(context, opacity: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       Icons.closed_caption,
                       color: _showInterimCaptions
                           ? AppTheme.accentCyan
-                          : AppTheme.secondaryText,
+                          : AppTheme.getSecondaryTextColor(context),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -680,12 +675,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Live Captions',
-                            style: AppTheme.titleMedium),
+                        Text('Live Captions',
+                            style: AppTheme.titleMedium.copyWith(
+                              color: AppTheme.getTextColor(context),
+                            )),
                         Text(
                           'Show real-time transcription as you speak',
                           style: AppTheme.bodyMedium.copyWith(
-                            color: AppTheme.secondaryText,
+                            color: AppTheme.getSecondaryTextColor(context),
                             fontSize: 12,
                           ),
                         ),
@@ -713,7 +710,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             backgroundColor: value
                                 ? AppTheme.accentCyan
-                                : AppTheme.secondaryText,
+                                : AppTheme.getSecondaryTextColor(context),
                             behavior: SnackBarBehavior.floating,
                             duration: const Duration(seconds: 2),
                           ),
@@ -746,7 +743,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Text(
                         'Live captions show what is being said in real-time, like a typing indicator.',
                         style: AppTheme.bodyMedium.copyWith(
-                          color: AppTheme.secondaryText,
+                          color: AppTheme.getSecondaryTextColor(context),
                           fontSize: 11,
                         ),
                       ),
@@ -855,10 +852,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
               padding: const EdgeInsets.all(24),
-              decoration: AppTheme.glassDecoration(
-                color: AppTheme.darkCard.withValues(alpha: 0.9),
-                borderColor: Colors.white.withValues(alpha: 0.1),
-              ),
+              decoration: AppTheme.themedGlassDecoration(ctx, opacity: 0.9),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -876,11 +870,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Sign Out', style: AppTheme.titleLarge),
+                  Text('Sign Out', style: AppTheme.titleLarge.copyWith(
+                    color: AppTheme.getTextColor(ctx),
+                  )),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Are you sure you want to sign out?',
-                    style: AppTheme.bodyMedium,
+                    style: AppTheme.bodyMedium.copyWith(
+                      color: AppTheme.getSecondaryTextColor(ctx),
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
@@ -892,7 +890,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Text(
                             'Cancel',
                             style: AppTheme.labelLarge
-                                .copyWith(color: AppTheme.secondaryText),
+                                .copyWith(color: AppTheme.getSecondaryTextColor(ctx)),
                           ),
                         ),
                       ),

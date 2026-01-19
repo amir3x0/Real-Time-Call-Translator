@@ -146,14 +146,14 @@ class _ServerConfigWidgetState extends State<ServerConfigWidget> {
               Text(
                 '$host:$port',
                 style: AppTheme.bodySmall.copyWith(
-                  color: AppTheme.secondaryText,
+                  color: AppTheme.getSecondaryTextColor(context),
                 ),
               ),
               const SizedBox(width: 4),
               Icon(
                 Icons.edit,
                 size: 14,
-                color: AppTheme.secondaryText.withValues(alpha: 0.7),
+                color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.7),
               ),
             ],
           ),
@@ -162,24 +162,39 @@ class _ServerConfigWidgetState extends State<ServerConfigWidget> {
     }
 
     // Full card view for settings screen
+    final isDark = AppTheme.isDarkMode(context);
+
     return ClipRRect(
       borderRadius: AppTheme.borderRadiusMedium,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           padding: const EdgeInsets.all(16),
-          decoration: AppTheme.glassDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderColor: Colors.white.withValues(alpha: 0.1),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white,
+            borderRadius: AppTheme.borderRadiusMedium,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : AppTheme.lightDivider,
+            ),
+            boxShadow: isDark ? null : AppTheme.lightCardShadow,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.dns_outlined, color: AppTheme.primaryElectricBlue),
-                  SizedBox(width: 12),
-                  Text('Server Configuration', style: AppTheme.titleMedium),
+                  const Icon(Icons.dns_outlined, color: AppTheme.primaryElectricBlue),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Server Configuration',
+                    style: AppTheme.titleMedium.copyWith(
+                      color: AppTheme.getTextColor(context),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -191,21 +206,46 @@ class _ServerConfigWidgetState extends State<ServerConfigWidget> {
                       children: [
                         Row(
                           children: [
-                            const Text('Host: ', style: AppTheme.bodyMedium),
-                            Text(host, style: AppTheme.bodyLarge),
+                            Text(
+                              'Host: ',
+                              style: AppTheme.bodyMedium.copyWith(
+                                color: AppTheme.getSecondaryTextColor(context),
+                              ),
+                            ),
+                            Text(
+                              host,
+                              style: AppTheme.bodyLarge.copyWith(
+                                color: AppTheme.getTextColor(context),
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Text('Port: ', style: AppTheme.bodyMedium),
-                            Text('$port', style: AppTheme.bodyLarge),
+                            Text(
+                              'Port: ',
+                              style: AppTheme.bodyMedium.copyWith(
+                                color: AppTheme.getSecondaryTextColor(context),
+                              ),
+                            ),
+                            Text(
+                              '$port',
+                              style: AppTheme.bodyLarge.copyWith(
+                                color: AppTheme.getTextColor(context),
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Text('Status: ', style: AppTheme.bodyMedium),
+                            Text(
+                              'Status: ',
+                              style: AppTheme.bodyMedium.copyWith(
+                                color: AppTheme.getSecondaryTextColor(context),
+                              ),
+                            ),
                             const SizedBox(width: 8),
                             _buildStatusIndicator(),
                             const SizedBox(width: 8),
@@ -222,7 +262,7 @@ class _ServerConfigWidgetState extends State<ServerConfigWidget> {
                                     ? AppTheme.successGreen
                                     : _status == ConnectionStatus.disconnected
                                         ? AppTheme.errorRed
-                                        : AppTheme.secondaryText,
+                                        : AppTheme.getSecondaryTextColor(context),
                               ),
                             ),
                           ],
@@ -373,25 +413,33 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
         if (mounted) {
           setState(() => _isSaving = false);
           // Show warning dialog
+          final isDark = AppTheme.isDarkMode(context);
           final proceed = await showDialog<bool>(
             context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: AppTheme.darkSurface,
+            builder: (dialogContext) => AlertDialog(
+              backgroundColor: isDark ? AppTheme.darkSurface : Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: AppTheme.borderRadiusMedium,
               ),
-              title: const Text('Session Invalid', style: AppTheme.titleLarge),
-              content: const Text(
+              title: Text(
+                'Session Invalid',
+                style: AppTheme.titleLarge.copyWith(
+                  color: AppTheme.getTextColor(dialogContext),
+                ),
+              ),
+              content: Text(
                 'Your session is not valid on this server. You will need to log in again after changing the server.',
-                style: AppTheme.bodyMedium,
+                style: AppTheme.bodyMedium.copyWith(
+                  color: AppTheme.getSecondaryTextColor(dialogContext),
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
                   child: const Text('Continue'),
                 ),
               ],
@@ -426,8 +474,10 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Dialog(
-      backgroundColor: AppTheme.darkSurface,
+      backgroundColor: isDark ? AppTheme.darkSurface : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: AppTheme.borderRadiusMedium,
       ),
@@ -443,19 +493,21 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
                 const Icon(Icons.dns_outlined,
                     color: AppTheme.primaryElectricBlue),
                 const SizedBox(width: 12),
-                const Flexible(
+                Flexible(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
                       'Server Configuration',
-                      style: AppTheme.titleLarge,
+                      style: AppTheme.titleLarge.copyWith(
+                        color: AppTheme.getTextColor(context),
+                      ),
                     ),
                   ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.close),
-                  color: AppTheme.secondaryText,
+                  color: AppTheme.getSecondaryTextColor(context),
                 ),
               ],
             ),
@@ -464,13 +516,17 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
             // Host input
             TextField(
               controller: _hostController,
-              style: AppTheme.bodyLarge,
+              style: AppTheme.bodyLarge.copyWith(
+                color: AppTheme.getTextColor(context),
+              ),
               decoration: InputDecoration(
                 labelText: 'Host / IP Address',
-                labelStyle: AppTheme.bodyMedium,
+                labelStyle: AppTheme.bodyMedium.copyWith(
+                  color: AppTheme.getSecondaryTextColor(context),
+                ),
                 hintText: '192.168.1.100',
                 hintStyle: AppTheme.bodyMedium.copyWith(
-                  color: AppTheme.secondaryText.withValues(alpha: 0.5),
+                  color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
                 ),
                 prefixIcon: const Icon(Icons.computer,
                     color: AppTheme.primaryElectricBlue),
@@ -488,14 +544,18 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
             // Port input
             TextField(
               controller: _portController,
-              style: AppTheme.bodyLarge,
+              style: AppTheme.bodyLarge.copyWith(
+                color: AppTheme.getTextColor(context),
+              ),
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 labelText: 'Port',
-                labelStyle: AppTheme.bodyMedium,
+                labelStyle: AppTheme.bodyMedium.copyWith(
+                  color: AppTheme.getSecondaryTextColor(context),
+                ),
                 hintText: '8000',
                 hintStyle: AppTheme.bodyMedium.copyWith(
-                  color: AppTheme.secondaryText.withValues(alpha: 0.5),
+                  color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
                 ),
                 prefixIcon: const Icon(Icons.numbers,
                     color: AppTheme.primaryElectricBlue),
@@ -561,7 +621,7 @@ class _ServerConfigDialogState extends State<_ServerConfigDialog> {
                   child: Text(
                     'Reset',
                     style: AppTheme.bodySmall
-                        .copyWith(color: AppTheme.secondaryText),
+                        .copyWith(color: AppTheme.getSecondaryTextColor(context)),
                   ),
                 ),
                 // Test and Save buttons

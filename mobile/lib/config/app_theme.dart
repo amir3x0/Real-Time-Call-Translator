@@ -151,6 +151,26 @@ class AppTheme {
         : baseColor.withValues(alpha: opacity * 0.5);
   }
 
+  /// Get theme-aware button gradient
+  /// Dark mode: Deep indigo gradient (dark, bold)
+  /// Light mode: Bright blue gradient (lighter, vibrant)
+  static LinearGradient getButtonGradient(BuildContext context) {
+    return isDarkMode(context)
+        ? primaryGradient
+        : const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [primaryElectricBlue, primaryBrightBlue, Color(0xFF64B5F6)],
+          );
+  }
+
+  /// Light mode button gradient constant
+  static const LinearGradient lightButtonGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [primaryElectricBlue, primaryBrightBlue, Color(0xFF64B5F6)],
+  );
+
   // ========== Border Radius ==========
 
   static const double radiusSmall = 8.0;

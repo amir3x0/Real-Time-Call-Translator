@@ -125,17 +125,16 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                           height: 120,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [
-                                Color(0xFF4A90E2),
-                                Color(0xFF357ABD),
-                              ],
+                              colors: isDark
+                                  ? const [Color(0xFF4A90E2), Color(0xFF357ABD)]
+                                  : [AppTheme.primaryElectricBlue, AppTheme.primaryBrightBlue],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.blue.withValues(alpha: 0.3),
+                                color: AppTheme.primaryElectricBlue.withValues(alpha: 0.3),
                                 blurRadius: 20,
                                 spreadRadius: 5,
                               ),

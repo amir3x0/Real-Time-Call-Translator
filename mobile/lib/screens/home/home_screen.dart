@@ -8,6 +8,7 @@ import '../../config/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/lobby_provider.dart';
 import '../../core/navigation/app_routes.dart';
+import '../../widgets/shared/app_logo.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -191,22 +192,8 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         children: [
-          // App Logo/Title
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
-              borderRadius: AppTheme.borderRadiusSmall,
-              boxShadow: AppTheme.glowShadow(
-                  AppTheme.primaryElectricBlue.withValues(alpha: 0.3)),
-            ),
-            child: const Icon(
-              Icons.translate,
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
+          // App Logo
+          const AppLogo(size: 44, showGlow: true),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -259,6 +246,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildRecentCalls() {
+    final isDark = AppTheme.isDarkMode(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -267,25 +255,27 @@ class _HomeScreenState extends State<HomeScreen>
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.03),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.history,
               size: 40,
-              color: AppTheme.secondaryText.withValues(alpha: 0.5),
+              color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.5),
             ),
           ),
           const SizedBox(height: 16),
           Text(
             'No recent calls',
-            style: AppTheme.titleMedium.copyWith(color: AppTheme.secondaryText),
+            style: AppTheme.titleMedium.copyWith(color: AppTheme.getSecondaryTextColor(context)),
           ),
           const SizedBox(height: 8),
           Text(
             'Your call history will appear here',
             style: AppTheme.bodyMedium.copyWith(
-              color: AppTheme.secondaryText.withValues(alpha: 0.7),
+              color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.7),
             ),
           ),
         ],

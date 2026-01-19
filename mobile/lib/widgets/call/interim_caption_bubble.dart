@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/interim_caption.dart';
 import '../../config/constants.dart';
+import '../../config/app_theme.dart';
 
 /// WhatsApp-style interim caption bubble with typing indicator.
 ///
@@ -52,6 +53,7 @@ class _InterimCaptionBubbleState extends State<InterimCaptionBubble>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = AppTheme.isDarkMode(context);
 
     // Truncate text if too long
     String displayText = widget.caption.text;
@@ -69,15 +71,15 @@ class _InterimCaptionBubbleState extends State<InterimCaptionBubble>
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           // Cyan-tinted glass effect for interim (different from purple final)
-          color: Colors.cyan.withValues(alpha: 0.15),
+          color: AppTheme.accentCyan.withValues(alpha: isDark ? 0.15 : 0.1),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.cyan.withValues(alpha: 0.4),
+            color: AppTheme.accentCyan.withValues(alpha: 0.4),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: Colors.black.withValues(alpha: isDark ? 0.1 : 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -88,12 +90,12 @@ class _InterimCaptionBubbleState extends State<InterimCaptionBubble>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Speaker tag
-            _buildSpeakerTag(theme),
+            _buildSpeakerTag(context, theme),
             const SizedBox(width: 8),
 
             // Text with blinking cursor
             Flexible(
-              child: _buildTextWithCursor(theme, displayText),
+              child: _buildTextWithCursor(context, theme, displayText),
             ),
           ],
         ),
@@ -101,21 +103,24 @@ class _InterimCaptionBubbleState extends State<InterimCaptionBubble>
     );
   }
 
-  Widget _buildSpeakerTag(ThemeData theme) {
+  Widget _buildSpeakerTag(BuildContext context, ThemeData theme) {
     final isSelf = widget.caption.isSelf;
+    final isDark = AppTheme.isDarkMode(context);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: isSelf
-            ? Colors.green.withValues(alpha: 0.3)
-            : Colors.blue.withValues(alpha: 0.3),
+            ? AppTheme.successGreen.withValues(alpha: 0.3)
+            : AppTheme.primaryElectricBlue.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         widget.caption.displayTag,
         style: theme.textTheme.labelSmall?.copyWith(
-          color: isSelf ? Colors.greenAccent : Colors.lightBlueAccent,
+          color: isSelf
+              ? (isDark ? Colors.greenAccent : AppTheme.successGreen)
+              : (isDark ? Colors.lightBlueAccent : AppTheme.primaryElectricBlue),
           fontWeight: FontWeight.w600,
           fontSize: 11,
         ),
@@ -123,7 +128,9 @@ class _InterimCaptionBubbleState extends State<InterimCaptionBubble>
     );
   }
 
-  Widget _buildTextWithCursor(ThemeData theme, String text) {
+  Widget _buildTextWithCursor(BuildContext context, ThemeData theme, String text) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -132,7 +139,9 @@ class _InterimCaptionBubbleState extends State<InterimCaptionBubble>
           child: Text(
             text,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.85),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.85)
+                  : AppTheme.darkText.withValues(alpha: 0.85),
               fontStyle: FontStyle.italic,
               height: 1.3,
             ),
@@ -149,7 +158,7 @@ class _InterimCaptionBubbleState extends State<InterimCaptionBubble>
                 width: 2,
                 height: 16,
                 margin: const EdgeInsets.only(left: 2),
-                color: Colors.cyanAccent,
+                color: AppTheme.accentCyan,
               ),
             );
           },

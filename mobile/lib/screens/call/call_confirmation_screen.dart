@@ -53,7 +53,7 @@ class CallConfirmationScreen extends StatelessWidget {
                       Text(
                         'Call Participants',
                         style: AppTheme.labelLarge.copyWith(
-                          color: AppTheme.secondaryText,
+                          color: AppTheme.getSecondaryTextColor(context),
                         ),
                       ),
                       const SizedBox(height: 16),

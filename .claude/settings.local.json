@@ -14,7 +14,9 @@
       "Bash(gradlew clean:*)",
       "Bash(.gradlew.bat clean)",
       "Bash(docker compose logs:*)",
-      "Bash(flutter devices:*)"
+      "Bash(flutter devices:*)",
+      "Bash(dir:*)",
+      "Bash(powershell:*)"
     ]
   }
 }

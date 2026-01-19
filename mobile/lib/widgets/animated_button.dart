@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/app_theme.dart';
 
 class AnimatedButton extends StatefulWidget {
   final String label;
@@ -31,6 +32,8 @@ class _AnimatedButtonState extends State<AnimatedButton> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return InkWell(
       onTap: _handle,
       borderRadius: BorderRadius.circular(12),
@@ -41,7 +44,11 @@ class _AnimatedButtonState extends State<AnimatedButton> {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          gradient: const LinearGradient(colors: [Color(0xFF2E2E80), Color(0xFF7C3AED)]),
+          gradient: LinearGradient(
+            colors: isDark
+                ? const [Color(0xFF2E2E80), Color(0xFF7C3AED)]
+                : [AppTheme.primaryElectricBlue, AppTheme.secondaryPurple],
+          ),
         ),
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),

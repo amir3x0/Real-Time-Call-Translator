@@ -168,7 +168,7 @@ class _ChatTranscriptionViewState extends State<ChatTranscriptionView> {
           Text(
             'Listening...',
             style: AppTheme.bodyMedium.copyWith(
-              color: AppTheme.secondaryText.withValues(alpha: 0.8),
+              color: AppTheme.getSecondaryTextColor(context).withValues(alpha: 0.8),
               fontSize: 15,
             ),
           ),

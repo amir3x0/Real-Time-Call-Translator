@@ -29,10 +29,11 @@ class TranscriptionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) {
-      return _buildEmptyState();
+      return _buildEmptyState(context);
     }
 
     final visibleEntries = entries.take(maxVisible).toList();
+    final isDark = AppTheme.isDarkMode(context);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -41,9 +42,14 @@ class TranscriptionPanel extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.47), // 120/255 ~ 0.47
-            border: Border.all(color: Colors.white12),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.47)
+                : Colors.white.withValues(alpha: 0.95),
+            border: Border.all(
+              color: isDark ? Colors.white12 : AppTheme.lightDivider,
+            ),
             borderRadius: BorderRadius.circular(16),
+            boxShadow: isDark ? null : AppTheme.lightCardShadow,
           ),
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
@@ -63,7 +69,9 @@ class TranscriptionPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
@@ -71,9 +79,14 @@ class TranscriptionPanel extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.31), // 80/255 ~ 0.31
-            border: Border.all(color: Colors.white12),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.31)
+                : Colors.white.withValues(alpha: 0.9),
+            border: Border.all(
+              color: isDark ? Colors.white12 : AppTheme.lightDivider,
+            ),
             borderRadius: BorderRadius.circular(16),
+            boxShadow: isDark ? null : AppTheme.lightCardShadow,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -85,7 +98,7 @@ class TranscriptionPanel extends StatelessWidget {
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation(
                     AppTheme.primaryElectricBlue
-                        .withValues(alpha: 0.7), // 180/255 ~ 0.7
+                        .withValues(alpha: 0.7),
                   ),
                 ),
               ),
@@ -93,7 +106,7 @@ class TranscriptionPanel extends StatelessWidget {
               Text(
                 'Listening...',
                 style: AppTheme.bodyMedium.copyWith(
-                  color: AppTheme.secondaryText,
+                  color: AppTheme.getSecondaryTextColor(context),
                 ),
               ),
             ],
