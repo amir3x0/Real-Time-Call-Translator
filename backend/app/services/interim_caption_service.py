@@ -195,12 +195,18 @@ class InterimCaptionService:
         Main loop for a streaming STT session.
 
         Reads audio from queue, feeds to streaming STT, publishes interim results.
+
+        Architecture:
+        - Blocking streaming STT runs in a thread pool executor
+        - Results are scheduled back to the main event loop via run_coroutine_threadsafe
+        - This avoids the "Future attached to different loop" error
         """
         stream_key = self.get_stream_key(session.session_id, session.speaker_id)
         logger.info(f"🎙️ Streaming STT task started for {stream_key}")
 
         await self.initialize()
         loop = asyncio.get_running_loop()
+        min_interval_sec = INTERIM_PUBLISH_INTERVAL_MS / 1000.0
 
         def audio_generator():
             """Generator that yields audio chunks from the queue."""
@@ -218,37 +224,47 @@ class InterimCaptionService:
                     logger.error(f"Error in audio generator for {stream_key}: {e}")
                     return
 
-        try:
-            # Run streaming transcription in executor (blocking API)
-            async def run_streaming():
-                min_interval_sec = INTERIM_PUBLISH_INTERVAL_MS / 1000.0
+        def run_blocking_streaming():
+            """
+            Blocking function that runs in executor thread.
 
-                def stream_transcribe():
-                    """Blocking streaming transcription."""
-                    for transcript, is_final in self._pipeline.streaming_transcribe(
-                        audio_generator(),
-                        language_code=session.source_lang
-                    ):
-                        if not session.is_active:
-                            break
-
-                        # Yield results for async processing
-                        yield transcript, is_final
-
-                # Process streaming results
-                for transcript, is_final in stream_transcribe():
+            Runs the streaming STT and schedules async result processing
+            back to the main event loop using run_coroutine_threadsafe.
+            """
+            try:
+                for transcript, is_final in self._pipeline.streaming_transcribe(
+                    audio_generator(),
+                    language_code=session.source_lang
+                ):
                     if not session.is_active:
                         break
 
-                    await self._process_interim_result(
-                        session,
-                        transcript,
-                        is_final,
-                        min_interval_sec
+                    # Schedule async processing on the MAIN event loop
+                    # This is the correct pattern for thread -> async communication
+                    future = asyncio.run_coroutine_threadsafe(
+                        self._process_interim_result(
+                            session,
+                            transcript,
+                            is_final,
+                            min_interval_sec
+                        ),
+                        loop
                     )
+                    # Wait for the async processing to complete before continuing
+                    # This ensures proper ordering of interim results
+                    try:
+                        future.result(timeout=5.0)  # 5 second timeout
+                    except Exception as e:
+                        logger.error(f"Error processing interim result: {e}")
 
-            # Run in thread pool to avoid blocking
-            await loop.run_in_executor(None, lambda: asyncio.run(run_streaming()))
+            except Exception as e:
+                # Audio timeout is expected when stream ends
+                if "Audio Timeout" not in str(e):
+                    logger.error(f"Streaming transcription error for {stream_key}: {e}")
+
+        try:
+            # Run the blocking streaming in executor - NO nested asyncio.run()!
+            await loop.run_in_executor(None, run_blocking_streaming)
 
         except asyncio.CancelledError:
             logger.info(f"Streaming task cancelled for {stream_key}")

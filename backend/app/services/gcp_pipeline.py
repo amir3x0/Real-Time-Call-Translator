@@ -176,6 +176,12 @@ class GCPSpeechPipeline:
         source_language_code: str,
         target_language_code: str,
     ) -> str:
+        # Skip translation if source and target languages are the same
+        # GCP Translate API returns 400 error for source == target
+        if source_language_code == target_language_code:
+            logger.debug(f"[GCP] Skipping translation - same language: {source_language_code}")
+            return text
+
         parent = f"projects/{self.project_id}/locations/{self.location}"
         try:
             response = self._translate_client.translate_text(
@@ -246,6 +252,12 @@ class GCPSpeechPipeline:
         Returns:
             Translated text
         """
+        # Skip translation if source and target languages are the same
+        # GCP Translate API returns 400 error for source == target
+        if source_language_code == target_language_code:
+            logger.debug(f"[GCP] Skipping context translation - same language: {source_language_code}")
+            return text
+
         # If no context, use regular translation
         if not context_history or len(context_history.strip()) == 0:
             return self._translate_text(
