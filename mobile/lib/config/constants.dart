@@ -11,10 +11,6 @@ class AppConstants {
   /// Reduced from 150ms to 100ms for faster interim caption updates
   static const int audioSendIntervalMs = 100;
 
-  /// Minimum bytes to send per chunk (~100ms at 16kHz mono 16-bit)
-  /// Formula: 16000 Hz × 2 bytes × 0.1s = 3200 bytes
-  static const int audioMinChunkSize = 3200;
-
   /// Sample rate for recording (Hz)
   static const int audioSampleRate = 16000;
 
@@ -37,19 +33,6 @@ class AppConstants {
 
   /// Playback timer interval for audio processing (ms)
   static const int audioPlaybackTimerMs = 150;
-
-  // ============================================================
-  // AUDIO - MOCK/TESTING
-  // ============================================================
-
-  /// Mock audio chunk generation interval (ms)
-  static const int audioMockChunkIntervalMs = 200;
-
-  /// Mock audio chunk size (bytes)
-  static const int audioMockChunkSize = 1600;
-
-  /// Mock playback simulation delay (ms)
-  static const int audioMockPlaybackDelayMs = 300;
 
   // ============================================================
   // WEBSOCKET CONFIGURATION
@@ -238,22 +221,4 @@ class AppConstants {
   /// Participant grid strip height (pixels)
   static const double participantGridStripHeightPx = 120;
 
-  // ============================================================
-  // MOCK DATA (Testing/Development)
-  // ============================================================
-
-  /// Mock transcription generation interval (seconds)
-  static const int mockTranscriptionIntervalSeconds = 3;
-
-  /// Mock speaking state change interval (seconds)
-  static const int mockSpeakingChangeIntervalSeconds = 5;
-
-  /// Mock connection simulation delay (ms)
-  static const int mockConnectionDelayMs = 500;
-
-  /// Mock API response delay (ms)
-  static const int mockApiDelayMs = 300;
-
-  /// Mock API long response delay (ms)
-  static const int mockApiLongDelayMs = 500;
 }

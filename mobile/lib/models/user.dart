@@ -1,23 +1,5 @@
 import '../utils/language_utils.dart';
-
-/// Voice clone quality for the user
-enum UserVoiceCloneQuality {
-  excellent('excellent'),
-  good('good'),
-  fair('fair'),
-  fallback('fallback');
-
-  final String value;
-  const UserVoiceCloneQuality(this.value);
-
-  static UserVoiceCloneQuality fromString(String? value) {
-    if (value == null) return UserVoiceCloneQuality.fallback;
-    return UserVoiceCloneQuality.values.firstWhere(
-      (q) => q.value == value.toLowerCase(),
-      orElse: () => UserVoiceCloneQuality.fallback,
-    );
-  }
-}
+import 'participant.dart';
 
 /// User model matching backend schema (simplified)
 class User {
@@ -136,14 +118,14 @@ class User {
   String get displayPhone => phone;
 
   /// Get voice clone quality
-  UserVoiceCloneQuality get voiceCloneQuality {
+  VoiceCloneQuality get voiceCloneQuality {
     if (!voiceModelTrained || voiceQualityScore == null) {
-      return UserVoiceCloneQuality.fallback;
+      return VoiceCloneQuality.fallback;
     }
-    if (voiceQualityScore! > 80) return UserVoiceCloneQuality.excellent;
-    if (voiceQualityScore! > 60) return UserVoiceCloneQuality.good;
-    if (voiceQualityScore! > 40) return UserVoiceCloneQuality.fair;
-    return UserVoiceCloneQuality.fallback;
+    if (voiceQualityScore! > 80) return VoiceCloneQuality.excellent;
+    if (voiceQualityScore! > 60) return VoiceCloneQuality.good;
+    if (voiceQualityScore! > 40) return VoiceCloneQuality.fair;
+    return VoiceCloneQuality.fallback;
   }
 
   /// Check if user can use voice cloning
@@ -160,13 +142,13 @@ class User {
   /// Get voice clone quality display
   String get voiceCloneQualityDisplay {
     switch (voiceCloneQuality) {
-      case UserVoiceCloneQuality.excellent:
+      case VoiceCloneQuality.excellent:
         return 'Excellent';
-      case UserVoiceCloneQuality.good:
+      case VoiceCloneQuality.good:
         return 'Good';
-      case UserVoiceCloneQuality.fair:
+      case VoiceCloneQuality.fair:
         return 'Fair';
-      case UserVoiceCloneQuality.fallback:
+      case VoiceCloneQuality.fallback:
         return 'Standard TTS';
     }
   }

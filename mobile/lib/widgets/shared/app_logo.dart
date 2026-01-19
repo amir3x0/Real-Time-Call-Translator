@@ -84,7 +84,16 @@ class AppLogo extends StatelessWidget {
                 ? Colors.white.withValues(alpha: 0.1)
                 : AppTheme.lightDivider,
           ),
-          boxShadow: isDark ? null : AppTheme.lightCardShadow,
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: AppTheme.primaryElectricBlue.withValues(alpha: 0.12),
+                    blurRadius: size * 0.25,
+                    spreadRadius: size * 0.02,
+                  ),
+                  ...AppTheme.lightCardShadow,
+                ],
         ),
         padding: EdgeInsets.all(size * 0.1),
         child: logo,
@@ -110,16 +119,16 @@ class AppLogo extends StatelessWidget {
                   ),
                 ]
               : [
-                  // Light mode: subtle, soft glow
+                  // Light mode: subtle glow
                   BoxShadow(
-                    color: AppTheme.primaryBrightBlue.withValues(alpha: 0.15),
-                    blurRadius: size * 0.25,
-                    spreadRadius: size * 0.02,
+                    color: AppTheme.primaryElectricBlue.withValues(alpha: 0.1),
+                    blurRadius: size * 0.2,
+                    spreadRadius: size * 0.01,
                   ),
                   BoxShadow(
-                    color: AppTheme.accentCyan.withValues(alpha: 0.08),
-                    blurRadius: size * 0.4,
-                    spreadRadius: size * 0.05,
+                    color: AppTheme.accentCyan.withValues(alpha: 0.06),
+                    blurRadius: size * 0.3,
+                    spreadRadius: size * 0.02,
                   ),
                 ],
         ),

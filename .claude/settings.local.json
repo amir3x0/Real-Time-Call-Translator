@@ -16,7 +16,13 @@
       "Bash(docker compose logs:*)",
       "Bash(flutter devices:*)",
       "Bash(dir:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(for file in lib/widgets/*.dart lib/widgets/*/*.dart)",
+      "Bash(do if [ -f \"$file\" ])",
+      "Bash(then basename \"$file\")",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(dart run:*)"
     ]
   }
 }

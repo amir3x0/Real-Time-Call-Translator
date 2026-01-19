@@ -14,7 +14,6 @@ import 'models/call.dart';
 import 'screens/auth/register_voice_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/call/active_call_screen.dart';
-import 'screens/call/select_participants_screen.dart';
 import 'screens/call/call_confirmation_screen.dart';
 import 'screens/call/incoming_call_screen.dart';
 import 'screens/contacts/contacts_screen.dart';
@@ -230,7 +229,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             '/home': (context) => const HomeScreen(),
 
             // Call Flow (ordered)
-            '/call/select': (context) => const SelectParticipantsScreen(),
             '/call/confirm': (context) => const CallConfirmationScreen(),
             '/call/incoming': (context) => const IncomingCallScreen(),
             '/call/active': (context) => const ActiveCallScreen(),

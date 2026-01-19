@@ -578,9 +578,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              c.displayName,
-                              style: AppTheme.titleMedium
-                                  .copyWith(fontWeight: FontWeight.w600),
+                              c.fullName ?? c.displayName,
+                              style: AppTheme.titleMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.getTextColor(context),
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Row(
@@ -923,12 +925,23 @@ class _GradientAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = [
-      AppTheme.primaryElectricBlue,
-      AppTheme.secondaryPurple,
-      AppTheme.successGreen,
-      const Color(0xFF06B6D4),
-    ];
+    final isDark = AppTheme.isDarkMode(context);
+
+    // Different color palettes for light and dark modes
+    final colors = isDark
+        ? [
+            AppTheme.primaryElectricBlue,
+            AppTheme.secondaryPurple,
+            AppTheme.successGreen,
+            const Color(0xFF06B6D4),
+          ]
+        : [
+            const Color(0xFF3B82F6), // Softer blue for light mode
+            const Color(0xFF8B5CF6), // Softer purple for light mode
+            const Color(0xFF10B981), // Softer green for light mode
+            const Color(0xFF0891B2), // Softer cyan for light mode
+          ];
+
     // Use name hash for consistent color
     final colorIndex = name.hashCode.abs() % colors.length;
     final nextIndex = (colorIndex + 1) % colors.length;
@@ -945,8 +958,8 @@ class _GradientAvatar extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: colors[colorIndex].withValues(alpha: 0.3),
-            blurRadius: 8,
+            color: colors[colorIndex].withValues(alpha: isDark ? 0.3 : 0.25),
+            blurRadius: isDark ? 8 : 6,
             offset: const Offset(0, 2),
           ),
         ],

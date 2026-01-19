@@ -409,8 +409,10 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
             // review controls
             if (_state == RecorderState.reviewing ||
                 _state == RecorderState.playing)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
                 children: [
                   _pillButton(
                     _state == RecorderState.playing
@@ -419,9 +421,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                     _state == RecorderState.playing ? 'Pause' : 'Play',
                     _playRecording,
                   ),
-                  const SizedBox(width: 12),
                   _pillButton(Icons.delete_outline, 'Delete', _deleteRecording),
-                  const SizedBox(width: 12),
                   _pillButton(
                     Icons.cloud_upload_outlined,
                     'Upload',

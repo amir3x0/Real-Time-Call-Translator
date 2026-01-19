@@ -17,9 +17,6 @@ class AppRoutes {
   static const String home = '/home';
 
   // ========== Call Flow ==========
-  /// Select participants for a new call
-  static const String selectParticipants = '/call/select';
-  
   /// Confirm call before starting (shows participants + languages)
   static const String callConfirmation = '/call/confirm';
   
@@ -51,8 +48,7 @@ class AppRoutes {
 
   /// Check if route is part of call flow
   static bool isCallRoute(String route) {
-    return route == selectParticipants || 
-           route == callConfirmation || 
+    return route == callConfirmation ||
            route == incomingCall ||
            route == activeCall;
   }
@@ -64,7 +60,6 @@ class AppRoutes {
       case register: return 'Register';
       case voiceSetup: return 'Voice Setup';
       case home: return 'Home';
-      case selectParticipants: return 'Select Participants';
       case callConfirmation: return 'Call Confirmation';
       case incomingCall: return 'Incoming Call';
       case activeCall: return 'Active Call';

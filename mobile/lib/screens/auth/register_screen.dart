@@ -20,7 +20,6 @@ class _RegisterScreenState extends State<RegisterScreen>
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
   String? _error;
-  final bool _isLoading = false;
   String _selectedLang = 'en';
   late AnimationController _backgroundController;
 
@@ -456,9 +455,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         child: InkWell(
           key: const Key('register-create-account'),
           borderRadius: AppTheme.borderRadiusPill,
-          onTap: _isLoading
-              ? null
-              : () {
+          onTap: () {
                   // Basic validation
                   if (_nameController.text.trim().isEmpty) {
                     setState(() => _error = 'Please enter your name');
@@ -489,26 +486,17 @@ class _RegisterScreenState extends State<RegisterScreen>
                   Navigator.of(context).pushReplacementNamed('/register/voice');
                 },
           child: Center(
-            child: _isLoading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.rocket_launch, color: Colors.white),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Create Account',
-                        style: AppTheme.labelLarge.copyWith(fontSize: 16),
-                      ),
-                    ],
-                  ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.rocket_launch, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(
+                  'Create Account',
+                  style: AppTheme.labelLarge.copyWith(fontSize: 16),
+                ),
+              ],
+            ),
           ),
         ),
       ),
