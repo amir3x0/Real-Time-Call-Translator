@@ -132,27 +132,11 @@ class _LoginScreenState extends State<LoginScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Logo with glow effect - Theme Aware
-                    const Center(child: AppLogo.xlarge(showGlow: true))
+                    // Logo with title - Theme Aware
+                    const Center(child: AppLoginLogo())
                         .animate()
                         .fadeIn(duration: 600.ms)
                         .scale(delay: 200.ms, duration: 400.ms),
-
-                    const SizedBox(height: 24),
-
-                    // Title - Theme Aware
-                    Text(
-                      "Real-Time\nCall Translator",
-                      textAlign: TextAlign.center,
-                      style: AppTheme.headlineLarge.copyWith(
-                        fontSize: 36,
-                        height: 1.2,
-                        color: AppTheme.getTextColor(context),
-                      ),
-                    )
-                        .animate()
-                        .fadeIn(delay: 400.ms, duration: 600.ms)
-                        .slideY(begin: 0.3, end: 0, duration: 600.ms),
 
                     const SizedBox(height: 12),
 

@@ -22,7 +22,12 @@
       "Bash(then basename \"$file\")",
       "Bash(fi)",
       "Bash(done)",
-      "Bash(dart run:*)"
+      "Bash(dart run:*)",
+      "Bash(copy \"c:\\\\Users\\\\USER\\\\Downloads\\\\transparent_logo.png\" \"D:\\\\studies\\\\Final Project\\\\Real-Time-Call-Translator\\\\mobile\\\\assets\\\\images\\\\app_icon.png\")",
+      "Bash(copy \"c:\\\\Users\\\\USER\\\\Downloads\\\\transparent_logo.png\" \"D:\\\\studies\\\\Final Project\\\\Real-Time-Call-Translator\\\\mobile\\\\assets\\\\images\\\\app_logo.png\")",
+      "Bash(flutter pub run:*)",
+      "Bash(magick:*)",
+      "Bash(python -c:*)"
     ]
   }
 }

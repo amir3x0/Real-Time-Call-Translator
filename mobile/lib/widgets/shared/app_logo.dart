@@ -140,6 +140,54 @@ class AppLogo extends StatelessWidget {
   }
 }
 
+/// Logo with "REAL-TIME CALL TRANSLATOR" text for login screen.
+/// Text colors adapt to light/dark mode.
+class AppLoginLogo extends StatelessWidget {
+  final double logoSize;
+  final bool showGlow;
+
+  const AppLoginLogo({
+    super.key,
+    this.logoSize = 120,
+    this.showGlow = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDarkMode(context);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Logo icon with glow
+        AppLogo(size: logoSize, showGlow: showGlow),
+        const SizedBox(height: 24),
+        // "REAL-TIME" text - light blue
+        const Text(
+          'REAL-TIME',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: AppTheme.primaryElectricBlue,
+            letterSpacing: 2,
+          ),
+        ),
+        // "CALL TRANSLATOR" text - dark/light based on theme
+        Text(
+          'CALL\nTRANSLATOR',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.w800,
+            height: 1.1,
+            color: isDark ? Colors.white : const Color(0xFF2D3436),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Logo with app name text beside it
 class AppLogoWithTitle extends StatelessWidget {
   final double logoSize;
