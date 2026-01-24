@@ -107,6 +107,14 @@ MAX_ACCUMULATED_AUDIO_TIME_SEC: float = 1.2
 # Message deduplication TTL (seconds)
 MESSAGE_DEDUP_TTL_SEC: float = 30.0
 
+# Transcript publish deduplication TTL (seconds)
+# Prevents same transcript from being published by both streaming and batch pipelines
+TRANSCRIPT_PUBLISH_DEDUP_TTL_SEC: float = 5.0
+
+# Audio content deduplication TTL (seconds)
+# Prevents duplicate audio chunks from being processed multiple times
+AUDIO_CONTENT_DEDUP_TTL_SEC: float = 5.0
+
 # Error recovery sleep duration (seconds)
 ERROR_RECOVERY_SLEEP_SEC: float = 0.5
 
@@ -272,24 +280,3 @@ LANGUAGE_CODE_MAP: dict[str, str] = {
 
 # Supported languages for the application
 SUPPORTED_LANGUAGES: list[str] = ["en", "he", "ru"]
-
-# ==============================================================================
-# STREAMING TRANSLATION PIPELINE (Low-Latency Mode)
-# ==============================================================================
-
-# Enable streaming STT -> translation path (bypasses batch STT for lower latency)
-# When True: Uses streaming STT final results to trigger immediate translation
-# When False: Falls back to pause-based batch STT (higher latency but more stable)
-ENABLE_STREAMING_TRANSLATION: bool = True
-
-# Minimum transcript length (chars) to trigger streaming translation
-# Avoids processing very short utterances like "um" or single words
-STREAMING_MIN_TRANSCRIPT_CHARS: int = 5
-
-# Maximum time to wait for streaming STT before falling back to batch (seconds)
-# If streaming STT doesn't produce a result within this time, batch STT takes over
-STREAMING_FALLBACK_TIMEOUT_SEC: float = 3.0
-
-# Deduplication window for streaming translations (seconds)
-# Prevents duplicate translations when both streaming and batch paths process same audio
-STREAMING_DEDUP_WINDOW_SEC: float = 2.0

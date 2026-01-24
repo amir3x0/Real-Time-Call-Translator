@@ -343,13 +343,18 @@ class GCPSpeechPipeline:
     ):
         """
         Transcribe audio stream using Google Cloud Speech-to-Text Streaming API.
-        
+
+        Used for real-time interim captions (typing indicator).
+        Translations are handled separately by the batch pipeline.
+
         Args:
             audio_generator: Iterator that yields bytes chunks.
             language_code: Language code for recognition.
-            
+
         Yields:
-            str: Final transcriptions.
+            Tuple[str, bool]: (transcript, is_final)
+            - transcript: The transcribed text
+            - is_final: True for final results, False for interim
         """
         if language_code.startswith("en"):
             model = "latest_long"
@@ -422,7 +427,7 @@ class GCPSpeechPipeline:
                 
                 if result.is_final:
                     if transcript:
-                        # Reset interim tracking on final result
+                        logger.info(f"[GCP Streaming] Final: '{transcript[:50]}...'")
                         last_interim_transcript = ""
                         yield transcript, True
                 else:

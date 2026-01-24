@@ -26,7 +26,6 @@ from app.services.interim_caption_service import (
     stop_interim_session,
     get_interim_caption_service,
 )
-from app.services.translation.streaming import get_streaming_processor
 from app.config.settings import settings
 from app.config.constants import (
     AUDIO_SAMPLE_RATE, AUDIO_BYTES_PER_SAMPLE,
@@ -43,7 +42,11 @@ from app.services.audio.speech_detector import speech_detector
 from app.services.audio.stream_manager import stream_manager
 from app.services.audio.chunker import AudioChunker, ChunkResult, run_chunker_loop
 # Core infrastructure components
-from app.services.core.deduplicator import message_deduplicator
+from app.services.core.deduplicator import (
+    message_deduplicator,
+    audio_content_deduplicator,
+    transcript_publish_deduplicator,
+)
 from app.services.core.repositories import call_repository
 from app.services.translation.processor import TranslationProcessor
 from app.services.metrics import (
@@ -74,6 +77,15 @@ _shutdown_flag = False
 # === OPTION C: Hybrid Context Preservation (Pause-based + Smart Merging) ===
 
 @dataclass
+class SegmentInfo:
+    """Represents a processed segment with publish tracking."""
+    transcript: str
+    translation: str
+    timestamp: float
+    published: bool = False
+
+
+@dataclass
 class SegmentBuffer:
     """
     Option C: Hybrid approach combining pause-based segmentation with
@@ -92,7 +104,7 @@ class SegmentBuffer:
     CLAUSE_ENDINGS: Tuple[str, ...] = ('.', '!', '?', ',')  # Include comma for Option C
 
     # State
-    segments: List[Tuple[str, str, float]] = field(default_factory=list)  # (transcript, translation, timestamp)
+    segments: List[SegmentInfo] = field(default_factory=list)
     full_context: str = ""  # All transcripts accumulated
 
     def should_merge_with_previous(self, new_transcript: str, timestamp: float) -> bool:
@@ -100,15 +112,20 @@ class SegmentBuffer:
         if not self.segments:
             return False
 
-        last_transcript, last_translation, last_time = self.segments[-1]
-        time_diff = timestamp - last_time
+        last_segment = self.segments[-1]
+
+        # Don't merge with already-published segments
+        if last_segment.published:
+            return False
+
+        time_diff = timestamp - last_segment.timestamp
 
         # Merge if:
         # - New fragment < 5 words AND within time window
         # - Previous segment doesn't end with sentence punctuation
         if (len(new_transcript.split()) < self.MIN_WORDS_TO_KEEP_SEPARATE and
             time_diff < self.MERGE_TIME_WINDOW and
-            not last_transcript.rstrip().endswith(self.SENTENCE_ENDINGS)):
+            not last_segment.transcript.rstrip().endswith(self.SENTENCE_ENDINGS)):
             return True
 
         return False
@@ -121,24 +138,28 @@ class SegmentBuffer:
         if len(self.segments) < 2:
             return False
 
-        t1, trans1, time1 = self.segments[-2]
-        t2, trans2, time2 = self.segments[-1]
+        seg1 = self.segments[-2]
+        seg2 = self.segments[-1]
+
+        # Don't merge if either segment is already published
+        if seg1.published or seg2.published:
+            return False
 
         # Merge if:
         # - Both short fragments (<= 5 words each)
         # - Close together (< 1 second)
         # - No sentence boundary between them (no . ! ? ,)
-        if (len(t1.split()) <= self.MIN_WORDS_TO_KEEP_SEPARATE and
-            len(t2.split()) <= self.MIN_WORDS_TO_KEEP_SEPARATE and
-            (time2 - time1) < self.MERGE_TIME_WINDOW and
-            not t1.rstrip().endswith(self.CLAUSE_ENDINGS)):
+        if (len(seg1.transcript.split()) <= self.MIN_WORDS_TO_KEEP_SEPARATE and
+            len(seg2.transcript.split()) <= self.MIN_WORDS_TO_KEEP_SEPARATE and
+            (seg2.timestamp - seg1.timestamp) < self.MERGE_TIME_WINDOW and
+            not seg1.transcript.rstrip().endswith(self.CLAUSE_ENDINGS)):
             return True
 
         return False
 
     def add_segment(self, transcript: str, translation: str, timestamp: float):
         """Add a new segment to the buffer."""
-        self.segments.append((transcript, translation, timestamp))
+        self.segments.append(SegmentInfo(transcript, translation, timestamp, False))
         self.full_context += " " + transcript
 
         # Bound context string to prevent memory leak (same as StreamContext)
@@ -154,16 +175,21 @@ class SegmentBuffer:
         if len(self.segments) < 1:
             return ("", "")
 
-        last_transcript, _, last_time = self.segments.pop()
-        merged_transcript = last_transcript
+        last_segment = self.segments.pop()
+        merged_transcript = last_segment.transcript
 
         # Update the last segment with merged content
         if self.segments:
-            prev_transcript, _, _ = self.segments.pop()
-            merged_transcript = prev_transcript + " " + last_transcript
+            prev_segment = self.segments.pop()
+            merged_transcript = prev_segment.transcript + " " + last_segment.transcript
 
-        self.segments.append((merged_transcript, new_translation, timestamp))
+        self.segments.append(SegmentInfo(merged_transcript, new_translation, timestamp, False))
         return (merged_transcript, new_translation)
+
+    def mark_all_published(self):
+        """Mark all segments as published to prevent re-merging."""
+        for segment in self.segments:
+            segment.published = True
 
     async def finalize_for_publish(self, pipeline, source_lang: str, target_lang: str, loop) -> Optional[Tuple[str, str]]:
         """
@@ -176,10 +202,10 @@ class SegmentBuffer:
         # Keep merging while should_merge_recent() is True
         merge_count = 0
         while self.should_merge_recent():
-            t1, trans1, time1 = self.segments.pop(-2)
-            t2, trans2, time2 = self.segments.pop(-1)
+            seg1 = self.segments.pop(-2)
+            seg2 = self.segments.pop(-1)
 
-            merged_t = t1 + " " + t2
+            merged_t = seg1.transcript + " " + seg2.transcript
 
             # Re-translate merged text with context (Phase 4)
             context = self.get_context_for_translation()
@@ -193,15 +219,16 @@ class SegmentBuffer:
                 )
 
             merged_trans = await loop.run_in_executor(get_gcp_executor(), translate_merged)
-            self.segments.append((merged_t, merged_trans, time2))
+            self.segments.append(SegmentInfo(merged_t, merged_trans, seg2.timestamp, False))
             merge_count += 1
 
-            logger.info(f"🔗 Finalize merge: '{t1}' + '{t2}' -> '{merged_t}'")
+            logger.info(f"🔗 Finalize merge: '{seg1.transcript}' + '{seg2.transcript}' -> '{merged_t}'")
 
         if merge_count > 0:
             logger.info(f"📦 Finalized {merge_count} merge(s)")
 
-        return self.segments[-1][:2] if self.segments else None
+        last_segment = self.segments[-1] if self.segments else None
+        return (last_segment.transcript, last_segment.translation) if last_segment else None
 
     def get_context_for_translation(self, max_chars: int = TRANSLATION_CONTEXT_MAX_CHARS) -> str:
         """Get recent context to help with translation (Phase 4)."""
@@ -314,10 +341,10 @@ async def handle_audio_stream(
 
             if should_merge and segment_buffer.segments:
                 # Merge with previous segment
-                last_transcript, last_translation, _ = segment_buffer.segments[-1]
-                merged_transcript = last_transcript + " " + transcript
+                last_segment = segment_buffer.segments[-1]
+                merged_transcript = last_segment.transcript + " " + transcript
 
-                logger.info(f"🔗 Merging segments: '{last_transcript}' + '{transcript}' -> '{merged_transcript}'")
+                logger.info(f"🔗 Merging segments: '{last_segment.transcript}' + '{transcript}' -> '{merged_transcript}'")
 
                 # Re-translate merged transcript with context (Phase 4)
                 def translate_merged():
@@ -399,8 +426,17 @@ async def handle_audio_stream(
             }
 
             channel = f"channel:translation:{session_id}"
+
+            # Transcript publish deduplication - prevent duplicate from streaming pipeline
+            if not transcript_publish_deduplicator.should_publish(session_id, speaker_id, transcript):
+                logger.info(f"⏭️ Skipping batch publish - already published by streaming pipeline")
+                return
+
             await redis.publish(channel, json.dumps(payload))
             logger.info(f"✅ Published translation result to {channel}")
+
+            # Mark segments as published to prevent re-merging
+            segment_buffer.mark_all_published()
 
         except Exception as e:
             logger.error(f"Error processing accumulated audio: {e}")
@@ -554,6 +590,12 @@ async def handle_audio_stream(
                 }
 
                 channel = f"channel:translation:{session_id}"
+
+                # Transcript publish deduplication - prevent duplicate from streaming pipeline
+                if not transcript_publish_deduplicator.should_publish(session_id, speaker_id, transcript):
+                    logger.info(f"⏭️ Skipping batch publish - already published by streaming pipeline")
+                    continue
+
                 await redis.publish(channel, json.dumps(payload))
                 logger.info(f"✅ Published translation to {result['target_lang']} for {len(result['recipient_ids'])} recipients")
 
@@ -563,6 +605,10 @@ async def handle_audio_stream(
             # Update segment buffer (use first translation for context)
             if results and not isinstance(results[0], Exception) and results[0] is not None:
                 segment_buffer.add_segment(transcript, results[0]["translation"], start_time)
+
+            # Mark segments as published to prevent re-merging
+            if successful_count > 0:
+                segment_buffer.mark_all_published()
 
             total_latency = time.time() - start_time
             logger.info(f"⏱️ Total multiparty processing time: {total_latency:.2f}s ({successful_count} languages)")
@@ -618,41 +664,55 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
         if not audio_data:
             return
 
+        # Audio content deduplication - catch duplicate audio regardless of message ID
+        if audio_content_deduplicator.is_duplicate_audio(audio_data):
+            logger.debug(f"Skipping duplicate audio content")
+            return
+
         # Get metadata
         source_lang = data.get(b"source_lang", b"he-IL").decode("utf-8")
         # Phase 3: target_lang removed - determined by worker from database
         speaker_id = data.get(b"speaker_id", b"unknown").decode("utf-8")
         session_id = data.get(b"session_id", b"unknown").decode("utf-8")
 
-        # OOP Refactor: Use StreamManager instead of global dicts
-        # Check if we have an active stream
-        if not stream_manager.has_stream(session_id, speaker_id):
-            # Start new stream with StreamManager
-            audio_queue = stream_manager.create_stream(session_id, speaker_id)
+        # =================================================================
+        # HYBRID MODE: Streaming for interim captions, Batch for translations
+        #
+        # Architecture:
+        # - Streaming STT → interim captions (real-time typing feedback)
+        # - Batch STT → translations (at each pause, better quality)
+        #
+        # This gives users:
+        # 1. Real-time "typing" feedback via interim captions
+        # 2. Accurate translations at each natural pause
+        #
+        # NOTE: We do NOT pass on_final_transcript to streaming because
+        # that would trigger streaming translations which duplicate batch.
+        # =================================================================
 
-            # Start the pause-based audio processing task
+        # Start batch pipeline for translations (pause-based chunks)
+        if not stream_manager.has_stream(session_id, speaker_id):
+            audio_queue = stream_manager.create_stream(session_id, speaker_id)
             task = asyncio.create_task(handle_audio_stream(
                 session_id, speaker_id, source_lang, audio_queue
             ))
             stream_manager.set_task(session_id, speaker_id, task)
 
-        # Push chunk to queue
+        # Push to batch pipeline for translation
         stream_manager.push_audio(session_id, speaker_id, audio_data)
 
-        # DUAL-STREAM: Push to interim caption service for real-time captions + streaming translation
-        # The streaming processor callback is invoked when STT produces a final result,
-        # enabling sub-2-second latency by bypassing the batch STT path
+        # Push to streaming pipeline for INTERIM CAPTIONS ONLY
+        # No on_final_transcript callback = no streaming translation
         try:
-            streaming_processor = get_streaming_processor()
             await push_audio_for_interim(
                 session_id,
                 speaker_id,
                 source_lang,
                 audio_data,
-                on_final_transcript=streaming_processor.process_final_transcript
+                on_final_transcript=None  # <-- No streaming translation!
             )
         except Exception as e:
-            logger.debug(f"Interim caption push failed (non-critical): {e}")
+            logger.debug(f"Interim caption push failed: {e}")
 
         # Acknowledge message
         await redis.xack(stream_key, "audio_group", message_id)

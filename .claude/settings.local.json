@@ -27,7 +27,13 @@
       "Bash(copy \"c:\\\\Users\\\\USER\\\\Downloads\\\\transparent_logo.png\" \"D:\\\\studies\\\\Final Project\\\\Real-Time-Call-Translator\\\\mobile\\\\assets\\\\images\\\\app_logo.png\")",
       "Bash(flutter pub run:*)",
       "Bash(magick:*)",
-      "Bash(python -c:*)"
+      "Bash(python -c:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose ps:*)"
     ]
   }
 }

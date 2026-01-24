@@ -1,24 +1,45 @@
 """
-Message Deduplicator - TTL-based deduplication utility.
+Deduplication Utilities - TTL-based deduplication mechanisms.
 
-This module provides a reusable message deduplication mechanism that
-tracks processed message IDs with automatic expiration to prevent
-duplicate processing.
+This module provides reusable deduplication mechanisms for:
+- Message IDs (Redis stream processing)
+- Transcript publishing (prevent duplicate translations from both pipelines)
+- Audio content (prevent processing duplicate audio chunks)
 
 Usage:
-    from app.services.core.deduplicator import message_deduplicator
+    from app.services.core.deduplicator import (
+        message_deduplicator,
+        transcript_publish_deduplicator,
+        audio_content_deduplicator,
+    )
 
+    # Message deduplication
     if message_deduplicator.is_duplicate(message_id):
         return  # Skip duplicate
 
-    # Process message...
+    # Transcript publish deduplication (streaming-first mode)
+    if not transcript_publish_deduplicator.should_publish(session_id, speaker_id, transcript):
+        return  # Already published by other pipeline
+
+    # Audio content deduplication
+    if audio_content_deduplicator.is_duplicate_audio(audio_data):
+        return  # Skip duplicate audio chunk
 """
 
+import hashlib
+import logging
+import threading
 import time
 from typing import Dict
 from dataclasses import dataclass, field
 
-from app.config.constants import MESSAGE_DEDUP_TTL_SEC
+from app.config.constants import (
+    MESSAGE_DEDUP_TTL_SEC,
+    TRANSCRIPT_PUBLISH_DEDUP_TTL_SEC,
+    AUDIO_CONTENT_DEDUP_TTL_SEC,
+)
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -104,5 +125,138 @@ class MessageDeduplicator:
         }
 
 
-# Global singleton instance
+@dataclass
+class TranscriptPublishDeduplicator:
+    """
+    Prevents duplicate translation publishes from streaming and batch pipelines.
+
+    When both streaming and batch pipelines produce translations for the same
+    audio, this ensures only the first one gets published. Uses a combination
+    of session_id, speaker_id, and normalized transcript as the key.
+
+    Thread-safe: Protected by a lock for concurrent access.
+
+    Attributes:
+        ttl_seconds: How long to remember published transcripts
+    """
+
+    ttl_seconds: float = TRANSCRIPT_PUBLISH_DEDUP_TTL_SEC
+    _published: Dict[str, float] = field(default_factory=dict)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def should_publish(self, session_id: str, speaker_id: str, transcript: str) -> bool:
+        """
+        Check if this transcript should be published.
+
+        Returns True if this is the first publish attempt for this transcript,
+        False if another pipeline already published it.
+
+        Args:
+            session_id: Call session ID
+            speaker_id: Speaker user ID
+            transcript: The transcript text
+
+        Returns:
+            True if OK to publish (first attempt),
+            False if already published by other pipeline
+        """
+        # Normalize transcript for comparison
+        normalized = transcript.strip().lower()
+        key = f"{session_id}:{speaker_id}:{normalized}"
+        now = time.time()
+
+        with self._lock:
+            # Cleanup expired entries
+            expired = [
+                k for k, ts in self._published.items()
+                if now - ts > self.ttl_seconds
+            ]
+            for k in expired:
+                del self._published[k]
+
+            # Check if already published
+            if key in self._published:
+                logger.debug(f"Transcript already published: '{transcript[:30]}...'")
+                return False
+
+            # Mark as published
+            self._published[key] = now
+            return True
+
+    def clear(self):
+        """Clear all tracked transcripts."""
+        with self._lock:
+            self._published.clear()
+
+    def get_stats(self) -> dict:
+        """Get deduplication statistics."""
+        with self._lock:
+            return {"tracked_count": len(self._published)}
+
+
+@dataclass
+class AudioContentDeduplicator:
+    """
+    Prevents processing duplicate audio chunks.
+
+    Uses a hash of the audio content to detect duplicates, regardless of
+    the message ID. This catches cases where the same audio is sent
+    multiple times with different message IDs (reconnection, retry, etc).
+
+    Attributes:
+        ttl_seconds: How long to remember processed audio hashes
+    """
+
+    ttl_seconds: float = AUDIO_CONTENT_DEDUP_TTL_SEC
+    _processed: Dict[str, float] = field(default_factory=dict)
+
+    def is_duplicate_audio(self, audio_data: bytes) -> bool:
+        """
+        Check if this audio chunk was already processed.
+
+        Uses a hash of the first 1KB + length as a fingerprint for efficiency.
+
+        Args:
+            audio_data: Raw audio bytes
+
+        Returns:
+            True if this audio was already processed (duplicate),
+            False if this is new audio
+        """
+        # Create fingerprint from first 1KB + length
+        # This is faster than hashing the entire chunk while still being unique
+        fingerprint = hashlib.md5(
+            audio_data[:1024] + len(audio_data).to_bytes(4, 'big')
+        ).hexdigest()
+
+        now = time.time()
+
+        # Cleanup expired entries
+        expired = [
+            k for k, ts in self._processed.items()
+            if now - ts > self.ttl_seconds
+        ]
+        for k in expired:
+            del self._processed[k]
+
+        # Check if already processed
+        if fingerprint in self._processed:
+            return True
+
+        # Mark as processed
+        self._processed[fingerprint] = now
+        return False
+
+    def clear(self):
+        """Clear all tracked audio hashes."""
+        self._processed.clear()
+
+    def get_stats(self) -> dict:
+        """Get deduplication statistics."""
+        return {"tracked_count": len(self._processed)}
+
+
+# Global singleton instances
 message_deduplicator = MessageDeduplicator()
+transcript_publish_deduplicator = TranscriptPublishDeduplicator()
+audio_content_deduplicator = AudioContentDeduplicator()

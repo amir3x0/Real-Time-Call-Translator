@@ -40,6 +40,10 @@ class CallProvider with ChangeNotifier {
   /// Callback invoked when call ends remotely
   OnCallEndedCallback? onCallEnded;
 
+  /// Client-side deduplication: Tracks recently processed translations
+  /// to prevent duplicate display when both streaming and batch pipelines publish
+  final Set<String> _recentTranslationKeys = {};
+
   // Services
   final WebSocketService _wsService;
   final CallApiService _apiService;
@@ -311,6 +315,7 @@ class CallProvider with ChangeNotifier {
     _captionManager.clearBubbles();
     _transcriptionManager.clear();
     _interimCaptionManager.clearAll();
+    _recentTranslationKeys.clear(); // Clear dedup set to prevent memory leaks
     notifyListeners();
   }
 
@@ -351,6 +356,9 @@ class CallProvider with ChangeNotifier {
         break;
       case WSMessageType.interimTranscript:
         _handleInterimTranscript(message);
+        break;
+      case WSMessageType.interimClear:
+        _handleInterimClear(message);
         break;
       case WSMessageType.translation:
         _handleTranslation(message);
@@ -419,6 +427,20 @@ class CallProvider with ChangeNotifier {
     debugPrint('[CallProvider] sourceLanguage: $sourceLanguage');
     debugPrint('[CallProvider] targetLanguage: $targetLanguage');
     debugPrint('═══════════════════════════════════════════════════════════');
+
+    // --- Step 1.5: Client-side deduplication ---
+    // Prevents duplicate translations when both streaming and batch pipelines publish
+    final dedupKey = '$speakerId:${originalText.toLowerCase().trim()}';
+    if (_recentTranslationKeys.contains(dedupKey)) {
+      debugPrint('[CallProvider] ⏭️ Skipping duplicate translation: "$dedupKey"');
+      return;
+    }
+    _recentTranslationKeys.add(dedupKey);
+
+    // Auto-remove from dedup set after 5 seconds (TTL-based cleanup)
+    Future.delayed(const Duration(seconds: 5), () {
+      _recentTranslationKeys.remove(dedupKey);
+    });
 
     // --- Step 2: Handling self vs others ---
     final isSelf = speakerId.isNotEmpty && speakerId == _currentUserId;
@@ -575,6 +597,25 @@ class CallProvider with ChangeNotifier {
 
       debugPrint('[CallProvider] Added self-transcription to history: "$text"');
     }
+  }
+
+  /// Handle interim clear signal from backend
+  /// This is sent when streaming STT produces a final result, before translation
+  void _handleInterimClear(WSMessage message) {
+    final speakerId = message.data?['speaker_id'] as String?;
+
+    if (speakerId == null) {
+      debugPrint('[CallProvider] ⚠️ interim_clear missing speaker_id');
+      return;
+    }
+
+    // Skip clearing our own interim (we don't display our own interim anyway)
+    if (speakerId == _currentUserId) {
+      return;
+    }
+
+    debugPrint('[CallProvider] 🧹 Clearing interim caption for speaker: $speakerId');
+    _interimCaptionManager.clearCaption(speakerId);
   }
 
   /// Get participant display name from user ID
