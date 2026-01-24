@@ -16,7 +16,7 @@ from app.config.constants import (
     GCP_STT_SAMPLE_RATE_HZ, GCP_TTS_SAMPLE_RATE_HZ,
     GCP_STT_TIMEOUT_SEC, GCP_TRANSLATE_TIMEOUT_SEC, GCP_TTS_TIMEOUT_SEC,
     TTS_SPEAKING_RATE, TTS_PITCH,
-    CONTEXT_SNIPPET_MAX_CHARS, LANGUAGE_CODE_MAP,
+    LANGUAGE_CODE_MAP,
 )
 
 import logging
@@ -201,34 +201,6 @@ class GCPSpeechPipeline:
             logger.error(f"[GCP] Translate Error: {e}")
             return text  # Fallback to original text
 
-    def _get_clean_context(self, text: str, max_chars: int) -> str:
-        """
-        Slice context at word boundaries, not mid-word.
-
-        This ensures context doesn't end with partial words like "...he sa"
-        but instead ends at word boundaries like "...he said".
-
-        Args:
-            text: The context text to slice
-            max_chars: Maximum characters to keep
-
-        Returns:
-            Context string sliced at word boundary
-        """
-        if not text or len(text) <= max_chars:
-            return text.strip() if text else ""
-
-        # Take last max_chars characters
-        truncated = text[-max_chars:]
-
-        # Find first space to start at word boundary
-        first_space = truncated.find(' ')
-        if first_space > 0 and first_space < len(truncated) - 1:
-            # Skip partial word at the beginning
-            return truncated[first_space:].strip()
-
-        return truncated.strip()
-
     def _translate_text_with_context(
         self,
         text: str,
@@ -238,68 +210,30 @@ class GCPSpeechPipeline:
         target_language_code: str,
     ) -> str:
         """
-        Translate text with context from previous segments (Phase 4).
+        Translate text with context awareness.
 
-        This helps the translation API understand the conversation flow
-        and produce more coherent translations.
+        NOTE: Context prefix approach was disabled because Google Translate
+        would translate the context prefix and the stripping logic failed,
+        causing the entire conversation history to appear in translations.
+
+        For now, we just use regular translation. Future improvement could
+        use a proper conversational translation API.
 
         Args:
             text: The text to translate
-            context_history: Previous transcript text for context
+            context_history: Previous transcript text (currently unused)
             source_language_code: Source language (e.g., "en")
             target_language_code: Target language (e.g., "he")
 
         Returns:
             Translated text
         """
-        # Skip translation if source and target languages are the same
-        # GCP Translate API returns 400 error for source == target
-        if source_language_code == target_language_code:
-            logger.debug(f"[GCP] Skipping context translation - same language: {source_language_code}")
-            return text
-
-        # If no context, use regular translation
-        if not context_history or len(context_history.strip()) == 0:
-            return self._translate_text(
-                text,
-                source_language_code=source_language_code,
-                target_language_code=target_language_code
-            )
-
-        # Create a context-aware prompt
-        # Note: GCP Translate doesn't have native context support,
-        # so we format the context as a hint that helps with coherence
-        # Use word-boundary aware slicing to avoid cutting mid-word
-        context_snippet = self._get_clean_context(context_history, CONTEXT_SNIPPET_MAX_CHARS)
-        
-        # Format: Translate the continuation of a conversation
-        # The context helps with pronouns, subject continuity, etc.
-        text_with_context = f"[...{context_snippet}] {text}"
-        
-        try:
-            result = self._translate_text(
-                text_with_context,
-                source_language_code=source_language_code,
-                target_language_code=target_language_code
-            )
-            
-            # Remove any translated context prefix if present
-            # (GCP might translate the [...] part)
-            if result.startswith("[") and "]" in result:
-                # Find the closing bracket and skip past it
-                bracket_end = result.index("]") + 1
-                result = result[bracket_end:].strip()
-            
-            logger.info(f"[GCP] Context-aware translation: '{text}' -> '{result}' (with {len(context_snippet)} chars context)")
-            return result
-            
-        except Exception as e:
-            logger.warning(f"Context-aware translation failed: {e}, falling back to regular translation")
-            return self._translate_text(
-                text,
-                source_language_code=source_language_code,
-                target_language_code=target_language_code
-            )
+        # Just use regular translation - context prefix approach was buggy
+        return self._translate_text(
+            text,
+            source_language_code=source_language_code,
+            target_language_code=target_language_code
+        )
 
     def _synthesize(
         self,
