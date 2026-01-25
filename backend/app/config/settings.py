@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: str | None = Field(default=None)
     GOOGLE_PROJECT_ID: str | None = Field(default=None)
 
+    # Vertex AI region (for Gemini context resolution)
+    VERTEX_AI_LOCATION: str = Field(default="us-central1")
+
     # App
     API_HOST: str = Field(default="0.0.0.0")
     API_PORT: int = Field(default=8000)

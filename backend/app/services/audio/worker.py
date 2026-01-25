@@ -49,6 +49,7 @@ from app.services.core.deduplicator import (
 )
 from app.services.core.repositories import get_call_repository
 from app.services.translation.processor import TranslationProcessor
+from app.services.translation.context_resolver import get_context_resolver
 from app.services.metrics import (
     audio_processing_latency,
     segments_processed,
@@ -333,11 +334,30 @@ async def handle_audio_stream(
 
             logger.info(f"📝 Transcript: '{transcript}'")
 
-            # === OPTION C: Context-aware merging with Phase 4 context hints ===
-            should_merge = segment_buffer.should_merge_with_previous(transcript, start_time)
-
             # Get context for Phase 4 context-aware translation
             context = segment_buffer.get_context_for_translation()
+
+            # === Context Resolution (Gemini LLM) ===
+            # Resolve ambiguous pronouns/references before translation
+            original_transcript = transcript
+            try:
+                resolver = get_context_resolver()
+                if resolver.is_enabled() and context:
+                    resolve_start = time.time()
+                    transcript = await resolver.resolve(transcript, context, source_lang[:2])
+                    resolve_latency = time.time() - resolve_start
+
+                    if transcript != original_transcript:
+                        logger.info(
+                            f"🧠 Context resolved: '{original_transcript}' -> '{transcript}' "
+                            f"({resolve_latency:.2f}s)"
+                        )
+            except Exception as e:
+                logger.warning(f"Context resolution failed, using original: {e}")
+                transcript = original_transcript
+
+            # === OPTION C: Context-aware merging with Phase 4 context hints ===
+            should_merge = segment_buffer.should_merge_with_previous(transcript, start_time)
 
             if should_merge and segment_buffer.segments:
                 # Merge with previous segment
@@ -493,6 +513,27 @@ async def handle_audio_stream(
 
             # Get context for translation
             context = segment_buffer.get_context_for_translation()
+
+            # === STEP 2.5: Context Resolution (Gemini LLM) ===
+            # Resolve ambiguous pronouns/references before translation
+            original_transcript = transcript
+            try:
+                resolver = get_context_resolver()
+                if resolver.is_enabled() and context:
+                    resolve_start = time.time()
+                    transcript = await resolver.resolve(transcript, context, source_lang[:2])
+                    resolve_latency = time.time() - resolve_start
+
+                    if transcript != original_transcript:
+                        logger.info(
+                            f"🧠 Context resolved: '{original_transcript}' -> '{transcript}' "
+                            f"({resolve_latency:.2f}s)"
+                        )
+                    else:
+                        logger.debug(f"🧠 Context resolution: no changes ({resolve_latency:.2f}s)")
+            except Exception as e:
+                logger.warning(f"Context resolution failed, using original: {e}")
+                transcript = original_transcript
 
             # === STEP 3 & 4: Translate + TTS per language (parallel) ===
             async def process_language(tgt_lang, recipients):

@@ -76,6 +76,33 @@ TRANSLATION_CONTEXT_MAX_CHARS: int = 350
 CONTEXT_SNIPPET_MAX_CHARS: int = 250
 
 # ==============================================================================
+# CONTEXT RESOLVER (Gemini LLM)
+# ==============================================================================
+
+# Enable/disable context resolution (can be toggled without code changes)
+CONTEXT_RESOLUTION_ENABLED: bool = True
+
+# Gemini model to use (flash = fast/cheap, pro = better quality)
+GEMINI_MODEL_NAME: str = "gemini-1.5-flash"
+
+# Gemini generation parameters
+GEMINI_TEMPERATURE: float = 0.1  # Low creativity for accuracy
+GEMINI_MAX_OUTPUT_TOKENS: int = 256
+GEMINI_TOP_P: float = 0.8
+
+# Context resolution timeout (seconds) - fallback to original if exceeded
+CONTEXT_RESOLUTION_TIMEOUT_SEC: float = 2.0
+
+# Minimum context length to trigger resolution (chars)
+CONTEXT_MIN_LENGTH_FOR_RESOLUTION: int = 10
+
+# Minimum input length to trigger resolution (words)
+CONTEXT_MIN_WORDS_FOR_RESOLUTION: int = 2
+
+# Maximum output/input length ratio (sanity check)
+CONTEXT_MAX_OUTPUT_RATIO: float = 2.0
+
+# ==============================================================================
 # INTERIM CAPTION STREAMING
 # ==============================================================================
 
