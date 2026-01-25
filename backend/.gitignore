@@ -29,3 +29,7 @@ data/voice_samples/
 # --- Coverage ---
 .coverage
 htmlcov/
+
+# --- AI Collaboration ---
+claude/
+
