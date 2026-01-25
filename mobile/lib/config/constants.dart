@@ -106,7 +106,8 @@ class AppConstants {
   static const int interimCursorBlinkMs = 500;
 
   /// Interim caption auto-clear timeout if no updates (ms)
-  static const int interimCaptionTimeoutMs = 3000;
+  /// Reduced from 3000ms to 1500ms for faster Hebrew finalization
+  static const int interimCaptionTimeoutMs = 1500;
 
   /// Letter-by-letter typing animation speed (ms per character)
   static const int interimTypingSpeedMs = 30;

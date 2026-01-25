@@ -45,10 +45,10 @@ services:
       dockerfile: Dockerfile
     image: translator-backend
     container_name: translator_api
+    env_file:
+      - .env
     environment:
-      - DB_USER=translator_admin
-      - DB_PASSWORD=TranslatorPass2024
-      - DB_NAME=call_translator
+      # Override .env for Docker networking (use service names)
       - DB_HOST=postgres
       - DB_PORT=5432
       - REDIS_HOST=redis
@@ -79,10 +79,10 @@ services:
       dockerfile: Dockerfile
     image: translator-backend
     container_name: translator_worker
+    env_file:
+      - .env
     environment:
-      - DB_USER=translator_admin
-      - DB_PASSWORD=TranslatorPass2024
-      - DB_NAME=call_translator
+      # Override .env for Docker networking (use service names)
       - DB_HOST=postgres
       - DB_PORT=5432
       - REDIS_HOST=redis

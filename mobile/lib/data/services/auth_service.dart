@@ -126,8 +126,7 @@ class AuthService extends BaseApiService {
     });
 
     if (resp.statusCode != 200) {
-      final error =
-          jsonDecode(resp.body)['detail'] ?? 'Failed to update theme';
+      final error = jsonDecode(resp.body)['detail'] ?? 'Failed to update theme';
       throw Exception(error);
     }
   }

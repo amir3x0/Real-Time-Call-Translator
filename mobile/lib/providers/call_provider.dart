@@ -66,7 +66,62 @@ class CallProvider with ChangeNotifier {
       isDisposed: () => _disposed,
       getParticipantName: _getParticipantName,
       setActiveSpeaker: (id) => _setActiveSpeaker(id),
+      onInterimTimeout: _handleInterimTimeout,
     );
+  }
+
+  /// Handle interim caption timeout - treat timed-out interim as final for self
+  /// This is a fallback for languages like Hebrew where Google STT doesn't always send is_final
+  void _handleInterimTimeout(InterimCaption caption, String? lastFinalizedText) {
+    // Only add to history if this is our own caption
+    if (caption.speakerId != _currentUserId) return;
+    if (caption.text.isEmpty) return;
+
+    // Compute the NEW text by removing the already-finalized prefix
+    // This handles Hebrew STT which returns accumulated text (e.g., "hi whats up how are you")
+    // instead of incremental text
+    String newText = caption.text;
+    
+    if (lastFinalizedText != null && lastFinalizedText.isNotEmpty) {
+      if (caption.text.startsWith(lastFinalizedText)) {
+        // Remove the prefix that was already added to history
+        newText = caption.text.substring(lastFinalizedText.length).trim();
+        debugPrint('[CallProvider] ⏱️ Computed delta: "${caption.text}" - "$lastFinalizedText" = "$newText"');
+      } else if (caption.text.contains(lastFinalizedText)) {
+        // Last finalized is somewhere in the middle - extract everything after it
+        final idx = caption.text.indexOf(lastFinalizedText);
+        newText = caption.text.substring(idx + lastFinalizedText.length).trim();
+        debugPrint('[CallProvider] ⏱️ Computed delta (middle): "$newText"');
+      }
+      // If neither contains the other, it's a completely new sentence - use full text
+    }
+
+    // Skip if nothing new to add
+    if (newText.isEmpty) {
+      debugPrint('[CallProvider] ⏱️ No new text to add (delta empty)');
+      return;
+    }
+
+    debugPrint('[CallProvider] ⏱️ Interim timeout - adding NEW text to history: "$newText"');
+
+    final participantName = _getParticipantName(caption.speakerId) ?? 'You';
+
+    _transcriptionManager.addEntry(
+      TranscriptionEntry(
+        participantId: caption.speakerId,
+        participantName: participantName,
+        originalText: newText,
+        translatedText: newText, // Same as original for self
+        timestamp: DateTime.now(),
+        sourceLanguage: caption.sourceLanguage,
+        targetLanguage: caption.sourceLanguage, // Same language for self
+      ),
+    );
+
+    // Notify listeners to update UI with the new history entry
+    if (!_disposed) notifyListeners();
+
+    debugPrint('[CallProvider] ✅ Added timed-out interim to history: "$newText"');
   }
 
   // === Getters ===
@@ -587,6 +642,12 @@ class CallProvider with ChangeNotifier {
           targetLanguage: sourceLanguage, // Same language for self
         ),
       );
+
+      // Clear interim caption now that we have final result
+      _interimCaptionManager.clearCaption(speakerId);
+
+      // Notify listeners to update UI with the new history entry
+      if (!_disposed) notifyListeners();
 
       debugPrint('[CallProvider] Added self-transcription to history: "$text"');
     }
