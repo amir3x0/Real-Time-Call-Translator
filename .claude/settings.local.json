@@ -33,7 +33,9 @@
       "Bash(docker-compose build:*)",
       "Bash(docker-compose up:*)",
       "Bash(docker-compose logs:*)",
-      "Bash(docker-compose ps:*)"
+      "Bash(docker-compose ps:*)",
+      "Bash(grep:*)",
+      "Bash(git log:*)"
     ]
   }
 }

@@ -20,7 +20,6 @@ import asyncio
 import json
 import logging
 import time
-import threading
 from typing import Dict, Optional, Set, Callable, Awaitable
 from dataclasses import dataclass, field
 from queue import Queue, Empty
@@ -69,7 +68,7 @@ class InterimCaptionService:
 
     def __init__(self):
         self._sessions: Dict[str, InterimSession] = {}
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()  # Async lock - doesn't block event loop
         self._pipeline = None
         self._redis = None
 
@@ -107,7 +106,7 @@ class InterimCaptionService:
         """
         stream_key = self.get_stream_key(session_id, speaker_id)
 
-        with self._lock:
+        async with self._lock:
             existing_session = self._sessions.get(stream_key)
 
             if existing_session and existing_session.is_active:
@@ -137,7 +136,7 @@ class InterimCaptionService:
             # Create the streaming task INSIDE the lock to prevent race conditions
             # where another coroutine accesses session.task before it's set.
             # asyncio.create_task() is synchronous (just schedules, doesn't await),
-            # so it's safe to call inside a threading.Lock.
+            # so it's safe to call inside an asyncio.Lock.
             task = asyncio.create_task(self._run_streaming_session(session))
             session.task = task
 
@@ -152,22 +151,25 @@ class InterimCaptionService:
         """
         stream_key = self.get_stream_key(session_id, speaker_id)
 
-        with self._lock:
+        async with self._lock:
             session = self._sessions.get(stream_key)
             if session is None or not session.is_active:
                 return
+            # Capture reference while holding lock
+            audio_queue = session.audio_queue
 
-        # Push to queue (non-blocking)
+        # Push to queue OUTSIDE lock (non-blocking, thread-safe Queue)
         try:
-            session.audio_queue.put_nowait(audio_data)
+            audio_queue.put_nowait(audio_data)
         except Exception as e:
             logger.warning(f"Failed to queue audio for {stream_key}: {e}")
 
     async def stop_session(self, session_id: str, speaker_id: str):
         """Stop an interim caption session."""
         stream_key = self.get_stream_key(session_id, speaker_id)
+        task_to_cancel = None
 
-        with self._lock:
+        async with self._lock:
             session = self._sessions.get(stream_key)
             if session is None:
                 return
@@ -176,17 +178,23 @@ class InterimCaptionService:
             # Signal the streaming task to stop
             session.audio_queue.put(None)
 
-        # Cancel the task if still running
-        if session.task and not session.task.done():
-            session.task.cancel()
+            # Capture task reference and cancel while holding lock
+            # This prevents race where another coroutine sees the session
+            # in an inconsistent state
+            if session.task and not session.task.done():
+                task_to_cancel = session.task
+                session.task.cancel()
+
+            # Delete from dict while still holding lock
+            # (fixes race window where session could be accessed after lock release)
+            del self._sessions[stream_key]
+
+        # Await cancellation OUTSIDE lock (safe - we have local reference)
+        if task_to_cancel:
             try:
-                await asyncio.wait_for(session.task, timeout=1.0)
+                await asyncio.wait_for(task_to_cancel, timeout=1.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 pass
-
-        with self._lock:
-            if stream_key in self._sessions:
-                del self._sessions[stream_key]
 
         logger.info(f"🛑 Stopped interim caption session for {stream_key}")
 
@@ -401,7 +409,7 @@ class InterimCaptionService:
         """Shutdown all active sessions."""
         logger.info("Shutting down InterimCaptionService...")
 
-        with self._lock:
+        async with self._lock:
             sessions = list(self._sessions.values())
 
         for session in sessions:
