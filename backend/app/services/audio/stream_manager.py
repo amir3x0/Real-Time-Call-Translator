@@ -5,20 +5,20 @@ This module provides centralized management for audio stream lifecycle,
 including queue creation, task tracking, and cleanup.
 
 Usage:
-    from app.services.audio.stream_manager import stream_manager
+    from app.services.audio.stream_manager import get_stream_manager
 
     # Register a new stream
-    q = stream_manager.create_stream(session_id, speaker_id)
+    q = get_stream_manager().create_stream(session_id, speaker_id)
 
     # Start processing task
-    stream_manager.set_task(session_id, speaker_id, task)
+    get_stream_manager().set_task(session_id, speaker_id, task)
 
     # Check if stream exists
-    if stream_manager.has_stream(session_id, speaker_id):
-        stream_manager.push_audio(session_id, speaker_id, audio_data)
+    if get_stream_manager().has_stream(session_id, speaker_id):
+        get_stream_manager().push_audio(session_id, speaker_id, audio_data)
 
     # Cleanup
-    stream_manager.remove_stream(session_id, speaker_id)
+    get_stream_manager().remove_stream(session_id, speaker_id)
 """
 
 import asyncio
@@ -273,5 +273,13 @@ class StreamManager:
 
 
 
-# Global singleton instance
-stream_manager = StreamManager()
+# Global singleton instance (lazy initialization)
+_stream_manager: Optional[StreamManager] = None
+
+
+def get_stream_manager() -> StreamManager:
+    """Get or create the global StreamManager instance."""
+    global _stream_manager
+    if _stream_manager is None:
+        _stream_manager = StreamManager()
+    return _stream_manager

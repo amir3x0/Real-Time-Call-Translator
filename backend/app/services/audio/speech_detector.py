@@ -6,16 +6,16 @@ speech from silence or noise. It uses frequency characteristics of human
 voice (typically 80-4000 Hz) compared to background noise.
 
 Usage:
-    from app.services.audio.speech_detector import speech_detector
+    from app.services.audio.speech_detector import get_speech_detector
 
-    if speech_detector.is_speech(stream_key, audio_chunk):
+    if get_speech_detector().is_speech(stream_key, audio_chunk):
         # Process speech...
     else:
         # Handle silence...
 """
 
 import numpy as np
-from typing import Dict
+from typing import Dict, Optional
 from dataclasses import dataclass, field
 import logging
 
@@ -166,5 +166,13 @@ class SpeechDetector:
         }
 
 
-# Global singleton instance
-speech_detector = SpeechDetector()
+# Global singleton instance (lazy initialization)
+_speech_detector: Optional[SpeechDetector] = None
+
+
+def get_speech_detector() -> SpeechDetector:
+    """Get or create the global SpeechDetector instance."""
+    global _speech_detector
+    if _speech_detector is None:
+        _speech_detector = SpeechDetector()
+    return _speech_detector

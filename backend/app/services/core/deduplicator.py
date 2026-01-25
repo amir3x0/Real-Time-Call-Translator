@@ -8,21 +8,21 @@ This module provides reusable deduplication mechanisms for:
 
 Usage:
     from app.services.core.deduplicator import (
-        message_deduplicator,
-        transcript_publish_deduplicator,
-        audio_content_deduplicator,
+        get_message_deduplicator,
+        get_transcript_publish_deduplicator,
+        get_audio_content_deduplicator,
     )
 
     # Message deduplication
-    if message_deduplicator.is_duplicate(message_id):
+    if get_message_deduplicator().is_duplicate(message_id):
         return  # Skip duplicate
 
     # Transcript publish deduplication (streaming-first mode)
-    if not transcript_publish_deduplicator.should_publish(session_id, speaker_id, transcript):
+    if not get_transcript_publish_deduplicator().should_publish(session_id, speaker_id, transcript):
         return  # Already published by other pipeline
 
     # Audio content deduplication
-    if audio_content_deduplicator.is_duplicate_audio(audio_data):
+    if get_audio_content_deduplicator().is_duplicate_audio(audio_data):
         return  # Skip duplicate audio chunk
 """
 
@@ -30,7 +30,7 @@ import hashlib
 import logging
 import threading
 import time
-from typing import Dict
+from typing import Dict, Optional
 from dataclasses import dataclass, field
 
 from app.config.constants import (
@@ -256,7 +256,31 @@ class AudioContentDeduplicator:
         return {"tracked_count": len(self._processed)}
 
 
-# Global singleton instances
-message_deduplicator = MessageDeduplicator()
-transcript_publish_deduplicator = TranscriptPublishDeduplicator()
-audio_content_deduplicator = AudioContentDeduplicator()
+# Global singleton instances (lazy initialization)
+_message_deduplicator: Optional[MessageDeduplicator] = None
+_transcript_publish_deduplicator: Optional[TranscriptPublishDeduplicator] = None
+_audio_content_deduplicator: Optional[AudioContentDeduplicator] = None
+
+
+def get_message_deduplicator() -> MessageDeduplicator:
+    """Get or create the global MessageDeduplicator instance."""
+    global _message_deduplicator
+    if _message_deduplicator is None:
+        _message_deduplicator = MessageDeduplicator()
+    return _message_deduplicator
+
+
+def get_transcript_publish_deduplicator() -> TranscriptPublishDeduplicator:
+    """Get or create the global TranscriptPublishDeduplicator instance."""
+    global _transcript_publish_deduplicator
+    if _transcript_publish_deduplicator is None:
+        _transcript_publish_deduplicator = TranscriptPublishDeduplicator()
+    return _transcript_publish_deduplicator
+
+
+def get_audio_content_deduplicator() -> AudioContentDeduplicator:
+    """Get or create the global AudioContentDeduplicator instance."""
+    global _audio_content_deduplicator
+    if _audio_content_deduplicator is None:
+        _audio_content_deduplicator = AudioContentDeduplicator()
+    return _audio_content_deduplicator

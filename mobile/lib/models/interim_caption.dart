@@ -1,7 +1,7 @@
 /// Model for real-time interim captions (WhatsApp-style typing indicator).
 ///
-/// Unlike [LiveCaptionData], this model is designed for the typing indicator
-/// that updates in real-time as speech is being transcribed, before translation.
+/// This model is designed for the typing indicator that updates in real-time
+/// as speech is being transcribed, before translation.
 class InterimCaption {
   /// The speaker's user ID
   final String speakerId;

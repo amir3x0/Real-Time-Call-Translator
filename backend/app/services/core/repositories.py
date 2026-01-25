@@ -6,10 +6,10 @@ eliminating duplicated queries across the codebase and providing
 a clear separation between business logic and data access.
 
 Usage:
-    from app.services.core.repositories import call_repository
+    from app.services.core.repositories import get_call_repository
 
     # Get target languages for translation
-    target_langs = await call_repository.get_target_languages(session_id, speaker_id)
+    target_langs = await get_call_repository().get_target_languages(session_id, speaker_id)
     # Returns: {"en-US": ["user2", "user3"], "he-IL": ["user4"]}
 """
 
@@ -231,5 +231,13 @@ class CallRepository:
             return None
 
 
-# Global singleton instance
-call_repository = CallRepository()
+# Global singleton instance (lazy initialization)
+_call_repository: Optional[CallRepository] = None
+
+
+def get_call_repository() -> CallRepository:
+    """Get or create the global CallRepository instance."""
+    global _call_repository
+    if _call_repository is None:
+        _call_repository = CallRepository()
+    return _call_repository

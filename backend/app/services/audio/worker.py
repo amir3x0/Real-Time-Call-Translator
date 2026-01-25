@@ -38,16 +38,16 @@ from app.config.constants import (
     DEFAULT_PARTICIPANT_LANGUAGE, METRICS_SERVER_PORT,
 )
 # OOP Refactor: Use extracted components (now in audio submodule)
-from app.services.audio.speech_detector import speech_detector
-from app.services.audio.stream_manager import stream_manager
+from app.services.audio.speech_detector import get_speech_detector
+from app.services.audio.stream_manager import get_stream_manager
 from app.services.audio.chunker import AudioChunker, ChunkResult, run_chunker_loop
 # Core infrastructure components
 from app.services.core.deduplicator import (
-    message_deduplicator,
-    audio_content_deduplicator,
-    transcript_publish_deduplicator,
+    get_message_deduplicator,
+    get_audio_content_deduplicator,
+    get_transcript_publish_deduplicator,
 )
-from app.services.core.repositories import call_repository
+from app.services.core.repositories import get_call_repository
 from app.services.translation.processor import TranslationProcessor
 from app.services.metrics import (
     audio_processing_latency,
@@ -286,7 +286,7 @@ async def handle_audio_stream(
     chunker = AudioChunker(
         stream_key=stream_key,
         on_chunk_ready=on_chunk_ready,
-        speech_detector=speech_detector
+        speech_detector=get_speech_detector()
     )
 
     def run_chunking():
@@ -428,7 +428,7 @@ async def handle_audio_stream(
             channel = f"channel:translation:{session_id}"
 
             # Transcript publish deduplication - prevent duplicate from streaming pipeline
-            if not transcript_publish_deduplicator.should_publish(session_id, speaker_id, transcript):
+            if not get_transcript_publish_deduplicator().should_publish(session_id, speaker_id, transcript):
                 logger.info(f"⏭️ Skipping batch publish - already published by streaming pipeline")
                 return
 
@@ -469,7 +469,7 @@ async def handle_audio_stream(
             # === STEP 1: Query target languages from database ===
             # OOP Refactor: Use CallRepository instead of inline DB queries
             # include_speaker=True ensures speaker sees their own messages in chat history
-            target_langs_map = await call_repository.get_target_languages(session_id, speaker_id, include_speaker=True)
+            target_langs_map = await get_call_repository().get_target_languages(session_id, speaker_id, include_speaker=True)
 
             if not target_langs_map:
                 logger.info(f"No recipients for speaker {speaker_id} in session {session_id}")
@@ -592,7 +592,7 @@ async def handle_audio_stream(
                 channel = f"channel:translation:{session_id}"
 
                 # Transcript publish deduplication - prevent duplicate from streaming pipeline
-                if not transcript_publish_deduplicator.should_publish(session_id, speaker_id, transcript):
+                if not get_transcript_publish_deduplicator().should_publish(session_id, speaker_id, transcript):
                     logger.info(f"⏭️ Skipping batch publish - already published by streaming pipeline")
                     continue
 
@@ -631,7 +631,7 @@ async def handle_audio_stream(
     except asyncio.CancelledError:
         logger.info(f"Stream task cancelled for {stream_key}")
         # Signal shutdown to unblock queue - use StreamManager
-        stream_manager.signal_end(session_id, speaker_id)
+        get_stream_manager().signal_end(session_id, speaker_id)
         chunker.shutdown()  # Mark chunker as shutdown
         raise
     except Exception as e:
@@ -639,9 +639,9 @@ async def handle_audio_stream(
     finally:
         logger.info(f"Streaming task ended for {stream_key}")
         # OOP Refactor: Use StreamManager for cleanup
-        stream_manager.remove_stream(session_id, speaker_id)
+        get_stream_manager().remove_stream(session_id, speaker_id)
         # Clean up spectral analysis history buffer
-        speech_detector.clear_history(stream_key)
+        get_speech_detector().clear_history(stream_key)
         # Clean up segment buffer for context preservation
         if stream_key in _segment_buffers:
             del _segment_buffers[stream_key]
@@ -655,7 +655,7 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
     try:
         # Issue #8 Fix: Skip duplicate messages to prevent echo
         # OOP Refactor: Use MessageDeduplicator instead of inline logic
-        if message_deduplicator.is_duplicate(message_id):
+        if get_message_deduplicator().is_duplicate(message_id):
             logger.debug(f"Skipping duplicate message: {message_id}")
             return
 
@@ -665,7 +665,7 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
             return
 
         # Audio content deduplication - catch duplicate audio regardless of message ID
-        if audio_content_deduplicator.is_duplicate_audio(audio_data):
+        if get_audio_content_deduplicator().is_duplicate_audio(audio_data):
             logger.debug(f"Skipping duplicate audio content")
             return
 
@@ -691,15 +691,15 @@ async def process_stream_message(redis, stream_key: str, message_id: str, data: 
         # =================================================================
 
         # Start batch pipeline for translations (pause-based chunks)
-        if not stream_manager.has_stream(session_id, speaker_id):
-            audio_queue = stream_manager.create_stream(session_id, speaker_id)
+        if not get_stream_manager().has_stream(session_id, speaker_id):
+            audio_queue = get_stream_manager().create_stream(session_id, speaker_id)
             task = asyncio.create_task(handle_audio_stream(
                 session_id, speaker_id, source_lang, audio_queue
             ))
-            stream_manager.set_task(session_id, speaker_id, task)
+            get_stream_manager().set_task(session_id, speaker_id, task)
 
         # Push to batch pipeline for translation
-        stream_manager.push_audio(session_id, speaker_id, audio_data)
+        get_stream_manager().push_audio(session_id, speaker_id, audio_data)
 
         # Push to streaming pipeline for INTERIM CAPTIONS ONLY
         # No on_final_transcript callback = no streaming translation
@@ -783,12 +783,12 @@ async def run_worker():
             logger.debug(f"Interim service shutdown failed (non-critical): {e}")
 
         # OOP Refactor: Use StreamManager for shutdown
-        logger.info(f"Unblocking {stream_manager.get_active_count()} active streams...")
-        stream_manager.signal_all_end()
+        logger.info(f"Unblocking {get_stream_manager().get_active_count()} active streams...")
+        get_stream_manager().signal_all_end()
 
         # Cancel all active tasks
         try:
-            await stream_manager.cancel_all_tasks(timeout=GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
+            await get_stream_manager().cancel_all_tasks(timeout=GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
         except Exception as e:
             logger.debug(f"Task cancellation error (non-critical): {e}")
 

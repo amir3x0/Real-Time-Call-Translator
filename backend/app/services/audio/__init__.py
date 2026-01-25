@@ -8,20 +8,20 @@ This module contains all audio-related services for the real-time translation pi
 - worker: Main audio processing worker
 
 Usage:
-    from app.services.audio import speech_detector, stream_manager
+    from app.services.audio import get_speech_detector, get_stream_manager
     from app.services.audio.chunker import AudioChunker, ChunkResult
     from app.services.audio.worker import run_worker
 """
 
-from app.services.audio.speech_detector import speech_detector, SpeechDetector
-from app.services.audio.stream_manager import stream_manager, StreamManager
+from app.services.audio.speech_detector import get_speech_detector, SpeechDetector
+from app.services.audio.stream_manager import get_stream_manager, StreamManager
 from app.services.audio.chunker import AudioChunker, ChunkResult, run_chunker_loop
 from app.services.audio.worker import run_worker, handle_audio_stream, process_stream_message
 
 __all__ = [
-    # Singleton instances
-    "speech_detector",
-    "stream_manager",
+    # Singleton getters
+    "get_speech_detector",
+    "get_stream_manager",
     # Classes
     "SpeechDetector",
     "StreamManager",

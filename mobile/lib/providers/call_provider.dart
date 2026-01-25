@@ -5,12 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/websocket/websocket_service.dart';
 import '../data/services/call_api_service.dart';
 import '../models/call.dart';
-import '../models/live_caption.dart';
 import '../models/interim_caption.dart';
 import '../models/participant.dart';
 import '../models/transcription_entry.dart';
 import 'audio_controller.dart';
-import 'caption_manager.dart';
 import 'interim_caption_manager.dart';
 import 'transcription_manager.dart';
 
@@ -52,7 +50,6 @@ class CallProvider with ChangeNotifier {
   // Helpers (SRP: Each handles specific responsibility)
   // Issue B Fix: AudioController is now nullable, recreated fresh for each call
   AudioController? _audioController;
-  late final CaptionManager _captionManager;
   late final TranscriptionManager _transcriptionManager;
   late final InterimCaptionManager _interimCaptionManager;
 
@@ -62,7 +59,6 @@ class CallProvider with ChangeNotifier {
   })  : _wsService = wsService,
         _apiService = apiService {
     // AudioController NOT created here - created fresh per call in _joinCallSession
-    _captionManager = CaptionManager(notifyListeners, () => _disposed);
     _transcriptionManager =
         TranscriptionManager(notifyListeners, () => _disposed);
     _interimCaptionManager = InterimCaptionManager(
@@ -79,7 +75,6 @@ class CallProvider with ChangeNotifier {
   String? get activeSessionId => _activeSessionId;
   List<CallParticipant> get participants => List.unmodifiable(_participants);
   String get liveTranscription => _liveTranscription ?? '';
-  List<LiveCaptionData> get captionBubbles => _captionManager.captionBubbles;
   List<TranscriptionEntry> get transcriptionHistory =>
       _transcriptionManager.entries;
   TranscriptionEntry? get latestTranscription =>
@@ -312,7 +307,6 @@ class CallProvider with ChangeNotifier {
     _activeSessionId = null;
     _wsSub?.cancel();
     _wsService.disconnect();
-    _captionManager.clearBubbles();
     _transcriptionManager.clear();
     _interimCaptionManager.clearAll();
     _recentTranslationKeys.clear(); // Clear dedup set to prevent memory leaks
@@ -394,7 +388,6 @@ class CallProvider with ChangeNotifier {
     if (speakerId != null && text.isNotEmpty) {
       _liveTranscription = text;
       _setActiveSpeaker(speakerId);
-      _captionManager.addCaptionBubble(speakerId, text);
     }
   }
 
@@ -683,7 +676,6 @@ class CallProvider with ChangeNotifier {
     _wsService.disconnect();
     _audioController?.dispose(); // FIX: Dispose audio controller to prevent memory leak
     _audioController = null;
-    _captionManager.dispose();
     _interimCaptionManager.dispose();
     super.dispose();
   }
