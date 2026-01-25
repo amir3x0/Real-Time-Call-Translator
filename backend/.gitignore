@@ -32,4 +32,4 @@ htmlcov/
 
 # --- AI Collaboration ---
 claude/
-
+.claude/CLAUDE.md
