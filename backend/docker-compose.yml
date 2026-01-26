@@ -93,7 +93,9 @@ services:
       - ./app:/app/app
       - ./scripts:/app/scripts
       - ./data:/app/data
-    command: ["python", "-m", "scripts.worker"]
+    command: [ "python", "-m", "scripts.worker" ]
+    ports:
+      - "8001:8001" # Metrics server
     depends_on:
       postgres:
         condition: service_healthy

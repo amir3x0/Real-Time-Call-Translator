@@ -36,7 +36,9 @@
       "Bash(docker-compose ps:*)",
       "Bash(grep:*)",
       "Bash(git log:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(./gradlew clean:*)"
     ]
   }
 }
