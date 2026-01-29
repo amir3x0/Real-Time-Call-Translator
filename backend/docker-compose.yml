@@ -4,9 +4,9 @@ services:
     image: postgres:15-alpine
     container_name: translator_db
     environment:
-      POSTGRES_USER: ${DB_USER:-translator_admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD environment variable is required}
-      POSTGRES_DB: ${DB_NAME:-call_translator}
+      POSTGRES_USER: translator_admin
+      POSTGRES_PASSWORD: TranslatorPass2024
+      POSTGRES_DB: call_translator
     volumes:
       - translator_postgres_data:/var/lib/postgresql/data
     ports:
@@ -24,7 +24,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: translator_cache
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD environment variable is required}
+    command: redis-server --appendonly yes --requirepass RedisCache2024
     volumes:
       - translator_redis_data:/data
     ports:
@@ -53,7 +53,7 @@ services:
       - DB_PORT=5432
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PASSWORD=RedisCache2024
       - GOOGLE_APPLICATION_CREDENTIALS=/app/app/config/google-credentials.json
     volumes:
       - ./app:/app/app
@@ -87,7 +87,7 @@ services:
       - DB_PORT=5432
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PASSWORD=RedisCache2024
       - GOOGLE_APPLICATION_CREDENTIALS=/app/app/config/google-credentials.json
     volumes:
       - ./app:/app/app

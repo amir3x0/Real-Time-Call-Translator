@@ -11,13 +11,13 @@ class Settings(BaseSettings):
 
     # Database - PostgreSQL connection settings
     DB_USER: str = Field(default="translator_admin", description="Database username")
-    DB_PASSWORD: str = Field(description="Database password (required)")
+    DB_PASSWORD: str = Field(default="TranslatorPass2024", description="Database password")
     DB_NAME: str = Field(default="call_translator", description="Database name")
-    DB_HOST: str = Field(default="localhost", description="Database host")
+    DB_HOST: str = Field(default="postgres", description="Database host (use 'postgres' for Docker)")
     DB_PORT: int = Field(default=5432, description="Database port")
 
     # Redis - Cache and message broker settings
-    REDIS_HOST: str = Field(default="localhost", description="Redis host")
+    REDIS_HOST: str = Field(default="redis", description="Redis host (use 'redis' for Docker)")
     REDIS_PORT: int = Field(default=6379, description="Redis port")
     REDIS_PASSWORD: str | None = Field(default=None, description="Redis password")
 
@@ -44,10 +44,10 @@ class Settings(BaseSettings):
         default=None,
         description="Public hostname for WebSocket URLs (when API_HOST is 0.0.0.0)"
     )
-    DEBUG: bool = Field(default=False, description="Enable debug mode")
+    DEBUG: bool = Field(default=True, description="Enable debug mode")
 
-    # JWT Authentication - MUST be set via environment variable
-    JWT_SECRET_KEY: str = Field(description="Secret key for JWT signing (required)")
+    # JWT Authentication
+    JWT_SECRET_KEY: str = Field(default="supersecret", description="Secret key for JWT signing")
     JWT_ALGORITHM: str = Field(default="HS256", description="JWT signing algorithm")
     JWT_EXP_DAYS: int = Field(default=7, description="JWT token expiration in days")
     
