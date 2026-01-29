@@ -294,9 +294,7 @@ def run_chunker_loop(
             chunker.feed(chunk)
 
         except Exception as e:
-            logger.error(f"Error in chunker loop: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error in chunker loop")
             break
 
     # Flush remaining audio

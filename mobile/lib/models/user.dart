@@ -1,7 +1,13 @@
+/// User Model - User profile and authentication data.
+///
+/// Represents a user in the system with profile info, language preferences,
+/// and voice cloning status. Maps to the backend User schema.
+library;
+
 import '../utils/language_utils.dart';
 import 'participant.dart';
 
-/// User model matching backend schema (simplified)
+/// User model matching backend schema.
 class User {
   final String id;
   final String phone;

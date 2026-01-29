@@ -1,3 +1,15 @@
+"""User Service - Centralized user data access.
+
+Provides a single point of access for User model operations,
+eliminating duplicated queries across the application.
+
+Usage:
+    from app.services.user_service import user_service
+
+    user = await user_service.get_by_id(db, user_id)
+    users = await user_service.search(db, "john", exclude_ids=[current_user_id])
+"""
+
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select

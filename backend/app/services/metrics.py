@@ -1,3 +1,22 @@
+"""Prometheus metrics instrumentation for audio processing pipeline.
+
+Exposes metrics for monitoring latency, throughput, and error rates
+of the real-time translation pipeline. Metrics are exposed via HTTP
+on port 8001 (configurable).
+
+Metrics exported:
+- audio_processing_latency_seconds: Histogram of processing time per stage
+- audio_segments_processed_total: Counter of processed segments by status
+- audio_active_streams: Gauge of currently active audio streams
+- audio_silence_triggers_total: Counter of silence-triggered processing events
+
+Usage:
+    from app.services.metrics import start_metrics_server, segments_processed
+
+    start_metrics_server(port=8001)
+    segments_processed.labels(status='success', language_pair='he-en').inc()
+"""
+
 from prometheus_client import Histogram, Counter, Gauge, start_http_server
 import logging
 

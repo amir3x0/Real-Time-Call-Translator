@@ -1,7 +1,17 @@
+/// Contact Service - Contact management via REST API.
+///
+/// Handles all contact-related API operations:
+/// - Fetching user's contact list
+/// - Searching for users to add as contacts
+/// - Adding/deleting contacts
+/// - Accepting/rejecting contact requests
+library;
+
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'base_api_service.dart';
 
+/// Service for managing user contacts via REST API.
 class ContactService extends BaseApiService {
   Future<Map<String, dynamic>> getContacts() async {
     try {

@@ -278,9 +278,7 @@ class InterimCaptionService:
             logger.info(f"Streaming task cancelled for {stream_key}")
             raise
         except Exception as e:
-            logger.error(f"Error in streaming session for {stream_key}: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"Error in streaming session for {stream_key}")
         finally:
             # Mark session as inactive so it can be restarted if needed
             # This handles the case where the task ends due to timeout (e.g., after mute)
@@ -347,9 +345,7 @@ class InterimCaptionService:
                         session.source_lang
                     )
                 except Exception as e:
-                    logger.error(f"Error in final transcript callback: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.exception("Error in final transcript callback")
 
             # Clear tracking on final result
             session.published_texts.clear()

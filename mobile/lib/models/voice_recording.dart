@@ -1,14 +1,10 @@
-/// Voice Recording model matching backend schema
-/// 
-/// Purpose: Store raw voice samples used for training voice cloning models
-/// 
-/// Workflow:
-/// 1. User uploads 2-3 voice samples (each ~15-30 seconds)
-/// 2. Each sample is stored with is_processed = FALSE
-/// 3. Backend processes samples (quality check, noise reduction)
-/// 4. Set is_processed = TRUE and quality_score
-/// 5. Select best 2 samples and set used_for_training = TRUE
-/// 6. Feed to xTTS: Train voice model
+/// Voice Recording Model - Voice sample data for voice cloning.
+///
+/// Represents a voice sample uploaded for xTTS voice cloning training.
+/// Tracks processing status, quality score, and training usage.
+library;
+
+/// Voice Recording model matching backend schema.
 class VoiceRecording {
   final String id;
   final String userId;

@@ -1,7 +1,17 @@
+/// App Configuration - Runtime and compile-time configuration management.
+///
+/// Manages backend server connection settings with priority:
+/// 1. Runtime override (set via Settings UI, stored in SharedPreferences)
+/// 2. Compile-time override (--dart-define=BACKEND_HOST=...)
+/// 3. Platform defaults (Android emulator vs localhost)
+///
+/// Also defines audio settings, language codes, and storage keys.
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Application configuration constants
+/// Application configuration constants.
 class AppConfig {
   // ============================================
   // Backend API Configuration

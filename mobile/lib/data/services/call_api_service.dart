@@ -1,8 +1,22 @@
+/// Call API Service - Call lifecycle management via REST API.
+///
+/// Handles all call-related API operations:
+/// - Starting calls with multiple participants
+/// - Accepting/rejecting incoming calls
+/// - Ending calls and leaving active calls
+/// - Muting/unmuting during calls
+/// - Fetching call history and pending calls
+///
+/// Note: Real-time audio/translation uses WebSocket (see websocket_service.dart).
+/// This service handles the REST API for call state management.
+library;
+
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../models/user.dart';
 import 'base_api_service.dart';
 
+/// Service for call management via REST API.
 class CallApiService extends BaseApiService {
   Future<Map<String, dynamic>> startCall(
       List<String> participantUserIds) async {

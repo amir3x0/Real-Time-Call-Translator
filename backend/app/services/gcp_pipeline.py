@@ -1,3 +1,18 @@
+"""Google Cloud Platform Integration for AI Services.
+
+This module provides a unified pipeline for:
+- Speech-to-Text (STT): Converts audio to text using Google Cloud Speech API
+- Translation: Translates text between languages using Cloud Translation API
+- Text-to-Speech (TTS): Synthesizes speech from text using Cloud TTS API
+
+The GCPPipeline class manages client initialization and provides async methods
+for each service. A thread pool executor is used for blocking GCP API calls.
+
+Usage:
+    pipeline = _get_pipeline()
+    result = await pipeline.process_audio(audio_bytes, "he", "en")
+"""
+
 from __future__ import annotations
 
 import os

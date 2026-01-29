@@ -1,8 +1,20 @@
+/// Authentication Provider - State management for user authentication.
+///
+/// Manages the authentication lifecycle:
+/// - Login/logout state
+/// - User registration flow (including pending registration for voice recording)
+/// - Session persistence via SharedPreferences
+/// - Current user profile data
+///
+/// Uses Provider pattern and notifies listeners on auth state changes.
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/services/auth_service.dart';
 import '../models/user.dart';
 
+/// Provider for authentication state and user session management.
 class AuthProvider with ChangeNotifier {
   final AuthService _authService;
 

@@ -1,4 +1,10 @@
-/// Call status enum matching backend
+/// Call Model - Call session data and status tracking.
+///
+/// Represents a call session with participant count, timing, and status.
+/// Maps to the backend Call schema.
+library;
+
+/// Call status enum matching backend.
 enum CallStatus {
   initiating('initiating'),
   idle('idle'),

@@ -1,9 +1,22 @@
+/// Authentication Service - User login, registration, and session management.
+///
+/// Handles all authentication-related API calls to the backend:
+/// - Login with phone/password
+/// - User registration
+/// - Fetching current user profile
+/// - Updating user preferences (language, theme)
+/// - Logout and token management
+///
+/// Tokens are stored in SharedPreferences for persistence across app restarts.
+library;
+
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_config.dart';
 import '../../models/user.dart';
 import 'base_api_service.dart';
 
+/// Service for user authentication and profile management.
 class AuthService extends BaseApiService {
   Future<User> login(String phone, String password) async {
     final resp = await post('/api/auth/login', body: {

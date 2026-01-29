@@ -1,7 +1,14 @@
-/// Application-wide constants for configuration and tuning.
+/// App Constants - Centralized configuration values and magic numbers.
 ///
-/// This file centralizes all magic numbers and configuration values
-/// to enable easy tuning and maintain consistency across the app.
+/// All tunable values are defined here to enable easy configuration
+/// without searching through the codebase. Categories include:
+/// - Audio settings (sample rates, buffer sizes, chunk intervals)
+/// - WebSocket configuration (timeouts, reconnection, heartbeats)
+/// - UI animation durations
+/// - Call limits and timeouts
+library;
+
+/// Application-wide constants for configuration and tuning.
 class AppConstants {
   // ============================================================
   // AUDIO - OUTGOING (Microphone → Backend)

@@ -1,3 +1,15 @@
+/// Call Provider - Active call session state management.
+///
+/// Manages the complete lifecycle of an active call:
+/// - WebSocket connection to call session
+/// - Audio recording and playback via AudioController
+/// - Real-time transcription and translation display
+/// - Participant state tracking
+/// - Interim captions (WhatsApp-style typing indicators)
+///
+/// This provider handles the call-specific WebSocket (separate from lobby).
+library;
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';

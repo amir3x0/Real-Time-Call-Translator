@@ -1,3 +1,13 @@
+/// Contacts Provider - Contact list and friend request management.
+///
+/// Manages the user's contact list with multi-selection support:
+/// - Loading and caching contacts from server
+/// - Search and filtering
+/// - Multi-selection for group calls (max 3 for 4-participant calls)
+/// - Pending friend requests (incoming/outgoing)
+/// - Real-time status updates via LobbyProvider events
+library;
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 

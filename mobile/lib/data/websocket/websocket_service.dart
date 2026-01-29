@@ -1,3 +1,16 @@
+/// WebSocket Service - Real-time bidirectional communication.
+///
+/// Manages WebSocket connections for:
+/// - Lobby: Global connection for incoming calls and status updates
+/// - Call sessions: Audio streaming and translation messages
+///
+/// Features:
+/// - Automatic heartbeat for connection health
+/// - Reconnection with exponential backoff
+/// - Binary audio data transmission
+/// - JSON control message handling
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -7,7 +20,7 @@ import 'package:web_socket_channel/io.dart';
 import '../../config/app_config.dart';
 import '../../config/constants.dart';
 
-/// Message types for WebSocket communication
+/// Message types for WebSocket communication.
 enum WSMessageType {
   connected,
   heartbeat,

@@ -8,7 +8,6 @@ It handles:
 - Background tasks for cleanup and status tracking
 """
 from contextlib import asynccontextmanager
-import json
 import asyncio
 import logging
 from datetime import datetime, UTC

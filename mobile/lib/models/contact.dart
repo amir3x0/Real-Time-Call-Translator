@@ -1,6 +1,12 @@
+/// Contact Model - Contact list and friend request data.
+///
+/// Represents a contact relationship between users. Contacts control
+/// who can initiate calls with whom (authorization layer).
+library;
+
 import 'user.dart';
 
-/// Contact model matching backend schema
+/// Contact model matching backend schema.
 /// 
 /// Purpose: Control who each user can call (authorization layer)
 /// Business Logic:

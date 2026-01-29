@@ -1,7 +1,19 @@
+"""Database configuration and session management.
+
+This module provides:
+- Async SQLAlchemy engine configuration with connection pooling
+- Session factory for database operations
+- FastAPI dependency for request-scoped sessions
+- Database initialization and reset utilities
+"""
+
+import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config.settings import settings
 from app.config.constants import DB_POOL_SIZE, DB_POOL_MAX_OVERFLOW
+
+logger = logging.getLogger(__name__)
 
 # Build async database URL with asyncpg driver
 DATABASE_URL = (
@@ -37,17 +49,23 @@ async def get_db():
         yield session
 
 
-# Initialize database
 async def init_db():
-    """Create all tables"""
+    """Initialize database by creating all tables.
+
+    Creates tables defined in SQLAlchemy models if they don't exist.
+    Safe to call multiple times (idempotent operation).
+    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("✅ Database initialized")
+    logger.info("Database tables initialized successfully")
 
 
-# Drop all tables (for development)
 async def reset_db():
-    """Drop all tables - USE WITH CAUTION"""
+    """Drop all database tables.
+
+    WARNING: This permanently deletes all data. Use only in development
+    or when intentionally resetting the database schema.
+    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    print("⚠️ Database reset")
+    logger.warning("Database tables dropped - all data removed")

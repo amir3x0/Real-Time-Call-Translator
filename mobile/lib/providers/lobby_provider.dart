@@ -1,3 +1,13 @@
+/// Lobby Provider - Global WebSocket connection for real-time events.
+///
+/// Manages the always-on WebSocket connection while the user is logged in:
+/// - Receives incoming call notifications
+/// - Receives contact request notifications
+/// - Receives user online/offline status updates
+///
+/// This is separate from the call-specific WebSocket managed by CallProvider.
+library;
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../data/websocket/websocket_service.dart';

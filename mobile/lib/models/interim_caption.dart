@@ -1,7 +1,10 @@
-/// Model for real-time interim captions (WhatsApp-style typing indicator).
+/// Interim Caption Model - Real-time typing indicator during calls.
 ///
-/// This model is designed for the typing indicator that updates in real-time
-/// as speech is being transcribed, before translation.
+/// Displays WhatsApp-style live transcription as users speak,
+/// before the final translation is ready.
+library;
+
+/// Model for real-time interim captions (WhatsApp-style typing indicator).
 class InterimCaption {
   /// The speaker's user ID
   final String speakerId;

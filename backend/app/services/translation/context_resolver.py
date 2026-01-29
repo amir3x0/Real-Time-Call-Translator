@@ -140,9 +140,7 @@ class ContextResolver:
                 f"model={GEMINI_MODEL_NAME})"
             )
         except Exception as e:
-            logger.error(f"[ContextResolver] Failed to initialize Vertex AI: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("[ContextResolver] Failed to initialize Vertex AI")
             self._enabled = False
             self._initialized = True
 

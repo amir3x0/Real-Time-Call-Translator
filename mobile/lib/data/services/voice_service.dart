@@ -1,3 +1,15 @@
+/// Voice Service - Voice sample management for voice cloning.
+///
+/// Handles all voice-related API operations:
+/// - Uploading voice samples (WAV format)
+/// - Managing voice recordings
+/// - Checking voice model training status
+/// - Triggering voice model training
+///
+/// Voice samples are used by the backend's xTTS voice cloning system
+/// to generate translated speech in the user's own voice.
+library;
+
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -5,6 +17,7 @@ import 'package:http_parser/http_parser.dart';
 import '../../config/app_config.dart';
 import 'base_api_service.dart';
 
+/// Service for voice sample upload and voice model management.
 class VoiceService extends BaseApiService {
   Future<Map<String, dynamic>> uploadVoiceSample(
       String filePath, String language, String textContent) async {

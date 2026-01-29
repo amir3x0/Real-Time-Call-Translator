@@ -1,7 +1,17 @@
+/// App Theme - Design system and theme configuration.
+///
+/// Implements a "Fluid Intelligence" design system with:
+/// - Glassmorphism effects (translucent cards, blur)
+/// - Color palettes for light and dark modes
+/// - Gradient definitions for backgrounds and buttons
+/// - Typography scale (Inter font family)
+/// - Theme-aware helper methods for consistent styling
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Fluid Intelligence Design System
+/// Fluid Intelligence Design System.
 /// Inspired by Glassmorphism, Modern AI interfaces, and subtle animations
 class AppTheme {
   // ========== Color Palette ==========

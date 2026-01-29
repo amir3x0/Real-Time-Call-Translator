@@ -3,7 +3,7 @@ Auth API - User registration and login
 
 Simplified authentication for capstone project.
 """
-from datetime import datetime, UTC
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Header
@@ -14,7 +14,6 @@ from sqlalchemy import select
 from app.models.database import get_db
 from app.models.user import User
 from app.services.auth_service import create_access_token, decode_token
-from app.config.settings import settings
 from app.services.user_service import user_service
 
 router = APIRouter()

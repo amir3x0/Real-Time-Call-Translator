@@ -161,9 +161,7 @@ class TranslationProcessor:
                 )
 
             except Exception as e:
-                logger.error(f"[TranslationProcessor] Error processing {tgt_lang}: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.exception(f"[TranslationProcessor] Error processing {tgt_lang}")
                 return None
 
         # Execute all languages in parallel

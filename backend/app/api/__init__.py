@@ -1,3 +1,15 @@
+"""REST API Router Configuration.
+
+Aggregates all API endpoint routers and provides common endpoints.
+All routes are prefixed with /api when mounted in main.py.
+
+Routers included:
+- auth: User registration, login, authentication
+- contacts: Contact management (add, search, accept/reject)
+- calls: Call initiation, history, participant management
+- voice: Voice sample upload and training status
+"""
+
 from fastapi import APIRouter, UploadFile, File
 from app.services.rtc_service import publish_audio_chunk
 from app.api import auth

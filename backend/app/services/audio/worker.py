@@ -459,10 +459,8 @@ async def handle_audio_stream(
             segment_buffer.mark_all_published()
 
         except Exception as e:
-            logger.error(f"Error processing accumulated audio: {e}")
+            logger.exception("Error processing accumulated audio")
             segments_processed.labels(status='error', language_pair=lang_pair).inc()
-            import traceback
-            traceback.print_exc()
 
     async def process_accumulated_audio_multiparty(audio_data: bytes, pipeline, redis, loop, session_id, speaker_id, source_lang):
         """
@@ -594,9 +592,7 @@ async def handle_audio_stream(
                     }
 
                 except Exception as e:
-                    logger.error(f"Error processing language {tgt_lang}: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.exception(f"Error processing language {tgt_lang}")
                     return None
 
             # Execute all translations in parallel
@@ -661,9 +657,7 @@ async def handle_audio_stream(
                 ).observe(total_latency)
 
         except Exception as e:
-            logger.error(f"Error in multiparty audio processing: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error in multiparty audio processing")
 
     try:
         # OOP Refactor: Use extracted AudioChunker via run_chunking wrapper
@@ -850,8 +844,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Worker stopped via KeyboardInterrupt")
     except Exception as e:
-        logger.error(f"Worker error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Worker error")
     finally:
         logger.info("Worker cleanup complete")

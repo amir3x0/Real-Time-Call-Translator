@@ -1,6 +1,12 @@
+/// Participant Model - Call participant data and real-time state.
+///
+/// Represents a participant in an active call, including language settings,
+/// voice cloning configuration, and real-time UI state (speaking, muted).
+library;
+
 import '../utils/language_utils.dart';
 
-/// Voice clone quality enum
+/// Voice clone quality enum.
 enum VoiceCloneQuality {
   excellent('excellent'),
   good('good'),

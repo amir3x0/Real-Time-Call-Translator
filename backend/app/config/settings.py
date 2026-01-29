@@ -3,35 +3,53 @@ from pydantic import Field
 
 
 class Settings(BaseSettings):
-    # Database
-    DB_USER: str = Field(default="translator_admin")
-    DB_PASSWORD: str = Field(default="TranslatorPass2024")
-    DB_NAME: str = Field(default="call_translator")
-    DB_HOST: str = Field(default="postgres")
-    DB_PORT: int = Field(default=5432)
+    """Application settings loaded from environment variables.
 
-    # Redis
-    REDIS_HOST: str = Field(default="redis")
-    REDIS_PORT: int = Field(default=6379)
-    REDIS_PASSWORD: str | None = Field(default=None)
+    All sensitive values (passwords, secrets) must be provided via environment
+    variables or .env file. No default values are provided for security.
+    """
 
-    # Google Cloud
-    GOOGLE_APPLICATION_CREDENTIALS: str | None = Field(default=None)
-    GOOGLE_PROJECT_ID: str | None = Field(default=None)
+    # Database - PostgreSQL connection settings
+    DB_USER: str = Field(default="translator_admin", description="Database username")
+    DB_PASSWORD: str = Field(description="Database password (required)")
+    DB_NAME: str = Field(default="call_translator", description="Database name")
+    DB_HOST: str = Field(default="localhost", description="Database host")
+    DB_PORT: int = Field(default=5432, description="Database port")
 
-    # Vertex AI region (for Gemini context resolution)
-    VERTEX_AI_LOCATION: str = Field(default="us-central1")
+    # Redis - Cache and message broker settings
+    REDIS_HOST: str = Field(default="localhost", description="Redis host")
+    REDIS_PORT: int = Field(default=6379, description="Redis port")
+    REDIS_PASSWORD: str | None = Field(default=None, description="Redis password")
 
-    # App
-    API_HOST: str = Field(default="0.0.0.0")
-    API_PORT: int = Field(default=8000)
-    # Public host for WebSocket URLs (use actual IP/hostname clients can reach)
-    # Set via API_PUBLIC_HOST env var when API_HOST is 0.0.0.0
-    API_PUBLIC_HOST: str | None = Field(default=None)
-    DEBUG: bool = Field(default=True)
-    JWT_SECRET_KEY: str = Field(default="supersecret")
-    JWT_ALGORITHM: str = Field(default="HS256")
-    JWT_EXP_DAYS: int = Field(default=7)
+    # Google Cloud Platform - AI services configuration
+    GOOGLE_APPLICATION_CREDENTIALS: str | None = Field(
+        default=None,
+        description="Path to GCP service account JSON file"
+    )
+    GOOGLE_PROJECT_ID: str | None = Field(
+        default=None,
+        description="GCP project ID for Speech/Translation/TTS APIs"
+    )
+
+    # Vertex AI - Region for Gemini context resolution
+    VERTEX_AI_LOCATION: str = Field(
+        default="us-central1",
+        description="GCP region for Vertex AI services"
+    )
+
+    # Application server settings
+    API_HOST: str = Field(default="0.0.0.0", description="API bind address")
+    API_PORT: int = Field(default=8000, description="API port")
+    API_PUBLIC_HOST: str | None = Field(
+        default=None,
+        description="Public hostname for WebSocket URLs (when API_HOST is 0.0.0.0)"
+    )
+    DEBUG: bool = Field(default=False, description="Enable debug mode")
+
+    # JWT Authentication - MUST be set via environment variable
+    JWT_SECRET_KEY: str = Field(description="Secret key for JWT signing (required)")
+    JWT_ALGORITHM: str = Field(default="HS256", description="JWT signing algorithm")
+    JWT_EXP_DAYS: int = Field(default=7, description="JWT token expiration in days")
     
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = Field(default=["http://localhost", "http://localhost:3000", "http://127.0.0.1", "http://127.0.0.1:3000"])

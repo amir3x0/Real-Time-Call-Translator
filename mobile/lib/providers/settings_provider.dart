@@ -1,7 +1,18 @@
+/// Settings Provider - App preferences and theme management.
+///
+/// Manages user preferences:
+/// - Theme mode (light/dark) with local persistence and server sync
+/// - App language setting
+///
+/// Theme is persisted locally for instant startup and synced to server
+/// for cross-device consistency.
+library;
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/services/auth_service.dart';
 
+/// Provider for app settings and theme management.
 class SettingsProvider with ChangeNotifier {
   static const String _themeKey = 'theme_mode';
 

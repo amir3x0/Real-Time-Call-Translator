@@ -1,3 +1,13 @@
+"""Real-Time Communication Service - Audio stream publishing.
+
+Handles publishing audio chunks to Redis Streams for worker processing.
+This is the bridge between WebSocket audio reception and the
+translation pipeline worker.
+
+Architecture:
+    Mobile App -> WebSocket -> Orchestrator -> rtc_service -> Redis Stream -> Worker
+"""
+
 from typing import Any
 from app.config.redis import get_redis
 

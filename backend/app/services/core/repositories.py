@@ -178,9 +178,7 @@ class CallRepository:
                 )
 
         except Exception as e:
-            logger.error(f"Error getting target languages: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error getting target languages")
 
         return target_langs_map
 

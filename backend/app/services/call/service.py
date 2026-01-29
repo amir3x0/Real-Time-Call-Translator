@@ -6,7 +6,7 @@ Main service class for call operations:
 - Call state management (accept, reject, end)
 - Mark call status changes
 """
-from datetime import datetime, UTC
+from datetime import datetime
 from typing import List, Tuple
 import logging
 

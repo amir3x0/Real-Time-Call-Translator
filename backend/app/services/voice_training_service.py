@@ -10,7 +10,7 @@ This service handles:
 import os
 import asyncio
 from typing import Dict, Any, Optional, List
-from datetime import datetime, UTC
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -18,7 +18,6 @@ from sqlalchemy import select
 from app.models.database import AsyncSessionLocal
 from app.models.voice_recording import VoiceRecording
 from app.models.user import User
-from app.config.settings import settings
 
 
 class VoiceTrainingService:

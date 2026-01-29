@@ -1,6 +1,10 @@
+/// Transcription Entry Model - Chat history entry for call transcriptions.
+///
+/// Stores translated messages displayed in the call chat view.
+/// Each entry contains both original and translated text.
+library;
+
 /// TranscriptionEntry model for storing transcription history.
-/// 
-/// Each entry represents a single translated message from a participant.
 class TranscriptionEntry {
   final String participantId;
   final String participantName;

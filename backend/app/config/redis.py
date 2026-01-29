@@ -1,3 +1,16 @@
+"""Redis connection management.
+
+Provides async Redis client for caching, session management,
+and real-time audio stream queuing via Redis Streams.
+
+Usage:
+    redis = await get_redis()
+    await redis.set("key", "value")
+
+    # Clean shutdown
+    await close_redis()
+"""
+
 from typing import Optional
 import redis.asyncio as redis
 from app.config.settings import settings

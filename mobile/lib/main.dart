@@ -1,3 +1,16 @@
+/// Real-Time Call Translator - Mobile Application Entry Point
+///
+/// This is the main entry point for the Flutter application.
+/// It initializes:
+/// - App configuration (backend server settings)
+/// - Theme preferences
+/// - Service instances (Auth, Contact, Call APIs, WebSocket)
+/// - Provider-based state management
+///
+/// The app supports real-time multilingual call translation between
+/// Hebrew, English, and Russian speakers.
+library;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';

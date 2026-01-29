@@ -1,9 +1,20 @@
+/// Base API Service - Common HTTP request handling for all API services.
+///
+/// Provides reusable HTTP methods (GET, POST, PATCH, DELETE) with:
+/// - Automatic token injection from SharedPreferences
+/// - JSON encoding/decoding
+/// - Server health check utilities
+/// - Token validation helpers
+///
+/// All API service classes (AuthService, CallApiService, etc.) extend this.
+library;
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_config.dart';
 
-/// Base class for API services handling common HTTP logic
+/// Base class for API services handling common HTTP logic.
 abstract class BaseApiService {
   /// Test connection to a server by calling the /health endpoint.
   /// Returns true if the server responds with 200 OK.
