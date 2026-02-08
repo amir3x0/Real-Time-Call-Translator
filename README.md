@@ -1,3 +1,5 @@
+
+https://github.com/user-attachments/assets/7a24bf44-dcc5-40c2-a1ea-a642ae8fd872
 <p align="center">
   <img src="mobile/assets/images/app_logo.png" alt="Real-Time Call Translator" width="120" height="120">
 </p>
@@ -44,7 +46,9 @@
 </p>
 
 <p align="center">
-  <em>Demo video will be added here</em>
+  <em>
+
+Uploading WhatsApp Video 2026-02-08 at 19.55.42.mp4…</em>
 </p>
 
 ---
