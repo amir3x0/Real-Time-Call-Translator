@@ -1,4 +1,3 @@
-
 <p align="center">
   <img src="mobile/assets/images/app_logo.png" alt="Real-Time Call Translator" width="120" height="120">
 </p>
@@ -41,13 +40,12 @@
 -->
 
 <p align="center">
-  
-
-https://github.com/user-attachments/assets/cc71853f-7f95-40a7-8d17-c72d5d09fbc8
-
-
+  <img src="https://via.placeholder.com/800x450/1a1a2e/ffffff?text=Demo+Video+Coming+Soon" alt="Demo Video Placeholder" width="800">
 </p>
 
+<p align="center">
+  <em>Demo video will be added here</em>
+</p>
 
 ---
 
