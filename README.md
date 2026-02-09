@@ -23,28 +23,16 @@
 
 ---
 
-## Demo
-
-<!--
-  VIDEO PLACEHOLDER
-  Replace the image below with your demo video:
-
-  Option 1 - YouTube embed (recommended):
-  [![Demo Video](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
-
-  Option 2 - Direct video link:
-  https://github.com/user-attachments/assets/YOUR_VIDEO_ID
-
-  Option 3 - GIF:
-  ![Demo](path/to/demo.gif)
--->
 
 <p align="center">
-  <img src="https://via.placeholder.com/800x450/1a1a2e/ffffff?text=Demo+Video+Coming+Soon" alt="Demo Video Placeholder" width="800">
+  
+
+https://github.com/user-attachments/assets/f7ddb461-032e-4417-83d9-7a715f091743
+
 </p>
 
 <p align="center">
-  <em>Demo video will be added here</em>
+  <em>Demo video</em>
 </p>
 
 ---
